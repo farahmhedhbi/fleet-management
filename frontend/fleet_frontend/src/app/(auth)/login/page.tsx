@@ -1,4 +1,3 @@
-// app/login/page.tsx
 'use client'
 
 import { useState, FormEvent } from 'react'
@@ -9,8 +8,8 @@ import { Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from '@/contexts/authContext'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@fleet.com') // Valeur par défaut pour test
-  const [password, setPassword] = useState('admin123') // Valeur par défaut pour test
+  const [email, setEmail] = useState('admin@fleet.com')
+  const [password, setPassword] = useState('admin123')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -19,7 +18,6 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     
-    // Validation basique
     if (!email || !password) {
       toast.error('Please fill in all fields')
       return
@@ -121,8 +119,9 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* CORRECTION ICI : Remplacer le <p> qui contient un <div> */}
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <p className="text-sm text-gray-500 text-center">
+            <div className="text-sm text-gray-500 text-center">
               <span className="font-semibold block mb-2">Test accounts:</span>
               
               <div className="space-y-1">
@@ -148,10 +147,10 @@ export default function LoginPage() {
                 </div>
               </div>
               
-              <p className="mt-4 text-xs">
+              <div className="mt-4 text-xs">
                 These accounts are created automatically when the backend starts.
-              </p>
-            </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

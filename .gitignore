@@ -1,0 +1,10 @@
+frontend/fleet_frontend/node_modules/
+frontend/fleet_frontend/.next/
+frontend/fleet_frontend/dist/
+frontend/fleet_frontend/out/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -3,50 +3,18 @@ import { Driver, DriverDTO } from '@/types/driver'
 
 export const driverService = {
   async getAll(): Promise<Driver[]> {
-    console.log('📞 Fetching drivers from API...')
     try {
-      // IMPORTANT: Utilisez '/api/drivers' car baseURL est http://localhost:8080
       const response = await api.get<Driver[]>('/api/drivers')
-      console.log(`✅ Successfully fetched ${response.data?.length || 0} drivers`)
-      return response.data
+      return response
     } catch (error: any) {
       console.error('❌ Failed to fetch drivers:', error)
-      
-      // Log détaillé de l'erreur
-      if (error.status === 403) {
-        console.error('Access forbidden. Possible reasons:')
-        console.error('1. User does not have ADMIN or OWNER role')
-        console.error('2. Token is invalid or expired')
-        console.error('3. CORS configuration issue')
-        
-        // Vérifier le token actuel
-        const token = localStorage.getItem('token')
-        if (token) {
-          try {
-            const base64Url = token.split('.')[1]
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-            const jsonPayload = decodeURIComponent(
-              atob(base64)
-                .split('')
-                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                .join('')
-            )
-            const decoded = JSON.parse(jsonPayload)
-            console.log('Current user role from token:', decoded.role)
-          } catch (e) {
-            console.error('Cannot decode token')
-          }
-        }
-      }
-      
       throw error
     }
   },
 
   async getById(id: number): Promise<Driver> {
     try {
-      const response = await api.get<Driver>(`/api/drivers/${id}`)
-      return response.data
+      return await api.get<Driver>(`/api/drivers/${id}`)
     } catch (error: any) {
       console.error(`❌ Failed to fetch driver ${id}:`, error)
       throw error
@@ -54,21 +22,35 @@ export const driverService = {
   },
 
   async create(driverData: DriverDTO): Promise<Driver> {
-    console.log('📝 Creating new driver:', driverData)
+    console.log('📝 Creating new driver with data:', driverData)
+    
+    // S'assurer que le statut est bien défini
+    if (!driverData.status) {
+      driverData.status = 'ACTIVE'
+    }
+    
+    // Formater la date d'expiration si elle existe
+    if (driverData.licenseExpiry) {
+      // S'assurer que c'est une string ISO
+      if (typeof driverData.licenseExpiry !== 'string') {
+        driverData.licenseExpiry = new Date(driverData.licenseExpiry).toISOString()
+      }
+    }
+    
     try {
       const response = await api.post<Driver>('/api/drivers', driverData)
-      console.log('✅ Driver created successfully:', response.data)
-      return response.data
+      console.log('✅ Driver created successfully:', response)
+      return response
     } catch (error: any) {
       console.error('❌ Failed to create driver:', error)
+      console.error('Error details:', error.data)
       throw error
     }
   },
 
   async update(id: number, driverData: DriverDTO): Promise<Driver> {
     try {
-      const response = await api.put<Driver>(`/api/drivers/${id}`, driverData)
-      return response.data
+      return await api.put<Driver>(`/api/drivers/${id}`, driverData)
     } catch (error: any) {
       console.error(`❌ Failed to update driver ${id}:`, error)
       throw error
@@ -76,32 +58,11 @@ export const driverService = {
   },
 
   async delete(id: number): Promise<void> {
-    console.log(`🗑️ Deleting driver with id: ${id}`)
     try {
       await api.delete(`/api/drivers/${id}`)
-      console.log('✅ Driver deleted successfully')
     } catch (error: any) {
       console.error(`❌ Failed to delete driver ${id}:`, error)
       throw error
-    }
-  },
-
-  // Méthode utilitaire pour tester l'accès
-  async testAccess(): Promise<{ hasAccess: boolean; message: string }> {
-    try {
-      await this.getAll()
-      return { hasAccess: true, message: 'Access granted' }
-    } catch (error: any) {
-      if (error.status === 403) {
-        return { 
-          hasAccess: false, 
-          message: 'Access forbidden. You need ADMIN or OWNER role.' 
-        }
-      }
-      return { 
-        hasAccess: false, 
-        message: `Error: ${error.message || 'Unknown error'}` 
-      }
     }
   }
 }

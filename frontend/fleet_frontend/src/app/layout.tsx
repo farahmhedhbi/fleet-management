@@ -1,14 +1,15 @@
-import './globals.css'
+import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { AuthProvider } from '@/contexts/authContext' // Changé de authContext à AuthContext
+import './globals.css'
+import { AuthProvider } from '@/contexts/authContext'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata = {
-  title: 'Fleet Management System',
-  description: 'Modern fleet management system',
+export const metadata: Metadata = {
+  title: 'Fleet Management',
+  description: 'Fleet management application',
 }
 
 export default function RootLayout({
@@ -21,16 +22,17 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           {children}
-          <ToastContainer
+          <ToastContainer 
             position="top-right"
             autoClose={3000}
             hideProgressBar={false}
-            newestOnTop
+            newestOnTop={false}
             closeOnClick
             rtl={false}
             pauseOnFocusLoss
             draggable
             pauseOnHover
+            theme="light"
           />
         </AuthProvider>
       </body>

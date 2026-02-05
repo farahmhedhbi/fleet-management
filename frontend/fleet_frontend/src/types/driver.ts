@@ -7,7 +7,7 @@ export interface Driver {
   email: string
   phone?: string
   licenseNumber: string
-  licenseExpiry?: string
+  licenseExpiry?: string  // ISO string
   ecoScore?: number
   status: DriverStatus
   createdAt: string
@@ -21,7 +21,7 @@ export interface DriverDTO {
   email: string
   phone?: string
   licenseNumber: string
-  licenseExpiry?: string
+  licenseExpiry?: string  // ISO string
   ecoScore?: number
   status?: DriverStatus
 }
