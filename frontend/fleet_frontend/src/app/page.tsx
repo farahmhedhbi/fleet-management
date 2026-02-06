@@ -1,238 +1,883 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import { Car, Shield, Users, Clock, MapPin, CheckCircle, ArrowRight } from 'lucide-react'
+"use client";
 
-export default function HomePage() {
-  const features = [
-    {
-      icon: <Shield className="w-8 h-8" />,
-      title: "Security & Compliance",
-      description: "Enterprise-grade security with full compliance tracking"
-    },
-    {
-      icon: <Users className="w-8 h-8" />,
-      title: "Driver Management",
-      description: "Complete driver profiles with license and performance tracking"
-    },
-    {
-      icon: <Car className="w-8 h-8" />,
-      title: "Vehicle Fleet",
-      description: "Manage your entire vehicle fleet with maintenance scheduling"
-    },
-    {
-      icon: <Clock className="w-8 h-8" />,
-      title: "Real-time Tracking",
-      description: "Live GPS tracking and route optimization"
-    },
-    {
-      icon: <MapPin className="w-8 h-8" />,
-      title: "Route Planning",
-      description: "Intelligent route planning and dispatch management"
-    },
-    {
-      icon: <CheckCircle className="w-8 h-8" />,
-      title: "Maintenance Alerts",
-      description: "Automated maintenance alerts and service scheduling"
-    }
-  ]
+import Link from "next/link";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  motion,
+  AnimatePresence,
+  useReducedMotion,
+} from "framer-motion";
 
-  const stats = [
-    { value: "99%", label: "Uptime" },
-    { value: "24/7", label: "Support" },
-    { value: "1000+", label: "Vehicles Managed" },
-    { value: "50+", label: "Companies Trust Us" }
-  ]
+/* -------------------------------- utils -------------------------------- */
+function cn(...classes: (string | false | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+/* ---------------------------- ui primitives ----------------------------- */
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.span
+      whileHover={{ scale: 1.04, y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur transition-all hover:shadow-md"
+    >
+      <span className="h-2 w-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" />
+      {children}
+    </motion.span>
+  );
+}
+
+function PrimaryButton({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href}>
+      <motion.div
+        whileHover={{ y: -4 }}
+        whileTap={{ y: 0 }}
+        className="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl bg-slate-900 px-7 py-3.5 text-base font-semibold text-white shadow-[0_10px_30px_rgba(15,23,42,0.15)] transition-all duration-300 hover:shadow-[0_20px_40px_rgba(15,23,42,0.25)] focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+      >
+        <span className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-r from-emerald-500 to-sky-500" />
+        <span className="relative z-10">{children}</span>
+        <motion.span
+          className="relative z-10"
+          animate={{ x: [0, 5, 0] }}
+          transition={{ repeat: Infinity, duration: 2, delay: 1 }}
+        >
+          →
+        </motion.span>
+      </motion.div>
+    </Link>
+  );
+}
+
+function SecondaryButton({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href}>
+      <motion.div
+        whileHover={{ y: -4 }}
+        whileTap={{ y: 0 }}
+        className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-900 shadow-sm transition-all duration-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+      >
+        {children}
+      </motion.div>
+    </Link>
+  );
+}
+
+function GradientIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      whileHover={{ rotate: 360 }}
+      transition={{ duration: 0.6 }}
+      className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-sky-500 to-emerald-500 text-white shadow-sm"
+    >
+      <span className="text-xl">{children}</span>
+    </motion.div>
+  );
+}
+
+/* ---------------------------- Reveal wrapper ---------------------------- */
+function Reveal({
+  children,
+  delay = 0,
+  className,
+  duration = 0.7,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+  duration?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration, delay, ease: "easeOut" }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ---------------------------- 3d hover card ----------------------------- */
+function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({});
+
+  function onMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    const tiltX = (y - 0.5) * -10;
+    const tiltY = (x - 0.5) * 12;
+
+    setStyle({
+      transform: `perspective(1100px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.015)`,
+      boxShadow: `0 40px 90px -25px rgba(15, 23, 42, 0.18)`,
+    });
+  }
+
+  function onLeave() {
+    setStyle({
+      transform: "perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1)",
+      boxShadow: "0 12px 45px -18px rgba(15, 23, 42, 0.10)",
+    });
+  }
 
   return (
-    <div className="min-h-screen">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <Car className="h-8 w-8 text-blue-600" />
-                <span className="ml-2 text-xl font-bold text-gray-900">Fleet Management</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/login"
-                className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/register"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-              >
-                Get Started
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      className={cn(
+        "relative rounded-[34px] border border-slate-200/70 bg-white/85 p-7 shadow-xl backdrop-blur-sm transition-all duration-300",
+        className
+      )}
+      style={style}
+    >
+      <div className="pointer-events-none absolute -inset-10 -z-10 rounded-[48px] bg-gradient-to-br from-sky-100/70 via-white/80 to-emerald-100/70 blur-3xl opacity-80" />
+      <div className="pointer-events-none absolute -inset-2 -z-10 rounded-[48px] bg-gradient-to-br from-sky-500/10 via-transparent to-emerald-500/10" />
+      {children}
+    </div>
+  );
+}
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Modern Fleet Management
-              <br />
-              <span className="text-blue-200">Made Simple</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-              Streamline your fleet operations with our comprehensive management platform.
-              Track drivers, manage vehicles, and optimize routes all in one place.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/register"
-                className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-3 rounded-lg text-lg font-semibold transition flex items-center justify-center"
-              >
-                Start Free Trial
-                <ArrowRight className="ml-2" size={20} />
-              </Link>
-              <Link
-                href="/login"
-                className="bg-transparent border-2 border-white hover:bg-white/10 px-8 py-3 rounded-lg text-lg font-semibold transition"
-              >
-                Demo Login
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+/* ---------------------------- Animated Counter (FIX) ---------------------------- */
+function AnimatedCounter({
+  value,
+  suffix = "",
+}: {
+  value: number;
+  suffix?: string;
+}) {
+  const [count, setCount] = useState(0);
+  const prefersReduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [started, setStarted] = useState(false);
 
-      {/* Stats Section */}
-      <section className="bg-gray-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-gray-900">{stat.value}</div>
-                <div className="text-gray-600 mt-2">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
-      {/* Features Section */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need to Manage Your Fleet
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              From driver management to vehicle maintenance, our platform provides all the tools
-              you need to run an efficient and profitable fleet operation.
-            </p>
-          </div>
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setStarted(true);
+      },
+      { threshold: 0.35 }
+    );
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition"
-              >
-                <div className="text-blue-600 mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-gray-600">
-                  {feature.description}
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!started) return;
+    if (prefersReduced) {
+      setCount(value);
+      return;
+    }
+
+    const start = performance.now();
+    const duration = 1200;
+
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setCount(Math.round(eased * value));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [started, value, prefersReduced]);
+
+  return (
+    <div ref={ref} className="tabular-nums">
+      <span className="text-5xl font-extrabold tracking-tight text-slate-900">
+        {count.toLocaleString()}
+        {suffix}
+      </span>
+    </div>
+  );
+}
+
+/* ------------------------------ Premium Slider ------------------------------ */
+type Slide = { src: string; title: string; subtitle: string };
+function ShowcaseSlider({ slides }: { slides: Slide[] }) {
+  const [i, setI] = useState(0);
+  const prefersReduced = useReducedMotion();
+
+  useEffect(() => {
+    if (prefersReduced) return;
+    const t = window.setInterval(() => {
+      setI((v) => (v + 1) % slides.length);
+    }, 4500);
+    return () => window.clearInterval(t);
+  }, [slides.length, prefersReduced]);
+
+  const current = slides[i];
+
+  return (
+    <div className="relative overflow-hidden rounded-[34px] border border-slate-200/70 bg-white/80 shadow-xl backdrop-blur-sm">
+      <div className="relative h-[340px] w-full sm:h-[460px]">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={current.src}
+            initial={{ opacity: 0, scale: 1.02 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.995 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={current.src}
+              alt={current.title}
+              fill
+              priority={i === 0}
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/25 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+              <div className="max-w-2xl rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-sm backdrop-blur">
+                <p className="text-sm font-semibold text-slate-600">{current.subtitle}</p>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                  {current.title}
                 </p>
               </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Controls */}
+      <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-between px-4">
+        <button
+          onClick={() => setI((v) => (v - 1 + slides.length) % slides.length)}
+          className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-base font-semibold text-slate-900 shadow-sm backdrop-blur transition hover:bg-white"
+          aria-label="Prev"
+        >
+          ←
+        </button>
+        <button
+          onClick={() => setI((v) => (v + 1) % slides.length)}
+          className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-base font-semibold text-slate-900 shadow-sm backdrop-blur transition hover:bg-white"
+          aria-label="Next"
+        >
+          →
+        </button>
+      </div>
+
+      {/* Dots */}
+      <div className="flex items-center justify-center gap-2 border-t border-slate-200/70 bg-white/70 p-3">
+        {slides.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setI(idx)}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full transition",
+              idx === i ? "bg-slate-900" : "bg-slate-300 hover:bg-slate-400"
+            )}
+            aria-label={`Go ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------- data -------------------------------- */
+const FEATURES = [
+  {
+    icon: "🧠",
+    title: "Optimisation intelligente",
+    desc: "Tournées, affectations, itinéraires : réduisez km, temps et coûts via recommandations data-driven.",
+    tag: "IA",
+    gradient: "from-purple-500 to-pink-500",
+  },
+  {
+    icon: "🔮",
+    title: "Prédiction & maintenance",
+    desc: "Prévenez les immobilisations : score risque, échéances, alertes et planification atelier.",
+    tag: "Forecast",
+    gradient: "from-blue-500 to-cyan-500",
+  },
+  {
+    icon: "📍",
+    title: "Suivi & conformité",
+    desc: "Documents, incidents, règles, audits : une vue claire pour rester conforme et sécurisé.",
+    tag: "Ops",
+    gradient: "from-emerald-500 to-green-500",
+  },
+  {
+    icon: "📊",
+    title: "KPI & ROI",
+    desc: "Coût/km, carburant, disponibilité, CO₂ : pilotez par objectifs avec reporting simple.",
+    tag: "Analytics",
+    gradient: "from-orange-500 to-red-500",
+  },
+];
+
+const USECASES = [
+  { title: "Logistique & livraison", desc: "Optimiser les tournées, réduire les retards, contrôler les coûts carburant.", icon: "🚚", gradient: "from-blue-500 to-indigo-600" },
+  { title: "Location & parc auto", desc: "Disponibilité, maintenance planifiée, gestion sinistres et documents.", icon: "🚗", gradient: "from-emerald-500 to-teal-600" },
+  { title: "Taxi / VTC", desc: "Suivi qualité, performance conducteur, missions et zones à forte demande.", icon: "🚕", gradient: "from-yellow-500 to-amber-600" },
+  { title: "Bus & transport", desc: "Planification, conformité, entretien, incidents et sécurité.", icon: "🚌", gradient: "from-purple-500 to-pink-600" },
+];
+
+const STATS = [
+  { label: "Km optimisés", value: 2500000, suffix: "+" },
+  { label: "Coûts réduits", value: 42, suffix: "%" },
+  { label: "Flottes actives", value: 150, suffix: "+" },
+  { label: "Satisfaction", value: 98, suffix: "%" },
+];
+
+/* -------------------------------- sections ------------------------------ */
+function SectionTitle({
+  eyebrow,
+  title,
+  subtitle,
+  right,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <motion.p
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          className="text-base font-semibold text-slate-600"
+        >
+          {eyebrow}
+        </motion.p>
+        <motion.h2
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-3 bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl"
+        >
+          {title}
+        </motion.h2>
+        {subtitle ? (
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.15 }}
+            className="mt-4 max-w-2xl text-lg leading-relaxed text-slate-600"
+          >
+            {subtitle}
+          </motion.p>
+        ) : null}
+      </div>
+      {right ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+          className="mt-4 sm:mt-0"
+        >
+          {right}
+        </motion.div>
+      ) : null}
+    </div>
+  );
+}
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      className="overflow-hidden rounded-3xl border border-slate-200 bg-white/85 shadow-sm backdrop-blur transition-all hover:shadow-md"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between p-6 text-left"
+      >
+        <p className="text-lg font-semibold text-slate-900">{q}</p>
+        <motion.span
+          animate={{ rotate: open ? 45 : 0 }}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-700"
+        >
+          +
+        </motion.span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="px-6 pb-6 pt-2">
+              <p className="text-base leading-relaxed text-slate-600">{a}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/* -------------------------------- page --------------------------------- */
+export default function Home() {
+  const [active, setActive] = useState<string>("home");
+  const prefersReduced = useReducedMotion();
+
+  // scrollspy
+  useEffect(() => {
+    const ids = ["home", "showcase", "stats", "features", "usecases", "how", "faq"];
+    const els = ids.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0))[0];
+        if (visible?.target?.id) setActive(visible.target.id);
+      },
+      { threshold: [0.12, 0.2, 0.3], rootMargin: "-25% 0px -60% 0px" }
+    );
+
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const nav = useMemo(
+    () => [
+      { id: "showcase", label: "Aperçu" },
+      { id: "features", label: "Fonctionnalités" },
+      { id: "usecases", label: "Cas d'usage" },
+      { id: "stats", label: "Impact" },
+      { id: "faq", label: "FAQ" },
+    ],
+    []
+  );
+
+  const slides: Slide[] = useMemo(
+    () => [
+      { src: "/showcase/1.jpg", subtitle: "Plateforme", title: "Vue globale : coûts, CO₂, alertes, disponibilité" },
+      { src: "/showcase/2.jpg", subtitle: "Optimisation", title: "Tournées optimisées et réduction des kilomètres" },
+      { src: "/showcase/3.jpg", subtitle: "Maintenance", title: "Prédiction des pannes et priorisation atelier" },
+      { src: "/showcase/4.jpg", subtitle: "Cartographie", title: "Missions & zones avec tracking GPS / maps" },
+    ],
+    []
+  );
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      {/* Background (lighter + perf friendly) */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_800px_at_15%_10%,rgba(56,189,248,0.14),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(1000px_800px_at_80%_90%,rgba(16,185,129,0.12),transparent_60%)]" />
+        <div className="absolute inset-0 opacity-25 bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:70px_70px]" />
+      </div>
+
+      {/* Particles reduced + respects reduced motion */}
+      {!prefersReduced ? (
+        <div className="fixed inset-0 -z-10 overflow-hidden">
+          {[...Array(10)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute h-1.5 w-1.5 rounded-full bg-sky-400/25"
+              animate={{ y: [0, -110], x: [0, Math.sin(i) * 40] }}
+              transition={{ duration: 18 + i * 2, repeat: Infinity, delay: i * 0.6 }}
+              style={{ left: `${(i * 9) % 100}%`, top: `${(i * 13) % 100}%` }}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Header (cleaner) */}
+      <header className="fixed top-0 z-50 w-full border-b border-slate-200/50 bg-white/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="#home" className="flex items-center gap-3">
+            <motion.div
+              whileHover={{ rotate: 360 }}
+              transition={{ duration: 0.6 }}
+              className="relative grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-lg"
+            >
+              <span className="text-lg">⚡</span>
+              <span className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-emerald-400" />
+            </motion.div>
+            <div className="leading-tight">
+              <p className="text-base font-extrabold tracking-tight">FleetIQ</p>
+              <p className="text-sm text-slate-600">Optimisation & Prédiction — Flottes</p>
+            </div>
+          </Link>
+
+          <nav className="hidden items-center gap-1 rounded-full border border-slate-200/50 bg-white/70 p-1 shadow-lg backdrop-blur-md md:flex">
+            {nav.map((n) => (
+              <Link key={n.id} href={`#${n.id}`}>
+                <motion.div
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={cn(
+                    "rounded-full px-4 py-2.5 text-base font-semibold transition-all",
+                    active === n.id
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-700 hover:bg-slate-100/60"
+                  )}
+                >
+                  {n.label}
+                </motion.div>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <Link href="/login" className="hidden md:inline-flex">
+              <motion.div
+                whileHover={{ y: -2 }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-base font-semibold text-slate-900 shadow-sm transition-all hover:shadow-md"
+              >
+                Connexion
+              </motion.div>
+            </Link>
+            <Link href="/register" className="hidden md:inline-flex">
+              <motion.div
+                whileHover={{ y: -2 }}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-base font-semibold text-slate-900 shadow-sm transition-all hover:shadow-md"
+              >
+                Register
+              </motion.div>
+            </Link>
+            
+          </div>
+        </div>
+      </header>
+
+      <main className="pt-20">
+        {/* HERO */}
+        <section id="home" className="mx-auto max-w-7xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+            <div className="lg:col-span-6">
+          
+
+              <Reveal delay={0.12}>
+                  <h1 className="mt-6 text-5xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+                  <span className="block">Optimisez votre flotte</span>
+                   </h1>
+              </Reveal>
+
+
+              <Reveal delay={0.18}>
+                <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-600 sm:text-xl">
+                  Réduisez vos coûts, améliorez la disponibilité et anticipez la maintenance
+                  grâce à une plateforme moderne de gestion de flotte.
+                </p>
+              </Reveal>
+
+              <Reveal delay={0.24} className="mt-9 flex flex-wrap items-center gap-4">
+                <PrimaryButton href="/demo">Démarrer</PrimaryButton>
+                <SecondaryButton href="#showcase">Voir l’aperçu</SecondaryButton>
+              </Reveal>
+
+              <Reveal delay={0.3} className="mt-10">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  {["-30% coûts", "+25% productivité", "Conformité", "ROI rapide"].map((t, i) => (
+                    <motion.div
+                      key={t}
+                      initial={{ opacity: 0, y: 12 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.35 + i * 0.06 }}
+                      className="flex items-center gap-2"
+                    >
+                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span className="text-sm font-semibold text-slate-700">{t}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </Reveal>
+            </div>
+
+            <div className="lg:col-span-6">
+              <Reveal delay={0.18}>
+                <TiltCard className="overflow-hidden">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600">Plateforme intelligent</p>
+                      <p className="mt-2 text-2xl font-extrabold text-slate-900">
+                        Décisions rapides, impact mesurable
+                      </p>
+                      <p className="mt-2 text-base text-slate-600">
+                        Optimisation • Maintenance • KPI • Conformité
+                      </p>
+                    </div>
+                    <GradientIcon>🚘</GradientIcon>
+                  </div>
+
+                  <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6">
+                      <p className="text-sm font-semibold text-slate-600">Optimisation routes</p>
+                      <div className="mt-3">
+                        <AnimatedCounter value={27} suffix="%" />
+                      </div>
+                      <p className="mt-2 text-base text-slate-600">réduction des distances</p>
+                      <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          whileInView={{ width: "67%" }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.9, delay: 0.1 }}
+                          className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6">
+                      <p className="text-sm font-semibold text-slate-600">Maintenance prédictive</p>
+                      <div className="mt-3">
+                        <AnimatedCounter value={89} suffix="%" />
+                      </div>
+                      <p className="mt-2 text-base text-slate-600">pannes évitées</p>
+                      <div className="mt-5 flex gap-2">
+                        <span className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+                          Proactif
+                        </span>
+                        <span className="rounded-full bg-sky-100 px-4 py-2 text-sm font-semibold text-sky-700">
+                          Intelligent
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </TiltCard>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* SHOWCASE SLIDER */}
+        <section id="showcase" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal>
+            <SectionTitle
+              eyebrow="Aperçu"
+              title="Une interface claire et moderne"
+              subtitle=""
+            />
+          </Reveal>
+
+          <div className="mt-10">
+            <Reveal delay={0.1}>
+              <ShowcaseSlider slides={slides} />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* STATS */}
+        <section id="stats" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="rounded-[44px] border border-slate-200/60 bg-white/70 p-12 shadow-xl backdrop-blur">
+            <Reveal>
+              <div className="text-center">
+                <h3 className="text-3xl font-extrabold text-slate-900">Impact mesurable</h3>
+                <p className="mt-3 text-lg text-slate-600">Des résultats concrets pour vos opérations</p>
+              </div>
+            </Reveal>
+
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {STATS.map((s, idx) => (
+                <Reveal key={s.label} delay={idx * 0.06}>
+                  <div className="text-center">
+                    <AnimatedCounter value={s.value} suffix={s.suffix} />
+                    <p className="mt-3 text-lg font-semibold text-slate-700">{s.label}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FEATURES */}
+        <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal>
+            <SectionTitle
+              eyebrow="Fonctionnalités"
+              title="Une plateforme complète"
+              subtitle="Optimisez vos opérations, anticipez les pannes, et pilotez vos KPI."
+            />
+          </Reveal>
+
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.06}>
+                <motion.div
+                  whileHover={{ y: -8 }}
+                  className="group relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 p-8 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-2xl"
+                >
+                  <div className={cn("absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-5 bg-gradient-to-br", f.gradient)} />
+                  <div className="relative">
+                    <div className="flex items-start justify-between">
+                      <div className={cn("grid h-14 w-14 place-items-center rounded-2xl text-white shadow-lg bg-gradient-to-br", f.gradient)}>
+                        <span className="text-2xl">{f.icon}</span>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 backdrop-blur-sm">
+                        {f.tag}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-6 text-xl font-extrabold text-slate-900">{f.title}</h3>
+                    <p className="mt-3 text-base leading-relaxed text-slate-600">{f.desc}</p>
+
+                    <div className="mt-7 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-500">Découvrir</span>
+                      <motion.span
+                        animate={{ x: [0, 6, 0] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="text-lg"
+                      >
+                        →
+                      </motion.span>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reveal>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Transform Your Fleet Management?
-          </h2>
-          <p className="text-xl text-blue-100 mb-8">
-            Join hundreds of companies that trust our platform to manage their fleets.
-            Start your free trial today – no credit card required.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/register"
-              className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-3 rounded-lg text-lg font-semibold transition"
-            >
-              Get Started for Free
-            </Link>
-            <Link
-              href="/login"
-              className="bg-transparent border-2 border-white hover:bg-white/10 px-8 py-3 rounded-lg text-lg font-semibold transition"
-            >
-              Schedule a Demo
-            </Link>
-          </div>
-          <p className="mt-8 text-blue-200">
-            Already have an account?{' '}
-            <Link href="/login" className="text-white font-semibold hover:underline">
-              Sign in here
-            </Link>
-          </p>
-        </div>
-      </section>
+        {/* USECASES */}
+        <section id="usecases" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal>
+            <SectionTitle
+              eyebrow="Cas d'usage"
+              title="Adapté à votre secteur"
+              subtitle="Logistique, location, transport, VTC… des workflows adaptés."
+            />
+          </Reveal>
 
-      {/* Test Accounts Section */}
-      <section className="bg-gray-50 py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">
-            Want to Explore First?
-          </h3>
-          <p className="text-gray-600 mb-8">
-            Use these test accounts to experience the platform:
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="text-blue-600 font-semibold mb-2">Administrator</div>
-              <div className="text-gray-900">admin@fleet.com</div>
-              <div className="text-gray-500 text-sm">Password: admin123</div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="text-green-600 font-semibold mb-2">Fleet Owner</div>
-              <div className="text-gray-900">owner@fleet.com</div>
-              <div className="text-gray-500 text-sm">Password: owner123</div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="text-purple-600 font-semibold mb-2">Driver</div>
-              <div className="text-gray-900">driver@fleet.com</div>
-              <div className="text-gray-500 text-sm">Password: driver123</div>
-            </div>
+          <div className="mt-12 grid gap-6 lg:grid-cols-2">
+            {USECASES.map((u, i) => (
+              <Reveal key={u.title} delay={i * 0.06}>
+                <motion.div
+                  whileHover={{ y: -6, scale: 1.01 }}
+                  className="group relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 p-8 shadow-lg backdrop-blur-sm"
+                >
+                  <div className={cn("absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-5 bg-gradient-to-br", u.gradient)} />
+                  <div className="relative flex items-start gap-6">
+                    <div className={cn("grid h-16 w-16 place-items-center rounded-2xl text-white shadow-lg bg-gradient-to-br", u.gradient)}>
+                      <span className="text-3xl">{u.icon}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-extrabold text-slate-900">{u.title}</h3>
+                      <p className="mt-3 text-base leading-relaxed text-slate-600">{u.desc}</p>
+                      <div className="mt-6 flex flex-wrap gap-2">
+                        {["Optimisation", "Maintenance", "KPI", "Conformité"].map((t) => (
+                          <span key={t} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reveal>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* HOW */}
+        <section id="how" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal>
+            <SectionTitle
+              eyebrow="Fonctionnement"
+              title="Simple, rapide, efficace"
+              subtitle="Intégrez vos données et obtenez des recommandations en quelques minutes."
+            />
+          </Reveal>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-4">
+            {[
+              { n: "01", t: "Connecter", d: "API, CSV, GPS, historiques maintenance et carburant." },
+              { n: "02", t: "Analyser", d: "Qualité data, anomalies, règles et scoring." },
+              { n: "03", t: "Optimiser", d: "Recommandations tournées, coûts et ressources." },
+              { n: "04", t: "Suivre", d: "KPI & ROI, actions et amélioration continue." },
+            ].map((s, i) => (
+              <Reveal key={s.n} delay={i * 0.06}>
+                <div className="relative rounded-3xl border border-slate-200/60 bg-white/80 p-7 shadow-lg backdrop-blur">
+                  <div className="inline-flex rounded-2xl bg-slate-900 px-4 py-2 text-base font-extrabold text-white">
+                    {s.n}
+                  </div>
+                  <h3 className="mt-5 text-xl font-extrabold text-slate-900">{s.t}</h3>
+                  <p className="mt-3 text-base leading-relaxed text-slate-600">{s.d}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={0.18} className="mt-14">
+            <div className="relative overflow-hidden rounded-[44px] border border-slate-200/60 bg-gradient-to-br from-slate-900 to-slate-800 p-12 text-white shadow-2xl">
+              <div className="absolute -left-32 -top-32 h-64 w-64 rounded-full bg-sky-500/20 blur-3xl" />
+              <div className="absolute -right-32 -bottom-32 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+
+              <div className="relative z-10 grid gap-8 lg:grid-cols-2 lg:items-center">
+              
+                <div className="flex flex-wrap gap-4">
+                  <PrimaryButton href="/demo">Essayer maintenant</PrimaryButton>
+                  <Link href="/contact">
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15"
+                    >
+                      Nous contacter
+                    </motion.div>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq" className="mx-auto max-w-4xl px-4 py-20 sm:px-6 lg:px-8">
+          <Reveal>
+            <SectionTitle
+              eyebrow="Questions fréquentes"
+              title="Tout ce que vous devez savoir"
+              subtitle="Réponses rapides avant de lancer la démo."
+            />
+          </Reveal>
+
+          <div className="mt-12 space-y-4">
+            {[
+              { q: "Combien de temps pour déployer FleetIQ ?", a: "La plupart des équipes sont opérationnelles en 48h. Vous pouvez démarrer avec import CSV puis connecter GPS/API." },
+              { q: "Puis-je connecter mes systèmes existants ?", a: "Oui. API + connecteurs selon vos outils (GPS, ERP, cartes carburant, etc.)." },
+              { q: "La plateforme est-elle sécurisée ?", a: "Chiffrement, rôles/permissions, logs. Conformité RGPD selon votre hébergement et vos besoins." },
+              { q: "FleetIQ fonctionne-t-il à l’international ?", a: "Oui : multi-langue et configuration par pays (selon règles et données disponibles)." },
+            ].map((x, i) => (
+              <Reveal key={x.q} delay={i * 0.05}>
+                <FAQItem q={x.q} a={x.a} />
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      </main>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-6 md:mb-0">
-              <div className="flex items-center">
-                <Car className="h-8 w-8 text-blue-400" />
-                <span className="ml-2 text-2xl font-bold">Fleet Management</span>
-              </div>
-              <p className="text-gray-400 mt-2">
-                Modern fleet management for the digital age
-              </p>
-            </div>
-            <div className="text-gray-400">
-              <p>© {new Date().getFullYear()} Fleet Management System. All rights reserved.</p>
-              <p className="mt-2 text-sm">Built with Next.js 14 & Tailwind CSS</p>
-            </div>
+      <footer className="border-t border-slate-200/50 bg-white/70 backdrop-blur-sm">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+            <p className="text-base text-slate-600">© {new Date().getFullYear()} FleetIQ. Tous droits réservés.</p>
+            
           </div>
         </div>
       </footer>
     </div>
-  )
+  );
 }
