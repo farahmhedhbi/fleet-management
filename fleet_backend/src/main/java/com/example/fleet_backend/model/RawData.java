@@ -14,8 +14,9 @@ public class RawData {
     @Column(name="source_type", nullable = false)
     private String sourceType;
 
-    @Column(name="raw_content", nullable = false, columnDefinition = "jsonb")
+    @Column(name="raw_content", nullable = false, columnDefinition = "text")
     private String rawContent;
+
 
     @Column(name="imported_at", nullable = false)
     private LocalDateTime importedAt = LocalDateTime.now();
