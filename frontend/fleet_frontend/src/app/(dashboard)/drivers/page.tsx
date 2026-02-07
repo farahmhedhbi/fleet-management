@@ -6,50 +6,32 @@ import { driverService } from '@/lib/services/driverService'
 import { Driver } from '@/types/driver'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  User, 
-  Search, 
-  Filter, 
-  Download, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  Download,
   MoreVertical,
-  Calendar,
   Phone,
   Mail,
   Car,
-  MapPin,
-  Star,
-  TrendingUp,
   AlertCircle,
   CheckCircle,
   Clock,
-  Shield,
-  Sparkles,
   ChevronRight,
   Users,
-  BatteryCharging,
   X,
-  FileText,
   Eye,
-  Target,
   Award,
   Activity,
   Zap,
-  Crown,
-  TrendingDown,
   ShieldCheck,
   CarFront,
   Navigation,
-  Radio,
-  Wifi,
-  Smartphone,
-  Bluetooth,
   BarChart3,
   Settings,
   Bell,
-  Sun
 } from 'lucide-react'
 
 export default function DriversPage() {
@@ -62,9 +44,94 @@ export default function DriversPage() {
   const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null)
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
-  const { user, isAuthenticated } = useAuth()
+  const [exporting, setExporting] = useState(false)
+
+  const { isAuthenticated } = useAuth()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // ✅ Export PDF (table) - exporte la liste affichée (filteredDrivers)
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true)
+
+      const rows = filteredDrivers.length ? filteredDrivers : drivers
+      if (!rows.length) {
+        alert('Aucun conducteur à exporter.')
+        return
+      }
+
+      // import dynamique (évite problèmes SSR / build)
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+
+      const now = new Date()
+      const dateStr = now.toISOString().slice(0, 10)
+
+      // Header
+      doc.setFontSize(18)
+      doc.text('Liste des Conducteurs', 40, 50)
+
+      doc.setFontSize(10)
+      doc.text(`Exporté le: ${dateStr}`, 40, 70)
+      doc.text(`Total: ${rows.length}`, 40, 86)
+
+      // Table data
+      const head = [['ID', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Permis', 'Statut']]
+      const body = rows.map((d) => [
+        String(d.id ?? ''),
+        d.firstName ?? '',
+        d.lastName ?? '',
+        d.email ?? '',
+        d.phone ?? '',
+        d.licenseNumber ?? '',
+        d.status ?? '',
+      ])
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 110,
+        styles: {
+          fontSize: 9,
+          cellPadding: 6,
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          // (pas de couleur forcée pour rester simple)
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 45 },  // ID
+          1: { cellWidth: 90 },  // Prénom
+          2: { cellWidth: 90 },  // Nom
+          3: { cellWidth: 220 }, // Email
+          4: { cellWidth: 110 }, // Téléphone
+          5: { cellWidth: 110 }, // Permis
+          6: { cellWidth: 90 },  // Statut
+        },
+        didDrawPage: (data) => {
+          // Footer page
+          const pageCount = doc.getNumberOfPages()
+          doc.setFontSize(9)
+          doc.text(
+            `Page ${data.pageNumber} / ${pageCount}`,
+            doc.internal.pageSize.getWidth() - 90,
+            doc.internal.pageSize.getHeight() - 20
+          )
+        },
+      })
+
+      doc.save(`drivers_${dateStr}.pdf`)
+    } catch (e) {
+      console.error(e)
+      alert("Erreur lors de l'export PDF.")
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Effet de particules claires
   useEffect(() => {
@@ -78,7 +145,7 @@ export default function DriversPage() {
       const size = Math.random() * 4 + 2
       const colors = ['#60a5fa', '#a78bfa', '#38bdf8', '#34d399']
       const color = colors[Math.floor(Math.random() * colors.length)]
-      
+
       particle.className = 'particle absolute rounded-full'
       particle.style.cssText = `
         width: ${size}px;
@@ -91,14 +158,11 @@ export default function DriversPage() {
         animation-delay: ${Math.random() * 3}s;
         filter: blur(1px);
       `
-      
       container.appendChild(particle)
       particles.push(particle)
     }
 
-    return () => {
-      particles.forEach(p => p.remove())
-    }
+    return () => particles.forEach((p) => p.remove())
   }, [])
 
   useEffect(() => {
@@ -106,26 +170,26 @@ export default function DriversPage() {
       router.push('/login')
       return
     }
-
     fetchDrivers()
   }, [isAuthenticated, router])
 
   useEffect(() => {
     let results = drivers
-    
+
     if (searchQuery) {
-      results = results.filter(driver =>
-        driver.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.licenseNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+      results = results.filter(
+        (driver) =>
+          driver.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          driver.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          driver.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          driver.licenseNumber?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
-    
+
     if (activeFilter !== 'all') {
-      results = results.filter(driver => driver.status === activeFilter)
+      results = results.filter((driver) => driver.status === activeFilter)
     }
-    
+
     setFilteredDrivers(results)
   }, [drivers, searchQuery, activeFilter])
 
@@ -154,11 +218,15 @@ export default function DriversPage() {
   }
 
   const getDriverEfficiency = (driver: Driver) => {
-    switch(driver.status) {
-      case 'ACTIVE': return Math.floor(Math.random() * 30) + 70
-      case 'INACTIVE': return Math.floor(Math.random() * 40) + 30
-      case 'SUSPENDED': return Math.floor(Math.random() * 30)
-      default: return 50
+    switch (driver.status) {
+      case 'ACTIVE':
+        return Math.floor(Math.random() * 30) + 70
+      case 'INACTIVE':
+        return Math.floor(Math.random() * 40) + 30
+      case 'SUSPENDED':
+        return Math.floor(Math.random() * 30)
+      default:
+        return 50
     }
   }
 
@@ -169,11 +237,15 @@ export default function DriversPage() {
   }
 
   const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'ACTIVE': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      case 'INACTIVE': return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'SUSPENDED': return 'bg-rose-100 text-rose-800 border-rose-200'
-      default: return 'bg-slate-100 text-slate-800 border-slate-200'
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      case 'INACTIVE':
+        return 'bg-amber-100 text-amber-800 border-amber-200'
+      case 'SUSPENDED':
+        return 'bg-rose-100 text-rose-800 border-rose-200'
+      default:
+        return 'bg-slate-100 text-slate-800 border-slate-200'
     }
   }
 
@@ -212,41 +284,40 @@ export default function DriversPage() {
         </button>
       </div>
 
-      {/* Header avec effets spéciaux */}
+      {/* Header */}
       <div className="relative pt-16 pb-12 overflow-hidden">
-        {/* Effets de fond */}
         <div className="absolute inset-0 bg-gradient-to-b from-blue-100/30 via-transparent to-cyan-100/30"></div>
         <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-blue-200/20 rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-cyan-200/20 rounded-full blur-3xl"></div>
-        
+
         <div className="container mx-auto px-6 relative z-10">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12">
             <div className="flex-1">
-              
-              
               <h1 className="text-5xl lg:text-6xl font-bold mb-4 leading-tight">
                 <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent animate-gradient-text">
                   Conducteurs
                 </span>
-                <br />
-               
               </h1>
-              
+
               <p className="text-xl text-slate-600 max-w-2xl">
                 Supervisez et optimisez les performances de votre équipe de conducteurs professionnels
               </p>
             </div>
-            
+
             <div className="flex items-center gap-4">
-              <button className="hidden lg:flex items-center gap-2 px-5 py-3 bg-white border border-slate-300 rounded-xl hover:border-blue-400 hover:shadow-md transition-all group shadow-sm">
-                <Download className="h-5 w-5 text-slate-600 group-hover:text-blue-500" />
-                <span className="font-medium text-slate-700">Exporter</span>
-              </button>
-              
-              <Link
-                href="/drivers/new"
-                className="relative overflow-hidden group"
+              {/* ✅ Export PDF */}
+              <button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                className={`hidden lg:flex items-center gap-2 px-5 py-3 bg-white border border-slate-300 rounded-xl hover:border-blue-400 hover:shadow-md transition-all group shadow-sm ${
+                  exporting ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               >
+                <Download className="h-5 w-5 text-slate-600 group-hover:text-blue-500" />
+                <span className="font-medium text-slate-700">{exporting ? 'Export...' : 'Exporter PDF'}</span>
+              </button>
+
+              <Link href="/drivers/new" className="relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl blur-md opacity-70 group-hover:opacity-100 transition-opacity"></div>
                 <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-4 rounded-xl flex items-center gap-3 font-bold text-lg text-white shadow-lg hover:shadow-2xl transition-all duration-500 group-hover:scale-105">
                   <div className="relative">
@@ -259,17 +330,13 @@ export default function DriversPage() {
             </div>
           </div>
 
-          {/* Stats Cards Lumineuses */}
+          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-xl blur opacity-30"></div>
-                    <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 p-3 rounded-xl shadow-md">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
+                  <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 p-3 rounded-xl shadow-md">
+                    <Users className="h-6 w-6 text-white" />
                   </div>
                   <div className="text-3xl font-bold text-slate-800">{drivers.length}</div>
                 </div>
@@ -277,55 +344,43 @@ export default function DriversPage() {
                 <p className="text-slate-500 text-sm">Votre équipe complète</p>
               </div>
             </div>
-            
+
             <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-green-400 rounded-xl blur opacity-30"></div>
-                    <div className="relative bg-gradient-to-r from-emerald-500 to-green-500 p-3 rounded-xl shadow-md">
-                      <Activity className="h-6 w-6 text-white" />
-                    </div>
+                  <div className="relative bg-gradient-to-r from-emerald-500 to-green-500 p-3 rounded-xl shadow-md">
+                    <Activity className="h-6 w-6 text-white" />
                   </div>
-                  <div className="text-3xl font-bold text-slate-800">{drivers.filter(d => d.status === 'ACTIVE').length}</div>
+                  <div className="text-3xl font-bold text-slate-800">{drivers.filter((d) => d.status === 'ACTIVE').length}</div>
                 </div>
                 <h3 className="text-slate-700 font-semibold mb-1">En Service</h3>
                 <p className="text-slate-500 text-sm">Disponibles actuellement</p>
               </div>
             </div>
-            
+
             <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-400 rounded-xl blur opacity-30"></div>
-                    <div className="relative bg-gradient-to-r from-amber-500 to-orange-500 p-3 rounded-xl shadow-md">
-                      <Zap className="h-6 w-6 text-white" />
-                    </div>
+                  <div className="relative bg-gradient-to-r from-amber-500 to-orange-500 p-3 rounded-xl shadow-md">
+                    <Zap className="h-6 w-6 text-white" />
                   </div>
                   <div className="text-3xl font-bold text-slate-800">
-                    {drivers.length > 0 ? Math.floor(drivers.filter(d => d.status === 'ACTIVE').length / drivers.length * 100) : 0}%
+                    {drivers.length > 0 ? Math.floor((drivers.filter((d) => d.status === 'ACTIVE').length / drivers.length) * 100) : 0}%
                   </div>
                 </div>
                 <h3 className="text-slate-700 font-semibold mb-1">Efficacité</h3>
                 <p className="text-slate-500 text-sm">Taux d'activité</p>
               </div>
             </div>
-            
+
             <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-xl blur opacity-30"></div>
-                    <div className="relative bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-xl shadow-md">
-                      <Award className="h-6 w-6 text-white" />
-                    </div>
+                  <div className="relative bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-xl shadow-md">
+                    <Award className="h-6 w-6 text-white" />
                   </div>
                   <div className="text-3xl font-bold text-slate-800">
-                    {drivers.filter(d => {
+                    {drivers.filter((d) => {
                       const eff = getDriverEfficiency(d)
                       return eff >= 80
                     }).length}
@@ -337,7 +392,7 @@ export default function DriversPage() {
             </div>
           </div>
 
-          {/* Control Bar Moderne */}
+          {/* Control Bar */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6 mb-8">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
               <div className="flex-1 w-full">
@@ -352,7 +407,7 @@ export default function DriversPage() {
                   />
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
                   {['all', 'ACTIVE', 'INACTIVE', 'SUSPENDED'].map((filter) => (
@@ -369,7 +424,7 @@ export default function DriversPage() {
                     </button>
                   ))}
                 </div>
-                
+
                 <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -392,23 +447,20 @@ export default function DriversPage() {
                     </div>
                   </button>
                 </div>
-                
+
                 {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                  >
+                  <button onClick={() => setSearchQuery('')} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
                     <X className="h-5 w-5 text-slate-500" />
                   </button>
                 )}
               </div>
             </div>
-            
+
             <div className="mt-4 flex items-center justify-between">
               <p className="text-slate-600">
                 {filteredDrivers.length} conducteur{filteredDrivers.length !== 1 ? 's' : ''} trouvé{filteredDrivers.length !== 1 ? 's' : ''}
               </p>
-              
+
               <div className="flex items-center gap-4">
                 <span className="text-sm text-slate-500 flex items-center">
                   <span className="inline-block w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
@@ -450,14 +502,9 @@ export default function DriversPage() {
                 <Users className="h-20 w-20 text-slate-400" />
               </div>
             </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3">
-              {searchQuery ? 'Aucun résultat trouvé' : 'Aucun conducteur'}
-            </h3>
+            <h3 className="text-2xl font-bold text-slate-800 mb-3">{searchQuery ? 'Aucun résultat trouvé' : 'Aucun conducteur'}</h3>
             <p className="text-slate-600 mb-8 max-w-md mx-auto">
-              {searchQuery 
-                ? 'Essayez avec des termes de recherche différents.'
-                : 'Commencez par ajouter votre premier conducteur à la flotte.'
-              }
+              {searchQuery ? 'Essayez avec des termes de recherche différents.' : 'Commencez par ajouter votre premier conducteur à la flotte.'}
             </p>
             <Link
               href="/drivers/new"
@@ -469,79 +516,71 @@ export default function DriversPage() {
             </Link>
           </div>
         ) : viewMode === 'grid' ? (
-          // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredDrivers.map((driver) => {
               const efficiency = getDriverEfficiency(driver)
-              
               return (
-                <div
-                  key={driver.id}
-                  className="group relative overflow-hidden"
-                >
-                  {/* Effet de bordure */}
+                <div key={driver.id} className="group relative overflow-hidden">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 rounded-2xl opacity-0 group-hover:opacity-30 blur transition-opacity duration-500"></div>
-                  
+
                   <div className="relative bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-blue-300 hover:shadow-2xl transition-all duration-500">
-                    {/* Header avec gradient clair */}
                     <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6">
                       <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center gap-4">
                           <div className="relative">
                             <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full blur-md opacity-50"></div>
                             <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-xl font-bold text-white shadow-lg">
-                              {driver.firstName[0]}{driver.lastName[0]}
+                              {driver.firstName[0]}
+                              {driver.lastName[0]}
                             </div>
-                            <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center ${
-                              driver.status === 'ACTIVE' ? 'bg-emerald-500' :
-                              driver.status === 'INACTIVE' ? 'bg-amber-500' : 'bg-rose-500'
-                            }`}>
-                              {driver.status === 'ACTIVE' ? <CheckCircle className="h-3 w-3 text-white" /> :
-                               driver.status === 'INACTIVE' ? <Clock className="h-3 w-3 text-white" /> :
-                               <AlertCircle className="h-3 w-3 text-white" />}
+                            <div
+                              className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center ${
+                                driver.status === 'ACTIVE' ? 'bg-emerald-500' : driver.status === 'INACTIVE' ? 'bg-amber-500' : 'bg-rose-500'
+                              }`}
+                            >
+                              {driver.status === 'ACTIVE' ? (
+                                <CheckCircle className="h-3 w-3 text-white" />
+                              ) : driver.status === 'INACTIVE' ? (
+                                <Clock className="h-3 w-3 text-white" />
+                              ) : (
+                                <AlertCircle className="h-3 w-3 text-white" />
+                              )}
                             </div>
                           </div>
-                          
+
                           <div>
                             <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
                               {driver.firstName} {driver.lastName}
                             </h3>
                             <div className="flex items-center gap-2 mt-1">
                               <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(driver.status)} border`}>
-                                {driver.status === 'ACTIVE' ? '🚀 ACTIF' :
-                                 driver.status === 'INACTIVE' ? '⏸️ INACTIF' :
-                                 '⚠️ SUSPENDU'}
+                                {driver.status === 'ACTIVE' ? '🚀 ACTIF' : driver.status === 'INACTIVE' ? '⏸️ INACTIF' : '⚠️ SUSPENDU'}
                               </span>
                             </div>
                           </div>
                         </div>
-                        
+
                         <button className="p-2 hover:bg-white/50 rounded-lg transition-colors">
                           <MoreVertical className="h-5 w-5 text-slate-500" />
                         </button>
                       </div>
-                      
-                      {/* Performance Bar */}
+
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-slate-600">Performance</span>
-                          <span className="text-sm font-bold" style={{
-                            color: efficiency >= 80 ? '#10b981' :
-                                   efficiency >= 60 ? '#f59e0b' : '#ef4444'
-                          }}>
+                          <span
+                            className="text-sm font-bold"
+                            style={{ color: efficiency >= 80 ? '#10b981' : efficiency >= 60 ? '#f59e0b' : '#ef4444' }}
+                          >
                             {efficiency}%
                           </span>
                         </div>
                         <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full bg-gradient-to-r ${getPerformanceColor(efficiency)} rounded-full transition-all duration-1000`}
-                            style={{ width: `${efficiency}%` }}
-                          ></div>
+                          <div className={`h-full bg-gradient-to-r ${getPerformanceColor(efficiency)} rounded-full transition-all duration-1000`} style={{ width: `${efficiency}%` }} />
                         </div>
                       </div>
                     </div>
-                    
-                    {/* Info Section */}
+
                     <div className="p-6">
                       <div className="space-y-4">
                         <div className="flex items-center gap-3">
@@ -553,7 +592,7 @@ export default function DriversPage() {
                             <p className="text-slate-800 font-medium">{driver.email}</p>
                           </div>
                         </div>
-                        
+
                         {driver.phone && (
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-100 rounded-lg">
@@ -565,7 +604,7 @@ export default function DriversPage() {
                             </div>
                           </div>
                         )}
-                        
+
                         {driver.licenseNumber && (
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-purple-100 rounded-lg">
@@ -579,8 +618,7 @@ export default function DriversPage() {
                         )}
                       </div>
                     </div>
-                    
-                    {/* Footer avec actions */}
+
                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1">
@@ -592,7 +630,7 @@ export default function DriversPage() {
                           <span className="text-xs text-slate-500">GPS Actif</span>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => router.push(`/drivers/edit/${driver.id}`)}
@@ -623,7 +661,6 @@ export default function DriversPage() {
             })}
           </div>
         ) : (
-          // Table View
           <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -640,16 +677,18 @@ export default function DriversPage() {
                 <tbody>
                   {filteredDrivers.map((driver) => {
                     const efficiency = getDriverEfficiency(driver)
-                    
                     return (
                       <tr key={driver.id} className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors">
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-bold text-white shadow-sm">
-                              {driver.firstName[0]}{driver.lastName[0]}
+                              {driver.firstName[0]}
+                              {driver.lastName[0]}
                             </div>
                             <div>
-                              <div className="font-medium text-slate-800">{driver.firstName} {driver.lastName}</div>
+                              <div className="font-medium text-slate-800">
+                                {driver.firstName} {driver.lastName}
+                              </div>
                               <div className="text-xs text-slate-500">ID: {driver.id}</div>
                             </div>
                           </div>
@@ -657,31 +696,22 @@ export default function DriversPage() {
                         <td className="py-4 px-6">
                           <div className="space-y-1">
                             <div className="text-sm text-slate-800">{driver.email}</div>
-                            {driver.phone && (
-                              <div className="text-sm text-slate-600">{driver.phone}</div>
-                            )}
+                            {driver.phone && <div className="text-sm text-slate-600">{driver.phone}</div>}
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="text-sm font-medium text-slate-800">
-                            {driver.licenseNumber || 'N/A'}
-                          </div>
+                          <div className="text-sm font-medium text-slate-800">{driver.licenseNumber || 'N/A'}</div>
                         </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getStatusColor(driver.status)} border`}>
-                            {driver.status === 'ACTIVE' ? <CheckCircle className="h-3 w-3" /> :
-                             driver.status === 'INACTIVE' ? <Clock className="h-3 w-3" /> :
-                             <AlertCircle className="h-3 w-3" />}
+                            {driver.status === 'ACTIVE' ? <CheckCircle className="h-3 w-3" /> : driver.status === 'INACTIVE' ? <Clock className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
                             {driver.status}
                           </span>
                         </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3">
                             <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full bg-gradient-to-r ${getPerformanceColor(efficiency)} rounded-full`}
-                                style={{ width: `${efficiency}%` }}
-                              ></div>
+                              <div className={`h-full bg-gradient-to-r ${getPerformanceColor(efficiency)} rounded-full`} style={{ width: `${efficiency}%` }} />
                             </div>
                             <span className="text-sm font-medium">{efficiency}%</span>
                           </div>
@@ -729,11 +759,9 @@ export default function DriversPage() {
                   <AlertCircle className="h-8 w-8 text-rose-500" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Supprimer le conducteur</h3>
-                <p className="text-slate-600">
-                  Cette action est irréversible. Voulez-vous vraiment supprimer ce conducteur ?
-                </p>
+                <p className="text-slate-600">Cette action est irréversible. Voulez-vous vraiment supprimer ce conducteur ?</p>
               </div>
-              
+
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteModal(null)}
@@ -759,21 +787,20 @@ export default function DriversPage() {
               <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-cyan-50">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-bold text-slate-800">Détails du conducteur</h3>
-                  <button
-                    onClick={() => setSelectedDriver(null)}
-                    className="p-2 hover:bg-white/50 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => setSelectedDriver(null)} className="p-2 hover:bg-white/50 rounded-lg transition-colors">
                     <X className="h-5 w-5 text-slate-500" />
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
                       <label className="text-sm text-slate-500">Nom complet</label>
-                      <p className="text-lg font-medium text-slate-800">{selectedDriver.firstName} {selectedDriver.lastName}</p>
+                      <p className="text-lg font-medium text-slate-800">
+                        {selectedDriver.firstName} {selectedDriver.lastName}
+                      </p>
                     </div>
                     <div>
                       <label className="text-sm text-slate-500">Email</label>
@@ -786,7 +813,7 @@ export default function DriversPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div>
                       <label className="text-sm text-slate-500">Numéro de permis</label>
@@ -803,7 +830,7 @@ export default function DriversPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
                 <button
                   onClick={() => setSelectedDriver(null)}
@@ -833,16 +860,13 @@ export default function DriversPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-600">
-                  Total: {drivers.length} conducteurs • Actifs: {drivers.filter(d => d.status === 'ACTIVE').length}
+                  Total: {drivers.length} conducteurs • Actifs: {drivers.filter((d) => d.status === 'ACTIVE').length}
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
-              <Link
-                href="/drivers/analytics"
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-              >
+              <Link href="/drivers/analytics" className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
                 Voir les statistiques détaillées
                 <ChevronRight className="h-4 w-4" />
               </Link>
@@ -854,31 +878,65 @@ export default function DriversPage() {
       {/* Styles d'animation */}
       <style jsx global>{`
         @keyframes gradient {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          0%,
+          100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
         }
 
         @keyframes gradient-text {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          0%,
+          100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
         }
 
         @keyframes float-particle {
-          0% { transform: translateY(0) rotate(0deg); opacity: 0.1; }
-          25% { transform: translateY(-40px) rotate(90deg); opacity: 0.3; }
-          50% { transform: translateY(-20px) rotate(180deg); opacity: 0.2; }
-          75% { transform: translateY(-40px) rotate(270deg); opacity: 0.3; }
-          100% { transform: translateY(0) rotate(360deg); opacity: 0.1; }
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 0.1;
+          }
+          25% {
+            transform: translateY(-40px) rotate(90deg);
+            opacity: 0.3;
+          }
+          50% {
+            transform: translateY(-20px) rotate(180deg);
+            opacity: 0.2;
+          }
+          75% {
+            transform: translateY(-40px) rotate(270deg);
+            opacity: 0.3;
+          }
+          100% {
+            transform: translateY(0) rotate(360deg);
+            opacity: 0.1;
+          }
         }
 
         @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
         }
 
         @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
+          0%,
+          100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-5px);
+          }
         }
 
         .animate-gradient {
@@ -901,7 +959,6 @@ export default function DriversPage() {
           animation: bounce 2s ease-in-out infinite;
         }
 
-        /* Custom scrollbar clair */
         ::-webkit-scrollbar {
           width: 10px;
           height: 10px;
@@ -921,14 +978,9 @@ export default function DriversPage() {
           background: linear-gradient(to bottom, #3b82f6, #0ea5e9);
         }
 
-        /* Smooth transitions */
         * {
-          transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        /* Effet de brillance sur les boutons */
-        .btn-glow:hover {
-          box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+          transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, opacity 0.3s ease,
+            box-shadow 0.3s ease;
         }
       `}</style>
     </div>
