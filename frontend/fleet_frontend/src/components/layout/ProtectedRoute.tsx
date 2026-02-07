@@ -1,46 +1,45 @@
-'use client'
+"use client";
 
-import React, { ReactNode, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useAuth } from '@/contexts/authContext'
+import React, { ReactNode, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useAuth } from "@/contexts/authContext";
 
+type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 
 interface ProtectedRouteProps {
-  children: ReactNode
-  requiredRole?: 'ROLE_ADMIN' | 'ROLE_OWNER' | 'ROLE_DRIVER'
-  redirectTo?: string
+  children: ReactNode;
+  requiredRoles?: Role[]; // ✅ plusieurs rôles
+  redirectTo?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredRole,
-  redirectTo = '/login'
+  requiredRoles,
+  redirectTo = "/login",
 }) => {
-  const { user, loading, isAuthenticated } = useAuth()
-  const router = useRouter()
+  const { user, loading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push(redirectTo)
+      router.push(redirectTo);
+      return;
     }
-    
-    if (!loading && isAuthenticated && requiredRole && user?.role !== requiredRole) {
-      router.push('/dashboard')
+
+    if (!loading && isAuthenticated && requiredRoles && user?.role) {
+      const ok = requiredRoles.includes(user.role as Role);
+      if (!ok) router.push("/dashboard");
     }
-  }, [loading, isAuthenticated, requiredRole, user?.role, router, redirectTo])
+  }, [loading, isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
 
-  if (loading) {
-    return <LoadingSpinner />
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return null;
+
+  if (requiredRoles && user?.role) {
+    const ok = requiredRoles.includes(user.role as Role);
+    if (!ok) return null;
   }
 
-  if (!isAuthenticated) {
-    return null
-  }
-
-  if (requiredRole && user?.role !== requiredRole) {
-    return null
-  }
-
-  return <>{children}</>
-}
+  return <>{children}</>;
+};

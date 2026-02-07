@@ -1,3 +1,5 @@
+import { Database, Upload } from "lucide-react"
+
 // API Constants
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'
 export const API_TIMEOUT = 10000
@@ -113,7 +115,19 @@ export const NAVIGATION_ITEMS = [
   { name: 'Schedule', href: '/schedule', icon: 'Calendar', roles: ['ROLE_ADMIN', 'ROLE_OWNER', 'ROLE_DRIVER'] },
   { name: 'Reports', href: '/reports', icon: 'BarChart3', roles: ['ROLE_ADMIN', 'ROLE_OWNER'] },
   { name: 'Documents', href: '/documents', icon: 'FileText', roles: ['ROLE_ADMIN', 'ROLE_OWNER', 'ROLE_DRIVER'] },
-  { name: 'Settings', href: '/settings', icon: 'Settings', roles: ['ROLE_ADMIN'] }
+  { name: 'Settings', href: '/settings', icon: 'Settings', roles: ['ROLE_ADMIN'] },
+  {
+    name: "Import CSV",
+    href: "/ingestion/import-csv",
+    icon: Upload,
+    roles: ["ROLE_ADMIN", "ROLE_OWNER"],
+  },
+  {
+    name: "Ingestion API",
+    href: "/ingestion/api-test",
+    icon: Database,
+    roles: ["ROLE_ADMIN", "ROLE_OWNER"],
+  },
 ] as const
 
 // Test User Credentials (for development only)
