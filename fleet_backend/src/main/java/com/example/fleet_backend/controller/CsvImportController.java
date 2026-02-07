@@ -1,25 +1,27 @@
 package com.example.fleet_backend.controller;
 
-import com.example.fleet_backend.csv.CsvImportResult;
 import com.example.fleet_backend.service.CsvImportService;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/import")
 public class CsvImportController {
 
-    private final CsvImportService service;
+    private final CsvImportService csvImportService;
 
-    public CsvImportController(CsvImportService service) {
-        this.service = service;
+    public CsvImportController(CsvImportService csvImportService) {
+        this.csvImportService = csvImportService;
     }
 
-    @PostMapping(value = "/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<CsvImportResult> importCsv(@RequestParam("file") MultipartFile file) throws Exception {
-        CsvImportResult res = service.importCsv(file);
-        return ResponseEntity.ok(res);
+    @PostMapping("/csv")
+    @PreAuthorize("hasAnyRole('ADMIN','OWNER')")
+    public ResponseEntity<?> importCsv(@RequestParam("file") MultipartFile file) {
+        int stored = csvImportService.importCsv(file);
+        return ResponseEntity.ok(Map.of("message", "CSV imported in RAW", "rows", stored));
     }
 }

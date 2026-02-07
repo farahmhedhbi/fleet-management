@@ -1,7 +1,12 @@
 package com.example.fleet_backend.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 @Entity
 @Table(name = "raw_data")
@@ -11,19 +16,26 @@ public class RawData {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="source_type", nullable = false)
+    // ex: "CSV" ou "API"
+    @Column(name = "source_type", nullable = false)
     private String sourceType;
 
-    @Column(name="raw_content", nullable = false, columnDefinition = "text")
-    private String rawContent;
+    // jsonb
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "raw_content", columnDefinition = "jsonb", nullable = false)
+    private JsonNode rawContent;
 
+    @Column(name = "imported_at", nullable = false)
+    private LocalDateTime importedAt;
 
-    @Column(name="imported_at", nullable = false)
-    private LocalDateTime importedAt = LocalDateTime.now();
+    @PrePersist
+    public void prePersist() {
+        if (importedAt == null) importedAt = LocalDateTime.now();
+    }
 
     public RawData() {}
 
-    public RawData(String sourceType, String rawContent) {
+    public RawData(String sourceType, JsonNode rawContent) {
         this.sourceType = sourceType;
         this.rawContent = rawContent;
         this.importedAt = LocalDateTime.now();
@@ -31,10 +43,9 @@ public class RawData {
 
     public Long getId() { return id; }
     public String getSourceType() { return sourceType; }
-    public String getRawContent() { return rawContent; }
-    public LocalDateTime getImportedAt() { return importedAt; }
-
     public void setSourceType(String sourceType) { this.sourceType = sourceType; }
-    public void setRawContent(String rawContent) { this.rawContent = rawContent; }
+    public JsonNode getRawContent() { return rawContent; }
+    public void setRawContent(JsonNode rawContent) { this.rawContent = rawContent; }
+    public LocalDateTime getImportedAt() { return importedAt; }
     public void setImportedAt(LocalDateTime importedAt) { this.importedAt = importedAt; }
 }

@@ -1,10 +1,9 @@
 package com.example.fleet_backend.service;
 
-
-
 import com.example.fleet_backend.model.RawData;
 import com.example.fleet_backend.repository.RawDataRepository;
 import com.example.fleet_backend.dto.TripPayload;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
@@ -12,20 +11,28 @@ import org.springframework.stereotype.Service;
 public class ApiIngestionService {
 
     private final RawDataRepository rawRepo;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public ApiIngestionService(RawDataRepository rawRepo) {
+    // ✅ Injecter ObjectMapper (bonne pratique Spring)
+    public ApiIngestionService(RawDataRepository rawRepo, ObjectMapper objectMapper) {
         this.rawRepo = rawRepo;
+        this.objectMapper = objectMapper;
     }
 
-    public void ingestTrip(TripPayload payload) throws Exception {
-        // Si besoin de validation supplémentaire simple:
-        if (payload.getVehicle_id() <= 0 || payload.getDriver_id() <= 0) {
+    public void ingestTrip(TripPayload payload) {
+        if (payload == null) {
+            throw new IllegalArgumentException("Payload manquant");
+        }
+
+        // ✅ validation simple
+        if (payload.getVehicle_id() == null || payload.getVehicle_id() <= 0 ||
+                payload.getDriver_id() == null || payload.getDriver_id() <= 0) {
             throw new IllegalArgumentException("vehicle_id et driver_id doivent être > 0");
         }
 
-        String rawJson = objectMapper.writeValueAsString(payload);
+        // ✅ IMPORTANT: stocker en JsonNode (pas String)
+        JsonNode rawJson = objectMapper.valueToTree(payload);
+
         rawRepo.save(new RawData("API", rawJson));
     }
 }
-
