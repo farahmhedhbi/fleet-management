@@ -1,3 +1,4 @@
+// VehicleController.java
 package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.VehicleDTO;
@@ -5,13 +6,13 @@ import com.example.fleet_backend.service.VehicleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/vehicles")
-
 public class VehicleController {
 
     @Autowired
@@ -64,5 +65,12 @@ public class VehicleController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
     public List<VehicleDTO> getVehiclesByDriver(@PathVariable Long driverId) {
         return vehicleService.getVehiclesByDriverId(driverId);
+    }
+
+    // ✅ DRIVER : véhicules assignés uniquement
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('DRIVER')")
+    public List<VehicleDTO> myVehicles(Authentication auth) {
+        return vehicleService.getMyVehicles(auth);
     }
 }

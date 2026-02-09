@@ -1,59 +1,52 @@
 package com.example.fleet_backend.config;
 
-import com.example.fleet_backend.security.AuthEntryPointJwt;
 import com.example.fleet_backend.security.AuthTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity
 public class SecurityConfig {
 
-    private final AuthEntryPointJwt unauthorizedHandler;
     private final AuthTokenFilter authTokenFilter;
 
-    public SecurityConfig(AuthEntryPointJwt unauthorizedHandler, AuthTokenFilter authTokenFilter) {
-        this.unauthorizedHandler = unauthorizedHandler;
+    public SecurityConfig(AuthTokenFilter authTokenFilter) {
         this.authTokenFilter = authTokenFilter;
-    }
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
         http
+                // ✅ IMPORTANT: لازم نخلي CORS يخدم (باش OPTIONS تعدّي)
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // AUTH
+
+                        // ✅ preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         .requestMatchers("/api/auth/**").permitAll()
 
+                        // ✅ DRIVER endpoints (قبل /api/drivers/**)
+                        .requestMatchers("/api/drivers/me").hasRole("DRIVER")
+                        .requestMatchers("/api/vehicles/me").hasRole("DRIVER")
 
-                        // ✅ DRIVERS -> OWNER ou ADMIN
-                        .requestMatchers("/api/drivers/**").hasAnyRole("OWNER", "ADMIN")
+                        // ✅ OWNER/ADMIN endpoints globaux
+                        .requestMatchers("/api/drivers/**").hasAnyRole("OWNER","ADMIN")
+                        .requestMatchers("/api/vehicles/**").hasAnyRole("OWNER","ADMIN")
 
-                        // VEHICLES -> OWNER ou ADMIN
-                        .requestMatchers("/api/vehicles/**").hasAnyRole("OWNER", "ADMIN")
-
-                        // IMPORT + DATA -> OWNER ou ADMIN
-                        .requestMatchers("/import/**", "/api/data/**").hasAnyRole("OWNER", "ADMIN")
-
-                        // tout le reste
                         .anyRequest().authenticated()
                 );
 
@@ -62,7 +55,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
+        return cfg.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 }

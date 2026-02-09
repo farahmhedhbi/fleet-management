@@ -1,5 +1,6 @@
 package com.example.fleet_backend.service;
 
+
 import com.example.fleet_backend.dto.VehicleDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
@@ -9,6 +10,7 @@ import com.example.fleet_backend.repository.VehicleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,6 +24,22 @@ public class VehicleService {
 
     @Autowired
     private DriverRepository driverRepository;
+
+    // VehicleService.java (ajout)
+
+
+    public List<VehicleDTO> getMyVehicles(Authentication auth) {
+        String email = auth.getName();
+
+        Driver driver = driverRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+
+        return vehicleRepository.findByDriverId(driver.getId())
+                .stream()
+                .map(VehicleDTO::new)
+                .collect(Collectors.toList());
+    }
+
 
     public List<VehicleDTO> getAllVehicles() {
         return vehicleRepository.findAll()

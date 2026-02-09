@@ -5,6 +5,7 @@ import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.repository.DriverRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,12 @@ public class DriverService {
 
     @Autowired
     private DriverRepository driverRepository;
+    public DriverDTO getMyProfile(Authentication auth) {
+        String email = auth.getName();
+        Driver driver = driverRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+        return new DriverDTO(driver);
+    }
 
     public List<DriverDTO> getAllDrivers() {
         return driverRepository.findAll()
