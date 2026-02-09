@@ -27,13 +27,7 @@ function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-function Pill({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label: string;
-}) {
+function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
       <span className="text-slate-900">{icon}</span>
@@ -59,7 +53,9 @@ function InputShell({
         {label} {required ? <span className="text-rose-600">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="mt-2 text-xs font-semibold text-slate-500">{hint}</p> : null}
+      {hint ? (
+        <p className="mt-2 text-xs font-semibold text-slate-500">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -71,7 +67,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     phone: "",
-    role: "ROLE_DRIVER", // ✅ FIX
+    role: "ROLE_DRIVER", // ✅ correct pour le backend Spring Security
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -82,22 +78,44 @@ export default function RegisterPage() {
 
   const roles = useMemo(
     () => [
-      { value: "ROLE_DRIVER", label: "Driver", desc: "Accès missions & suivi", badge: "bg-sky-50 border-sky-200 text-sky-700" },
-      { value: "ROLE_OWNER", label: "Owner", desc: "Vue flotte & reporting", badge: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-      { value: "ROLE_ADMIN", label: "Admin", desc: "Gestion complète", badge: "bg-violet-50 border-violet-200 text-violet-700" },
+      {
+        value: "ROLE_DRIVER",
+        label: "Driver",
+        desc: "Accès missions & suivi",
+        badge: "bg-sky-50 border-sky-200 text-sky-700",
+      },
+      {
+        value: "ROLE_OWNER",
+        label: "Owner",
+        desc: "Vue flotte & reporting",
+        badge: "bg-emerald-50 border-emerald-200 text-emerald-700",
+      },
+      {
+        value: "ROLE_ADMIN",
+        label: "Admin",
+        desc: "Gestion complète",
+        badge: "bg-violet-50 border-violet-200 text-violet-700",
+      },
     ],
     []
   );
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value as any }));
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+    if (
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.email ||
+      !formData.password
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -116,7 +134,7 @@ export default function RegisterPage() {
       } else {
         toast.error(result.message || "Registration failed");
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred during registration");
     } finally {
       setLoading(false);
@@ -134,7 +152,7 @@ export default function RegisterPage() {
       <div className="pointer-events-none absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-gradient-to-br from-emerald-300/25 to-sky-300/20 blur-3xl" />
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-16">
-        {/* LEFT: Brand + benefits */}
+        {/* LEFT */}
         <div className="order-2 lg:order-1">
           <Link href="/" className="inline-flex items-center gap-3">
             <div className="relative grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg">
@@ -142,8 +160,12 @@ export default function RegisterPage() {
               <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
             </div>
             <div className="leading-tight">
-              <p className="text-lg font-extrabold tracking-tight text-slate-900">FleetIQ</p>
-              <p className="text-sm font-semibold text-slate-600">Automobile • IA • GPS</p>
+              <p className="text-lg font-extrabold tracking-tight text-slate-900">
+                FleetIQ
+              </p>
+              <p className="text-sm font-semibold text-slate-600">
+                Automobile • IA • GPS
+              </p>
             </div>
           </Link>
 
@@ -155,7 +177,8 @@ export default function RegisterPage() {
           </h1>
 
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
-            Accédez au suivi, aux missions, aux alertes et au pilotage KPI. Une expérience moderne orientée flotte.
+            Accédez au suivi, aux missions, aux alertes et au pilotage KPI. Une
+            expérience moderne orientée flotte.
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
@@ -165,13 +188,20 @@ export default function RegisterPage() {
           </div>
 
           <div className="mt-10 rounded-[28px] border border-slate-200 bg-white/70 p-5 shadow-sm backdrop-blur">
-            <p className="text-sm font-extrabold text-slate-900">Rôle sélectionné</p>
+            <p className="text-sm font-extrabold text-slate-900">
+              Rôle sélectionné
+            </p>
             <p className="mt-2 text-sm text-slate-600">
               Choisissez un rôle adapté à l’utilisation.
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-extrabold", selectedRole?.badge)}>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-extrabold",
+                  selectedRole?.badge
+                )}
+              >
                 <span className="h-2 w-2 rounded-full bg-current opacity-70" />
                 {selectedRole?.label}
               </span>
@@ -182,7 +212,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* RIGHT: Register Card */}
+        {/* RIGHT */}
         <div className="order-1 lg:order-2">
           <div className="relative mx-auto w-full max-w-xl">
             <div className="absolute -inset-6 -z-10 rounded-[40px] bg-gradient-to-br from-sky-200/40 via-white to-emerald-200/40 blur-2xl" />
@@ -302,9 +332,10 @@ export default function RegisterPage() {
                       onChange={handleChange}
                       className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                     >
-                      <option value="DRIVER">Driver</option>
-                      <option value="OWNER">Owner</option>
-                      <option value="ADMIN">Admin</option>
+                      {/* ✅ FIX ICI */}
+                      <option value="ROLE_DRIVER">Driver</option>
+                      <option value="ROLE_OWNER">Owner</option>
+                      <option value="ROLE_ADMIN">Admin</option>
                     </select>
                     <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                       ▼
@@ -320,11 +351,17 @@ export default function RegisterPage() {
                   />
                   <span>
                     J’accepte les{" "}
-                    <Link href="/terms" className="font-extrabold text-sky-700 hover:text-sky-900">
+                    <Link
+                      href="/terms"
+                      className="font-extrabold text-sky-700 hover:text-sky-900"
+                    >
                       Conditions
                     </Link>{" "}
                     et la{" "}
-                    <Link href="/privacy" className="font-extrabold text-sky-700 hover:text-sky-900">
+                    <Link
+                      href="/privacy"
+                      className="font-extrabold text-sky-700 hover:text-sky-900"
+                    >
                       Politique de confidentialité
                     </Link>
                     .
@@ -345,7 +382,8 @@ export default function RegisterPage() {
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        Créer un compte <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                        Créer un compte{" "}
+                        <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
                       </span>
                     )}
                   </span>
@@ -355,7 +393,10 @@ export default function RegisterPage() {
               <div className="mt-7 text-center">
                 <p className="text-sm font-semibold text-slate-600">
                   Déjà un compte ?{" "}
-                  <Link href="/login" className="font-extrabold text-sky-700 hover:text-sky-900">
+                  <Link
+                    href="/login"
+                    className="font-extrabold text-sky-700 hover:text-sky-900"
+                  >
                     Se connecter
                   </Link>
                 </p>

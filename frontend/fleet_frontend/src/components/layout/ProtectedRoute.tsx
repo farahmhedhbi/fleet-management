@@ -3,9 +3,7 @@
 import React, { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { useAuth } from "@/contexts/authContext";
-
-type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
+import { useAuth, Role } from "@/contexts/authContext";
 
 export function ProtectedRoute({
   children,
@@ -16,25 +14,28 @@ export function ProtectedRoute({
   requiredRoles?: Role[];
   redirectTo?: string;
 }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+
     if (!isAuthenticated) {
       router.push(redirectTo);
       return;
     }
 
     if (requiredRoles && user?.role) {
-      const ok = requiredRoles.includes(user.role as Role);
-      if (!ok) router.push("/dashboard"); // connecté mais pas autorisé
+      const ok = requiredRoles.includes(user.role);
+      if (!ok) router.push("/dashboard");
     }
-  }, [isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
+  }, [loading, isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
 
-  if (!isAuthenticated) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return null;
 
   if (requiredRoles && user?.role) {
-    const ok = requiredRoles.includes(user.role as Role);
+    const ok = requiredRoles.includes(user.role);
     if (!ok) return null;
   }
 

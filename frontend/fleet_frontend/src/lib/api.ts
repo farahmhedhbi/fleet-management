@@ -4,7 +4,7 @@ import axios, { AxiosError } from "axios";
 const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export const api = axios.create({
-  baseURL, // => http://localhost:8080
+  baseURL,
   timeout: 15000,
 });
 
@@ -26,17 +26,16 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     const status = error.response?.status;
 
-    // ✅ 401 = pas connecté / token expiré => logout
+    // ✅ 401 => pas connecté / token expiré => logout
     if (status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      // évite boucle si déjà sur login
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";
       }
     }
 
-    // ✅ 403 = connecté mais interdit => NE PAS logout (sinon owner => retour login)
+    // ✅ 403 => interdit => NE PAS logout (sinon OWNER/DRIVER retourne login)
     return Promise.reject(error);
   }
 );

@@ -2,14 +2,16 @@ import { api } from "@/lib/api";
 import { Vehicle, VehicleDTO } from "@/types/vehicle";
 
 export const vehicleService = {
+  // ✅ ADMIN/OWNER
   async getAll(): Promise<Vehicle[]> {
-    try {
-      const res = await api.get<Vehicle[]>("/api/vehicles");
-      return res.data;
-    } catch (error: any) {
-      console.error("❌ Failed to fetch vehicles:", error);
-      throw error;
-    }
+    const res = await api.get<Vehicle[]>("/api/vehicles");
+    return res.data;
+  },
+
+  // ✅ DRIVER: my vehicles only
+  async me(): Promise<Vehicle[]> {
+    const res = await api.get<Vehicle[]>("/api/vehicles/me");
+    return res.data;
   },
 
   async getById(id: number): Promise<Vehicle> {

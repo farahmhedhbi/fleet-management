@@ -4,9 +4,9 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { useRouter } from "next/navigation";
 import { authService, LoginRequest, RegisterRequest, AuthResponse } from "@/lib/services/authService";
 
-type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
+export type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 
-interface User {
+export interface User {
   id: number;
   firstName: string;
   lastName: string;
@@ -17,6 +17,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  loading: boolean;
   isAuthenticated: boolean;
   login: (payload: LoginRequest) => Promise<{ success: boolean; message?: string }>;
   register: (payload: RegisterRequest) => Promise<{ success: boolean; message?: string }>;
@@ -30,12 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // load session from localStorage once
   useEffect(() => {
-    const t = localStorage.getItem("token");
-    const u = localStorage.getItem("user");
-    setToken(t);
-    setUser(u ? JSON.parse(u) : null);
+    try {
+      const t = localStorage.getItem("token");
+      const u = localStorage.getItem("user");
+
+      setToken(t);
+      setUser(u ? JSON.parse(u) : null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const logout = () => {
@@ -49,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (payload: LoginRequest) => {
     try {
       const data: AuthResponse = await authService.login(payload);
-      localStorage.setItem("token", data.token);
 
       const u: User = {
         id: data.id,
@@ -58,21 +65,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         role: data.role,
       };
+
+      localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(u));
+
       setToken(data.token);
       setUser(u);
 
       router.push("/dashboard");
       return { success: true };
     } catch (e: any) {
-      return { success: false, message: e?.response?.data?.message || "Login failed" };
+      return {
+        success: false,
+        message: e?.response?.data?.message || "Login failed",
+      };
     }
   };
 
   const register = async (payload: RegisterRequest) => {
     try {
       const data: AuthResponse = await authService.register(payload);
-      localStorage.setItem("token", data.token);
 
       const u: User = {
         id: data.id,
@@ -81,14 +93,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         role: data.role,
       };
+
+      localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(u));
+
       setToken(data.token);
       setUser(u);
 
       router.push("/dashboard");
       return { success: true };
     } catch (e: any) {
-      return { success: false, message: e?.response?.data?.message || "Registration failed" };
+      return {
+        success: false,
+        message: e?.response?.data?.message || "Registration failed",
+      };
     }
   };
 
@@ -101,13 +119,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       token,
+      loading,
       isAuthenticated: !!token && !!user,
       login,
       register,
       logout,
       hasAnyRole,
     }),
-    [user, token]
+    [user, token, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

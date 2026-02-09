@@ -12,6 +12,8 @@ export interface RegisterRequest {
   email: string;
   password: string;
   phone?: string;
+
+  // ✅ backend attend ROLE_*
   role: "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 }
 
@@ -25,8 +27,8 @@ export interface AuthResponse {
 }
 
 export const authService = {
-  async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const res = await api.post<AuthResponse>("/api/auth/login", credentials);
+  async login(payload: LoginRequest): Promise<AuthResponse> {
+    const res = await api.post<AuthResponse>("/api/auth/login", payload);
     return res.data;
   },
 
