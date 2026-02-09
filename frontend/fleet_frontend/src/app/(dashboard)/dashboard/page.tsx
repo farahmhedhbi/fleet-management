@@ -71,54 +71,54 @@ export default function DashboardPage() {
   }, [])
 
   const loadDashboardData = async () => {
-    setIsRefreshing(true)
-    try {
-      const [drivers, vehicles] = await Promise.all([
-        driverService.getAll(),
-        vehicleService.getAll()
-      ])
+  setIsRefreshing(true);
+  try {
+    const isAdmin = user?.role === "ROLE_ADMIN";
+    const isOwner = user?.role === "ROLE_OWNER";
 
-      const now = new Date()
-      const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    // ✅ vehicles seulement pour ADMIN/OWNER
+    const vehiclesPromise = (isAdmin || isOwner) ? vehicleService.getAll() : Promise.resolve([]);
 
-      // Utiliser un type partiel pour accéder aux propriétés potentielles
-      const vehiclesNeedingMaintenance = vehicles.filter(vehicle => {
-        const vehicleAny = vehicle as any
-        if (!vehicleAny.nextMaintenanceDate) return false
-        const maintenanceDate = new Date(vehicleAny.nextMaintenanceDate)
-        return maintenanceDate <= nextWeek
-      }).length
+    // ✅ drivers seulement pour ADMIN
+    const driversPromise = isAdmin ? driverService.getAll() : Promise.resolve([]);
 
-      const totalMileage = vehicles.reduce((sum, vehicle) => sum + (vehicle.mileage || 0), 0)
-      
-      // Calculate fleet health score
-      const fleetHealth = vehicles.length > 0 
-        ? Math.max(0, Math.min(100,
-            100 - (vehiclesNeedingMaintenance / vehicles.length) * 30
-          ))
-        : 100
+    const [drivers, vehicles] = await Promise.all([driversPromise, vehiclesPromise]);
 
-      setStats({
-        totalDrivers: drivers.length,
-        totalVehicles: vehicles.length,
-        availableVehicles: vehicles.filter(v => v.status === 'AVAILABLE').length,
-        activeDrivers: drivers.filter(d => d.status === 'ACTIVE').length,
-        vehiclesNeedingMaintenance,
-        totalMileage,
-        fleetHealth: Math.round(fleetHealth)
-      })
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      // Get recent items (last 5)
-      setRecentDrivers(drivers.slice(0, 5))
-      setRecentVehicles(vehicles.slice(0, 5))
-    } catch (error) {
-      console.error('Error loading dashboard data:', error)
-      toastError('Failed to load dashboard data')
-    } finally {
-      setLoading(false)
-      setIsRefreshing(false)
-    }
+    const vehiclesNeedingMaintenance = vehicles.filter((v: any) => {
+      if (!v.nextMaintenanceDate) return false;
+      return new Date(v.nextMaintenanceDate) <= nextWeek;
+    }).length;
+
+    const totalMileage = vehicles.reduce((sum, v) => sum + (v.mileage || 0), 0);
+
+    const fleetHealth = vehicles.length > 0
+      ? Math.max(0, Math.min(100, 100 - (vehiclesNeedingMaintenance / vehicles.length) * 30))
+      : 100;
+
+    setStats({
+      totalDrivers: drivers.length,
+      totalVehicles: vehicles.length,
+      availableVehicles: vehicles.filter((v) => v.status === "AVAILABLE").length,
+      activeDrivers: drivers.filter((d) => d.status === "ACTIVE").length,
+      vehiclesNeedingMaintenance,
+      totalMileage,
+      fleetHealth: Math.round(fleetHealth),
+    });
+
+    setRecentDrivers(drivers.slice(0, 5));
+    setRecentVehicles(vehicles.slice(0, 5));
+  } catch (error) {
+    console.error("Error loading dashboard data:", error);
+    toastError("Failed to load dashboard data");
+  } finally {
+    setLoading(false);
+    setIsRefreshing(false);
   }
+};
+     
 
   // Fonction utilitaire pour obtenir le type de carburant
   const getFuelType = (vehicle: Vehicle): string => {

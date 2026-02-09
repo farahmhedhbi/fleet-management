@@ -9,7 +9,7 @@ export interface RegisterRequest {
   email: string
   password: string
   phone?: string
-  role: 'DRIVER' | 'OWNER' | 'ADMIN'
+  role: 'ROLE_DRIVER' | 'ROLE_OWNER' | 'ROLE_ADMIN'
 }
 
 export interface AuthResponse {

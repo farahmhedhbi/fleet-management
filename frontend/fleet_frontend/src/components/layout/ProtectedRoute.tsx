@@ -7,34 +7,31 @@ import { useAuth } from "@/contexts/authContext";
 
 type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredRoles?: Role[]; // ✅ plusieurs rôles
-  redirectTo?: string;
-}
-
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+export function ProtectedRoute({
   children,
   requiredRoles,
   redirectTo = "/login",
-}) => {
-  const { user, loading, isAuthenticated } = useAuth();
+}: {
+  children: ReactNode;
+  requiredRoles?: Role[];
+  redirectTo?: string;
+}) {
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    if (!isAuthenticated) {
       router.push(redirectTo);
       return;
     }
 
-    if (!loading && isAuthenticated && requiredRoles && user?.role) {
+    if (requiredRoles && user?.role) {
       const ok = requiredRoles.includes(user.role as Role);
-      if (!ok) router.push("/dashboard");
+      if (!ok) router.push("/dashboard"); // connecté mais pas autorisé
     }
-  }, [loading, isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
+  }, [isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
 
-  if (loading) return <LoadingSpinner />;
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) return <LoadingSpinner />;
 
   if (requiredRoles && user?.role) {
     const ok = requiredRoles.includes(user.role as Role);
@@ -42,4 +39,4 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   return <>{children}</>;
-};
+}

@@ -71,7 +71,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     phone: "",
-    role: "DRIVER",
+    role: "ROLE_DRIVER", // ✅ FIX
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -82,9 +82,9 @@ export default function RegisterPage() {
 
   const roles = useMemo(
     () => [
-      { value: "DRIVER", label: "Driver", desc: "Accès missions & suivi", badge: "bg-sky-50 border-sky-200 text-sky-700" },
-      { value: "OWNER", label: "Owner", desc: "Vue flotte & reporting", badge: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-      { value: "ADMIN", label: "Admin", desc: "Gestion complète", badge: "bg-violet-50 border-violet-200 text-violet-700" },
+      { value: "ROLE_DRIVER", label: "Driver", desc: "Accès missions & suivi", badge: "bg-sky-50 border-sky-200 text-sky-700" },
+      { value: "ROLE_OWNER", label: "Owner", desc: "Vue flotte & reporting", badge: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+      { value: "ROLE_ADMIN", label: "Admin", desc: "Gestion complète", badge: "bg-violet-50 border-violet-200 text-violet-700" },
     ],
     []
   );
