@@ -4,18 +4,20 @@ import com.example.fleet_backend.dto.AuthRequest;
 import com.example.fleet_backend.dto.AuthResponse;
 import com.example.fleet_backend.dto.RegisterRequest;
 import com.example.fleet_backend.service.AuthService;
+import com.example.fleet_backend.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -79,8 +81,25 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser() {
-        // Cette route sera sécurisée par le filteur JWT
-        return ResponseEntity.ok("User info endpoint");
+    public ResponseEntity<?> me(Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "error", "UNAUTHORIZED",
+                    "message", "Not authenticated"
+            ));
+        }
+
+        UserDetailsImpl user = (UserDetailsImpl) authentication.getPrincipal();
+
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "roles", user.getAuthorities()
+        ));
     }
+
 }

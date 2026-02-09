@@ -84,7 +84,7 @@ public class AuthService {
 
         // Chercher le rôle normalisé
         Role role = roleRepository.findByName(normalizedRoleName)
-                .orElseThrow(() -> new RuntimeException("Error: Role '" + roleName + "' not found. Available roles: ROLE_ADMIN, ROLE_OWNER, ROLE_DRIVER, ROLE_COMPANY"));
+                .orElseThrow(() -> new RuntimeException("Error: Role '" + roleName + "' not found. Available roles: ROLE_ADMIN, ROLE_OWNER, ROLE_DRIVER"));
 
         user.setRole(role);
 

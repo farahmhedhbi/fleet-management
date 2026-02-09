@@ -1,12 +1,12 @@
 package com.example.fleet_backend.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
-
-import com.fasterxml.jackson.databind.JsonNode;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "raw_data")
@@ -16,36 +16,36 @@ public class RawData {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ex: "CSV" ou "API"
-    @Column(name = "source_type", nullable = false)
-    private String sourceType;
+    @Column(name="source", nullable=false, length=10)
+    private String source; // CSV / API
 
-    // jsonb
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "raw_content", columnDefinition = "jsonb", nullable = false)
+    @Column(name="raw_content", nullable=false, columnDefinition="jsonb")
     private JsonNode rawContent;
 
-    @Column(name = "imported_at", nullable = false)
-    private LocalDateTime importedAt;
+    @Column(name="file_name")
+    private String fileName;
 
-    @PrePersist
-    public void prePersist() {
-        if (importedAt == null) importedAt = LocalDateTime.now();
-    }
+    @Column(name="row_number")
+    private Integer rowNumber;
+
+    @CreationTimestamp
+    @Column(name="imported_at", nullable=false)
+    private OffsetDateTime importedAt;
 
     public RawData() {}
 
-    public RawData(String sourceType, JsonNode rawContent) {
-        this.sourceType = sourceType;
+    public RawData(String source, JsonNode rawContent, String fileName, Integer rowNumber) {
+        this.source = source;
         this.rawContent = rawContent;
-        this.importedAt = LocalDateTime.now();
+        this.fileName = fileName;
+        this.rowNumber = rowNumber;
     }
 
     public Long getId() { return id; }
-    public String getSourceType() { return sourceType; }
-    public void setSourceType(String sourceType) { this.sourceType = sourceType; }
+    public String getSource() { return source; }
     public JsonNode getRawContent() { return rawContent; }
-    public void setRawContent(JsonNode rawContent) { this.rawContent = rawContent; }
-    public LocalDateTime getImportedAt() { return importedAt; }
-    public void setImportedAt(LocalDateTime importedAt) { this.importedAt = importedAt; }
+    public String getFileName() { return fileName; }
+    public Integer getRowNumber() { return rowNumber; }
+    public OffsetDateTime getImportedAt() { return importedAt; }
 }
