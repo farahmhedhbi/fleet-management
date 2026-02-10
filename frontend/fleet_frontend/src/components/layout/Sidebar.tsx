@@ -4,157 +4,95 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Users,
   Car,
-  Settings,
+  Users,
+  Upload,
+  Webhook,
   BarChart3,
   Calendar,
   FileText,
-  LucideIcon,
-  ChevronRight,
-  Upload,
-  Webhook,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
 
-interface NavigationItem {
+type NavItem = {
   name: string;
   href: string;
-  icon: LucideIcon;
-  accessible: boolean;
-  badge?: string;
-}
-
-interface SidebarProps {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-}
+  icon: any;
+  show: boolean;
+};
 
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-/**
- * ✅ Normalise le rôle:
- * - "ADMIN" -> "ROLE_ADMIN"
- * - "ROLE_ADMIN" -> "ROLE_ADMIN"
- */
-function normalizeRole(role?: string | null) {
-  if (!role) return "";
-  return role.startsWith("ROLE_") ? role : `ROLE_${role}`;
-}
-
-export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
+export default function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  const role = normalizeRole(user?.role);
+  const role = user?.role;
   const isAdmin = role === "ROLE_ADMIN";
   const isOwner = role === "ROLE_OWNER";
+  const isDriver = role === "ROLE_DRIVER";
 
-  const navigation: NavigationItem[] = [
-    { name: "Dashboard", href: "/dashboard", icon: Home, accessible: true },
+  const items: NavItem[] = [
+    { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
 
-    // Sprint 2
-    { name: "Drivers", href: "/drivers", icon: Users, accessible: isAdmin || isOwner },
-    { name: "Vehicles", href: "/vehicles", icon: Car, accessible: isAdmin || isOwner },
+    // ✅ DRIVER only
+    { name: "My Vehicles", href: "/my-vehicles", icon: Car, show: isDriver },
+    { name: "Profile", href: "/profile", icon: Users, show: isDriver },
 
-    // ✅ Sprint 3 (ajout)
-    { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, accessible: isAdmin || isOwner },
-    { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, accessible: isAdmin || isOwner },
+    // ✅ OWNER/ADMIN
+    { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner || isAdmin },
+    { name: "Drivers", href: "/drivers", icon: Users, show: isOwner || isAdmin },
 
-    { name: "Reports", href: "/reports", icon: BarChart3, accessible: isAdmin || isOwner, badge: "New" },
-    { name: "Schedule", href: "/schedule", icon: Calendar, accessible: true },
-    { name: "Documents", href: "/documents", icon: FileText, accessible: true },
+    // ✅ ADMIN only (Sprint 3)
+    { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isAdmin },
+    { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isAdmin },
 
-    { name: "Settings", href: "/settings", icon: Settings, accessible: isAdmin },
+    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwner || isAdmin },
+
+    { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
+    { name: "Documents", href: "/documents", icon: FileText, show: true },
+
+    { name: "Settings", href: "/settings", icon: Settings, show: isAdmin },
   ];
 
-  const filtered = navigation.filter((i) => i.accessible);
-
-  const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
-
   return (
-    <>
-      {/* Mobile backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity lg:hidden",
-          sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        )}
-        onClick={() => setSidebarOpen(false)}
-        aria-hidden={!sidebarOpen}
-      />
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200/60 bg-white/80 backdrop-blur-xl transition-transform lg:translate-x-0",
-          "pt-16",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-500/25 to-transparent" />
-
-        <div className="flex h-full flex-col px-3 pb-4">
-          <div className="mt-6">
-            <ul className="mt-3 space-y-1">
-              {filtered.map((item) => {
-                const active = isActive(item.href);
-
-                return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      onClick={() => setSidebarOpen(false)}
-                      className={cn(
-                        "group relative flex items-center justify-between gap-3 rounded-2xl px-3 py-3 text-base font-extrabold transition",
-                        active
-                          ? "bg-slate-900 text-white shadow-sm"
-                          : "text-slate-800 hover:bg-slate-100/70"
-                      )}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span
-                          className={cn(
-                            "grid h-9 w-9 place-items-center rounded-xl border transition",
-                            active ? "border-white/10 bg-white/10" : "border-slate-200 bg-white"
-                          )}
-                        >
-                          <item.icon size={18} className={cn(active ? "text-white" : "text-slate-700")} />
-                        </span>
-
-                        <span className="leading-tight">{item.name}</span>
-
-                        {item.badge ? (
-                          <span
-                            className={cn(
-                              "ml-2 rounded-full px-2 py-0.5 text-[11px] font-extrabold",
-                              active
-                                ? "bg-white/15 text-white"
-                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            )}
-                          >
-                            {item.badge}
-                          </span>
-                        ) : null}
-                      </span>
-
-                      <ChevronRight
-                        size={16}
-                        className={cn(
-                          "opacity-0 transition group-hover:opacity-100",
-                          active ? "text-white/80" : "text-slate-400"
-                        )}
-                      />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+    <aside className="h-full w-72 border-r border-slate-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="p-6">
+        <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-xl">
+          <div className="text-lg font-bold tracking-tight">Fleet Management</div>
+          <div className="mt-1 text-xs text-slate-200">
+            {isAdmin ? "Admin Panel" : isOwner ? "Owner Portal" : "Driver Portal"}
           </div>
         </div>
-      </aside>
-    </>
+
+        <nav className="mt-6 space-y-2">
+          {items
+            .filter((it) => it.show)
+            .map((it) => {
+              const active = pathname === it.href || pathname.startsWith(it.href + "/");
+              const Icon = it.icon;
+
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+                    active
+                      ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  )}
+                >
+                  <Icon className={cn("h-5 w-5 transition-transform", !active && "group-hover:scale-110")} />
+                  <span>{it.name}</span>
+                </Link>
+              );
+            })}
+        </nav>
+      </div>
+    </aside>
   );
 }

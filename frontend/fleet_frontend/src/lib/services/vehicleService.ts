@@ -1,76 +1,64 @@
+// src/lib/services/vehicleService.ts
 import { api } from "@/lib/api";
 import { Vehicle, VehicleDTO } from "@/types/vehicle";
 
+ function toLocalDateTime(v?: string | null) {
+  if (!v) return v;
+  return v.includes("T") ? v : `${v}T00:00:00`;
+}
+
 export const vehicleService = {
-  // ✅ ADMIN/OWNER
+  /**
+   * ✅ READ vehicles:
+   * - ADMIN : all vehicles
+   * - OWNER : only his vehicles
+   * - DRIVER: only assigned vehicles
+   * Backend does the filtering in VehicleService.getVehiclesForConnectedUser()
+   */
   async getAll(): Promise<Vehicle[]> {
     const res = await api.get<Vehicle[]>("/api/vehicles");
     return res.data;
   },
 
-  // ✅ DRIVER: my vehicles only
-  async me(): Promise<Vehicle[]> {
-    const res = await api.get<Vehicle[]>("/api/vehicles/me");
+  async getMine(): Promise<Vehicle[]> {
+    const res = await api.get<Vehicle[]>("/api/vehicles"); // ✅
     return res.data;
   },
+
 
   async getById(id: number): Promise<Vehicle> {
     const res = await api.get<Vehicle>(`/api/vehicles/${id}`);
     return res.data;
   },
 
-  async create(vehicleData: VehicleDTO): Promise<Vehicle> {
-    const payload = this.formatVehicleData(vehicleData);
-    const res = await api.post<Vehicle>("/api/vehicles", payload);
-    return res.data;
-  },
+ 
 
-  async update(id: number, vehicleData: VehicleDTO): Promise<Vehicle> {
-    const payload = this.formatVehicleData(vehicleData);
+async create(payload: VehicleDTO): Promise<Vehicle> {
+  const fixed: any = { ...payload };
+  fixed.lastMaintenanceDate = toLocalDateTime(fixed.lastMaintenanceDate);
+  fixed.nextMaintenanceDate = toLocalDateTime(fixed.nextMaintenanceDate);
+
+  const res = await api.post<Vehicle>("/api/vehicles", fixed);
+  return res.data;
+},
+
+
+  // ✅ OWNER/ADMIN
+  async update(id: number, payload: VehicleDTO): Promise<Vehicle> {
     const res = await api.put<Vehicle>(`/api/vehicles/${id}`, payload);
     return res.data;
   },
 
-  async delete(id: number): Promise<void> {
+  // ✅ OWNER/ADMIN
+  async remove(id: number): Promise<void> {
     await api.delete(`/api/vehicles/${id}`);
   },
 
+  // ✅ OWNER/ADMIN
   async assignDriver(vehicleId: number, driverId: number): Promise<Vehicle> {
-    const res = await api.post<Vehicle>(`/api/vehicles/${vehicleId}/assign-driver/${driverId}`);
+    const res = await api.post<Vehicle>(
+      `/api/vehicles/${vehicleId}/assign-driver/${driverId}`
+    );
     return res.data;
-  },
-
-  async removeDriver(vehicleId: number): Promise<Vehicle> {
-    const res = await api.post<Vehicle>(`/api/vehicles/${vehicleId}/remove-driver`);
-    return res.data;
-  },
-
-  async getByDriverId(driverId: number): Promise<Vehicle[]> {
-    const res = await api.get<Vehicle[]>(`/api/vehicles/by-driver/${driverId}`);
-    return res.data;
-  },
-
-  formatVehicleData(vehicleData: VehicleDTO): any {
-    const formatted: any = {
-      ...vehicleData,
-      year: Number(vehicleData.year),
-      mileage: vehicleData.mileage ? Number(vehicleData.mileage) : 0.0,
-      status: vehicleData.status || "AVAILABLE",
-    };
-
-    if (vehicleData.lastMaintenanceDate) {
-      formatted.lastMaintenanceDate = this.formatDateForBackend(vehicleData.lastMaintenanceDate as any);
-    }
-    if (vehicleData.nextMaintenanceDate) {
-      formatted.nextMaintenanceDate = this.formatDateForBackend(vehicleData.nextMaintenanceDate as any);
-    }
-
-    Object.keys(formatted).forEach((k) => formatted[k] === undefined && delete formatted[k]);
-    return formatted;
-  },
-
-  formatDateForBackend(dateString: string): string {
-    if (!dateString) return "";
-    return dateString.includes("T") ? dateString : `${dateString}T00:00:00`;
   },
 };

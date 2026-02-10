@@ -35,7 +35,7 @@ api.interceptors.response.use(
       }
     }
 
-    // ✅ 403 => interdit => NE PAS logout (sinon OWNER/DRIVER retourne login)
+    // ✅ 403 => interdit => NE PAS logout
     return Promise.reject(error);
   }
 );
