@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import React, { Dispatch, SetStateAction } from "react";
 import {
   Home,
   Car,
@@ -12,8 +13,14 @@ import {
   Calendar,
   FileText,
   Settings,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
+
+type SidebarProps = {
+  sidebarOpen: boolean;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+};
 
 type NavItem = {
   name: string;
@@ -26,7 +33,7 @@ function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-export default function Sidebar() {
+export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
 
@@ -59,40 +66,70 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="h-full w-72 border-r border-slate-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="p-6">
-        <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-xl">
-          <div className="text-lg font-bold tracking-tight">Fleet Management</div>
-          <div className="mt-1 text-xs text-slate-200">
-            {isAdmin ? "Admin Panel" : isOwner ? "Owner Portal" : "Driver Portal"}
+    <>
+      {/* ✅ Overlay mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-50 h-full w-72 border-r border-slate-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60",
+          "transform transition-transform duration-200 ease-out",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0 lg:z-30 lg:top-16 lg:h-[calc(100%-4rem)]"
+        )}
+      >
+        <div className="p-6">
+          {/* ✅ Header mobile (close button) */}
+          <div className="mb-4 flex items-center justify-between lg:hidden">
+            <div className="font-extrabold text-slate-900">Menu</div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="rounded-xl border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
+              aria-label="Close sidebar"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-xl">
+            <div className="text-lg font-bold tracking-tight">Fleet Management</div>
+            <div className="mt-1 text-xs text-slate-200">
+              {isAdmin ? "Admin Panel" : isOwner ? "Owner Portal" : "Driver Portal"}
+            </div>
+          </div>
+
+          <nav className="mt-6 space-y-2">
+            {items
+              .filter((it) => it.show)
+              .map((it) => {
+                const active = pathname === it.href || pathname.startsWith(it.href + "/");
+                const Icon = it.icon;
+
+                return (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    onClick={() => setSidebarOpen(false)} // ✅ ferme sur mobile
+                    className={cn(
+                      "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
+                      active
+                        ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    )}
+                  >
+                    <Icon className={cn("h-5 w-5 transition-transform", !active && "group-hover:scale-110")} />
+                    <span>{it.name}</span>
+                  </Link>
+                );
+              })}
+          </nav>
         </div>
-
-        <nav className="mt-6 space-y-2">
-          {items
-            .filter((it) => it.show)
-            .map((it) => {
-              const active = pathname === it.href || pathname.startsWith(it.href + "/");
-              const Icon = it.icon;
-
-              return (
-                <Link
-                  key={it.href}
-                  href={it.href}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
-                    active
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/20"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                  )}
-                >
-                  <Icon className={cn("h-5 w-5 transition-transform", !active && "group-hover:scale-110")} />
-                  <span>{it.name}</span>
-                </Link>
-              );
-            })}
-        </nav>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

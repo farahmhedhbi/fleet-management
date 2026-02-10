@@ -142,7 +142,7 @@ export default function VehiclesPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await vehicleService.delete(id)
+      await vehicleService.remove(id)
       setShowDeleteModal(null)
       fetchVehicles()
     } catch (err) {
