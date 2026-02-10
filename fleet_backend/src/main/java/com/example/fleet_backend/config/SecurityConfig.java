@@ -46,17 +46,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_DRIVER", "ROLE_OWNER", "ROLE_ADMIN")
 
+                        // ✅ ADMIN management
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                         // ✅ DRIVERS MANAGE
                         .requestMatchers("/api/drivers/**")
                         .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
 
                         // ✅ VEHICLES WRITE
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
                         .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
                         .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
 
                         // ✅ Sprint 3
                         .requestMatchers("/import/**").hasAuthority("ROLE_ADMIN")
