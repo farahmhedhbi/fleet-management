@@ -19,7 +19,7 @@ public class CsvImportController {
     }
 
     @PostMapping("/csv")
-    @PreAuthorize("hasAnyRole('ADMIN','OWNER')")
+    @PreAuthorize("hasRole('ADMIN')") // ✅ avant: ADMIN/OWNER :contentReference[oaicite:7]{index=7}
     public ResponseEntity<?> importCsv(@RequestParam("file") MultipartFile file) {
         int stored = csvImportService.importCsv(file);
         return ResponseEntity.ok(Map.of("message", "CSV imported in RAW", "rows", stored));

@@ -30,10 +30,11 @@ public class FleetBackendApplication {
 			System.out.println("=== Initialisation des données ===");
 
 			// 1. Initialiser les rôles
-			List<ERole> roles = Arrays.asList(
-					ERole.ROLE_DRIVER,
+			List<ERole> roles = List.of(
+					ERole.ROLE_ADMIN,
 					ERole.ROLE_OWNER,
-					ERole.ROLE_ADMIN
+					ERole.ROLE_DRIVER,
+					ERole.ROLE_API_CLIENT // ✅ ajouté
 			);
 
 			for (ERole roleName : roles) {

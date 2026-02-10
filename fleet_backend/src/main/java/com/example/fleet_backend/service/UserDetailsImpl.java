@@ -7,49 +7,58 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public class UserDetailsImpl implements UserDetails {
 
-    private Long id;
-    private String firstName;
-    private String lastName;
-    private String email;
+    private final Long id;
+    private final String firstName;
+    private final String lastName;
+    private final String email;
 
     @JsonIgnore
-    private String password;
+    private final String password;
 
-    private Collection<? extends GrantedAuthority> authorities;
+    // ✅ utile pour debug
+    private final String role;
 
-    public UserDetailsImpl(Long id, String firstName, String lastName, String email,
-                           String password, Collection<? extends GrantedAuthority> authorities) {
+    private final Collection<? extends GrantedAuthority> authorities;
+
+    public UserDetailsImpl(Long id,
+                           String firstName,
+                           String lastName,
+                           String email,
+                           String password,
+                           String role,
+                           Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.password = password;
+        this.role = role;
         this.authorities = authorities;
     }
 
     public static UserDetailsImpl build(User user) {
-        // Vérifier que l'utilisateur a un rôle
+
+        if (user == null) {
+            throw new RuntimeException("User is null");
+        }
         if (user.getRole() == null) {
             throw new RuntimeException("User has no role assigned");
         }
 
-        // Récupérer le nom du rôle
         String roleName = user.getRole().getName();
         if (roleName == null || roleName.trim().isEmpty()) {
             throw new RuntimeException("User role name is null or empty");
         }
 
-        // S'assurer que le rôle a le préfixe ROLE_
-        if (!roleName.startsWith("ROLE_")) {
-            roleName = "ROLE_" + roleName;
-        }
+        // ✅ normalisation robuste
+        String normalized = normalizeRole(roleName);
 
-        GrantedAuthority authority = new SimpleGrantedAuthority(roleName);
+        GrantedAuthority authority = new SimpleGrantedAuthority(normalized);
 
         return new UserDetailsImpl(
                 user.getId(),
@@ -57,27 +66,32 @@ public class UserDetailsImpl implements UserDetails {
                 user.getLastName(),
                 user.getEmail(),
                 user.getPassword(),
-                Collections.singletonList(authority)
+                normalized,
+                List.of(authority)
         );
     }
 
+    private static String normalizeRole(String roleName) {
+        String r = roleName.trim();
 
-    // Getters
-    public Long getId() {
-        return id;
+        // si DB contient "role_driver" ou "ROLE_driver"
+        r = r.toUpperCase();
+
+        // si DB contient déjà ROLE_ -> ok
+        if (r.startsWith("ROLE_")) return r;
+
+        // sinon -> ajoute ROLE_
+        return "ROLE_" + r;
     }
 
-    public String getFirstName() {
-        return firstName;
-    }
+    // Getters utiles
+    public Long getId() { return id; }
+    public String getFirstName() { return firstName; }
+    public String getLastName() { return lastName; }
+    public String getEmail() { return email; }
 
-    public String getLastName() {
-        return lastName;
-    }
-
-    public String getEmail() {
-        return email;
-    }
+    // ✅ debug possible côté API si besoin
+    public String getRole() { return role; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -85,41 +99,28 @@ public class UserDetailsImpl implements UserDetails {
     }
 
     @Override
-    public String getPassword() {
-        return password;
-    }
+    public String getPassword() { return password; }
 
     @Override
-    public String getUsername() {
-        return email;
-    }
+    public String getUsername() { return email; }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
+    public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
+    public boolean isAccountNonLocked() { return true; }
 
     @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
+    public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() {
-        return true;
-    }
+    public boolean isEnabled() { return true; }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        UserDetailsImpl user = (UserDetailsImpl) o;
-        return Objects.equals(id, user.id);
+        if (!(o instanceof UserDetailsImpl that)) return false;
+        return Objects.equals(id, that.id);
     }
 
     @Override

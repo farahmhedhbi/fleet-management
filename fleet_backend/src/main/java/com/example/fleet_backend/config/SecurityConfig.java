@@ -16,7 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableMethodSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final AuthTokenFilter authTokenFilter;
@@ -28,7 +28,6 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ IMPORTANT: لازم نخلي CORS يخدم (باش OPTIONS تعدّي)
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -37,15 +36,32 @@ public class SecurityConfig {
                         // ✅ preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // ✅ auth
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // ✅ DRIVER endpoints (قبل /api/drivers/**)
-                        .requestMatchers("/api/drivers/me").hasRole("DRIVER")
-                        .requestMatchers("/api/vehicles/me").hasRole("DRIVER")
+                        // ✅ DRIVER: profile
+                        .requestMatchers(HttpMethod.GET, "/api/drivers/me").hasAuthority("ROLE_DRIVER")
 
-                        // ✅ OWNER/ADMIN endpoints globaux
-                        .requestMatchers("/api/drivers/**").hasAnyRole("OWNER","ADMIN")
-                        .requestMatchers("/api/vehicles/**").hasAnyRole("OWNER","ADMIN")
+                        // ✅ VEHICLES READ
+                        .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_DRIVER", "ROLE_OWNER", "ROLE_ADMIN")
+
+                        // ✅ DRIVERS MANAGE
+                        .requestMatchers("/api/drivers/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+
+                        // ✅ VEHICLES WRITE
+                        .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+
+                        // ✅ Sprint 3
+                        .requestMatchers("/import/**").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/data/**")
+                        .hasAnyAuthority("ROLE_API_CLIENT", "ROLE_ADMIN")
 
                         .anyRequest().authenticated()
                 );

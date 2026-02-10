@@ -1,9 +1,8 @@
-// DriverController.java
 package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.DriverDTO;
 import com.example.fleet_backend.service.DriverService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -12,45 +11,55 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/drivers")
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class DriverController {
 
-    @Autowired
-    private DriverService driverService;
+    private final DriverService driverService;
 
-    @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
-    public List<DriverDTO> getAllDrivers() {
-        return driverService.getAllDrivers();
+    public DriverController(DriverService driverService) {
+        this.driverService = driverService;
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
-    public DriverDTO getDriverById(@PathVariable Long id) {
-        return driverService.getDriverById(id);
-    }
-
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
-    public DriverDTO createDriver(@RequestBody DriverDTO driverDTO) {
-        return driverService.createDriver(driverDTO);
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OWNER')")
-    public DriverDTO updateDriver(@PathVariable Long id, @RequestBody DriverDTO driverDTO) {
-        return driverService.updateDriver(id, driverDTO);
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public void deleteDriver(@PathVariable Long id) {
-        driverService.deleteDriver(id);
-    }
-
-    // ✅ DRIVER : profil personnel
+    // ✅ DRIVER: only his profile
     @GetMapping("/me")
     @PreAuthorize("hasRole('DRIVER')")
     public DriverDTO me(Authentication auth) {
         return driverService.getMyProfile(auth);
+    }
+
+    // ✅ OWNER/ADMIN: list drivers
+    @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public List<DriverDTO> list() {
+        return driverService.getAllDrivers();
+    }
+
+    // ✅ OWNER/ADMIN: get driver by id
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public DriverDTO get(@PathVariable Long id) {
+        return driverService.getDriverById(id);
+    }
+
+    // ✅ OWNER/ADMIN: create driver
+    @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public DriverDTO create(@RequestBody DriverDTO dto) {
+        return driverService.createDriver(dto);
+    }
+
+    // ✅ OWNER/ADMIN: update driver
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public DriverDTO update(@PathVariable Long id, @RequestBody DriverDTO dto) {
+        return driverService.updateDriver(id, dto);
+    }
+
+    // ✅ ADMIN only: delete driver (comme ton frontend)
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        driverService.deleteDriver(id);
+        return ResponseEntity.noContent().build();
     }
 }

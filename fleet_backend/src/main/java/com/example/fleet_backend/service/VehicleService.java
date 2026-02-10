@@ -1,13 +1,15 @@
 package com.example.fleet_backend.service;
 
-
 import com.example.fleet_backend.dto.VehicleDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
+import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.DriverRepository;
+import com.example.fleet_backend.repository.UserRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.fleet_backend.security.AuthUtil;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
@@ -19,140 +21,197 @@ import java.util.stream.Collectors;
 @Transactional
 public class VehicleService {
 
-    @Autowired
-    private VehicleRepository vehicleRepository;
+    private final VehicleRepository vehicleRepository;
+    private final DriverRepository driverRepository;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private DriverRepository driverRepository;
-
-    // VehicleService.java (ajout)
-
-
-    public List<VehicleDTO> getMyVehicles(Authentication auth) {
-        String email = auth.getName();
-
-        Driver driver = driverRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
-
-        return vehicleRepository.findByDriverId(driver.getId())
-                .stream()
-                .map(VehicleDTO::new)
-                .collect(Collectors.toList());
+    public VehicleService(VehicleRepository vehicleRepository,
+                          DriverRepository driverRepository,
+                          UserRepository userRepository) {
+        this.vehicleRepository = vehicleRepository;
+        this.driverRepository = driverRepository;
+        this.userRepository = userRepository;
     }
 
+    // ✅ Liste filtrée selon le rôle (1 seul GET /api/vehicles)
+    public List<VehicleDTO> getVehiclesForConnectedUser(Authentication auth) {
 
-    public List<VehicleDTO> getAllVehicles() {
-        return vehicleRepository.findAll()
-                .stream()
-                .map(VehicleDTO::new)
-                .collect(Collectors.toList());
-    }
-
-    public VehicleDTO getVehicleById(Long id) {
-        Vehicle vehicle = vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
-        return new VehicleDTO(vehicle);
-    }
-
-    public VehicleDTO createVehicle(VehicleDTO vehicleDTO) {
-        if (vehicleRepository.existsByRegistrationNumber(vehicleDTO.getRegistrationNumber())) {
-            throw new IllegalArgumentException("Registration number already exists");
+        if (AuthUtil.isAdmin(auth)) {
+            return vehicleRepository.findAll().stream().map(VehicleDTO::new).collect(Collectors.toList());
         }
 
-        if (vehicleDTO.getVin() != null && vehicleRepository.existsByVin(vehicleDTO.getVin())) {
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            Long ownerId = AuthUtil.userId(auth);
+            return vehicleRepository.findByOwnerId(ownerId).stream().map(VehicleDTO::new).collect(Collectors.toList());
+        }
+
+        if (AuthUtil.hasRole(auth, "DRIVER")) {
+            String email = auth.getName();
+            Driver driver = driverRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+
+            return vehicleRepository.findByDriverId(driver.getId()).stream().map(VehicleDTO::new).collect(Collectors.toList());
+        }
+
+        throw new AccessDeniedException("Forbidden");
+    }
+
+    // ✅ GET /api/vehicles/{id} sécurisé
+    public VehicleDTO getVehicleByIdSecured(Long id, Authentication auth) {
+
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
+
+        if (AuthUtil.isAdmin(auth)) return new VehicleDTO(v);
+
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
+            return new VehicleDTO(v);
+        }
+
+        if (AuthUtil.hasRole(auth, "DRIVER")) {
+            String email = auth.getName();
+            Driver driver = driverRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+
+            if (v.getDriver() == null || !v.getDriver().getId().equals(driver.getId())) {
+                throw new AccessDeniedException("Vehicle not assigned to you");
+            }
+            return new VehicleDTO(v);
+        }
+
+        throw new AccessDeniedException("Forbidden");
+    }
+
+    // ✅ POST sécurisé
+    public VehicleDTO createVehicleSecured(VehicleDTO dto, Authentication auth) {
+
+        // OWNER/ADMIN seulement (déjà bloqué par @PreAuthorize mais on sécurise)
+        if (!(AuthUtil.isAdmin(auth) || AuthUtil.hasRole(auth, "OWNER"))) {
+            throw new AccessDeniedException("Forbidden");
+        }
+
+        if (vehicleRepository.existsByRegistrationNumber(dto.getRegistrationNumber())) {
+            throw new IllegalArgumentException("Registration number already exists");
+        }
+        if (dto.getVin() != null && vehicleRepository.existsByVin(dto.getVin())) {
             throw new IllegalArgumentException("VIN already exists");
         }
 
-        Vehicle vehicle = new Vehicle();
-        vehicle.setRegistrationNumber(vehicleDTO.getRegistrationNumber());
-        vehicle.setBrand(vehicleDTO.getBrand());
-        vehicle.setModel(vehicleDTO.getModel());
-        vehicle.setYear(vehicleDTO.getYear());
-        vehicle.setColor(vehicleDTO.getColor());
-        vehicle.setVin(vehicleDTO.getVin());
-        vehicle.setFuelType(vehicleDTO.getFuelType());
-        vehicle.setTransmission(vehicleDTO.getTransmission());
-        vehicle.setStatus(vehicleDTO.getStatus());
-        vehicle.setMileage(vehicleDTO.getMileage());
-        vehicle.setLastMaintenanceDate(vehicleDTO.getLastMaintenanceDate());
-        vehicle.setNextMaintenanceDate(vehicleDTO.getNextMaintenanceDate());
+        Vehicle v = new Vehicle();
+        mapDtoToEntity(dto, v);
 
-        if (vehicleDTO.getDriverId() != null) {
-            Driver driver = driverRepository.findById(vehicleDTO.getDriverId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + vehicleDTO.getDriverId()));
-            vehicle.setDriver(driver);
+        // ✅ owner = user connecté (OWNER) ou (ADMIN -> owner = admin lui-même)
+        Long ownerId = AuthUtil.userId(auth);
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Owner user not found: " + ownerId));
+        v.setOwner(owner);
+
+        if (dto.getDriverId() != null) {
+            Driver d = driverRepository.findById(dto.getDriverId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + dto.getDriverId()));
+            v.setDriver(d);
         }
 
-        Vehicle savedVehicle = vehicleRepository.save(vehicle);
-        return new VehicleDTO(savedVehicle);
+        return new VehicleDTO(vehicleRepository.save(v));
     }
 
-    public VehicleDTO updateVehicle(Long id, VehicleDTO vehicleDTO) {
-        Vehicle existingVehicle = vehicleRepository.findById(id)
+    // ✅ PUT sécurisé
+    public VehicleDTO updateVehicleSecured(Long id, VehicleDTO dto, Authentication auth) {
+
+        Vehicle v = vehicleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
 
-        if (!existingVehicle.getRegistrationNumber().equals(vehicleDTO.getRegistrationNumber()) &&
-                vehicleRepository.existsByRegistrationNumber(vehicleDTO.getRegistrationNumber())) {
+        if (!AuthUtil.isAdmin(auth)) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
+        }
+
+        // unicité registrationNumber
+        if (dto.getRegistrationNumber() != null &&
+                !dto.getRegistrationNumber().equals(v.getRegistrationNumber()) &&
+                vehicleRepository.existsByRegistrationNumber(dto.getRegistrationNumber())) {
             throw new IllegalArgumentException("Registration number already exists");
         }
 
-        existingVehicle.setRegistrationNumber(vehicleDTO.getRegistrationNumber());
-        existingVehicle.setBrand(vehicleDTO.getBrand());
-        existingVehicle.setModel(vehicleDTO.getModel());
-        existingVehicle.setYear(vehicleDTO.getYear());
-        existingVehicle.setColor(vehicleDTO.getColor());
-        existingVehicle.setVin(vehicleDTO.getVin());
-        existingVehicle.setFuelType(vehicleDTO.getFuelType());
-        existingVehicle.setTransmission(vehicleDTO.getTransmission());
-        existingVehicle.setStatus(vehicleDTO.getStatus());
-        existingVehicle.setMileage(vehicleDTO.getMileage());
-        existingVehicle.setLastMaintenanceDate(vehicleDTO.getLastMaintenanceDate());
-        existingVehicle.setNextMaintenanceDate(vehicleDTO.getNextMaintenanceDate());
+        mapDtoToEntity(dto, v);
 
-        if (vehicleDTO.getDriverId() != null) {
-            Driver driver = driverRepository.findById(vehicleDTO.getDriverId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + vehicleDTO.getDriverId()));
-            existingVehicle.setDriver(driver);
+        if (dto.getDriverId() != null) {
+            Driver d = driverRepository.findById(dto.getDriverId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + dto.getDriverId()));
+            v.setDriver(d);
         } else {
-            existingVehicle.setDriver(null);
+            v.setDriver(null);
         }
 
-        Vehicle updatedVehicle = vehicleRepository.save(existingVehicle);
-        return new VehicleDTO(updatedVehicle);
+        return new VehicleDTO(vehicleRepository.save(v));
     }
 
-    public void deleteVehicle(Long id) {
-        if (!vehicleRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Vehicle not found with id: " + id);
+    // ✅ DELETE sécurisé
+    public void deleteVehicleSecured(Long id, Authentication auth) {
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
+
+        if (!AuthUtil.isAdmin(auth)) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
         }
-        vehicleRepository.deleteById(id);
+        vehicleRepository.delete(v);
     }
 
-    public VehicleDTO assignDriverToVehicle(Long vehicleId, Long driverId) {
-        Vehicle vehicle = vehicleRepository.findById(vehicleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + vehicleId));
+    // ✅ assign driver sécurisé
+    public VehicleDTO assignDriverToVehicleSecured(Long vehicleId, Long driverId, Authentication auth) {
+        Vehicle v = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
 
-        Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + driverId));
+        if (!AuthUtil.isAdmin(auth)) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
+        }
 
-        vehicle.setDriver(driver);
-        Vehicle updatedVehicle = vehicleRepository.save(vehicle);
-        return new VehicleDTO(updatedVehicle);
+        Driver d = driverRepository.findById(driverId)
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + driverId));
+
+        v.setDriver(d);
+        return new VehicleDTO(vehicleRepository.save(v));
     }
 
-    public VehicleDTO removeDriverFromVehicle(Long vehicleId) {
-        Vehicle vehicle = vehicleRepository.findById(vehicleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + vehicleId));
+    public VehicleDTO removeDriverFromVehicleSecured(Long vehicleId, Authentication auth) {
+        Vehicle v = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
 
-        vehicle.setDriver(null);
-        Vehicle updatedVehicle = vehicleRepository.save(vehicle);
-        return new VehicleDTO(updatedVehicle);
+        if (!AuthUtil.isAdmin(auth)) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
+        }
+
+        v.setDriver(null);
+        return new VehicleDTO(vehicleRepository.save(v));
     }
 
-    public List<VehicleDTO> getVehiclesByDriverId(Long driverId) {
-        return vehicleRepository.findByDriverId(driverId)
-                .stream()
-                .map(VehicleDTO::new)
-                .collect(Collectors.toList());
+    private void mapDtoToEntity(VehicleDTO dto, Vehicle v) {
+        v.setRegistrationNumber(dto.getRegistrationNumber());
+        v.setBrand(dto.getBrand());
+        v.setModel(dto.getModel());
+        v.setYear(dto.getYear());
+        v.setColor(dto.getColor());
+        v.setVin(dto.getVin());
+        v.setFuelType(dto.getFuelType());
+        v.setTransmission(dto.getTransmission());
+        v.setStatus(dto.getStatus());
+        v.setMileage(dto.getMileage());
+        v.setLastMaintenanceDate(dto.getLastMaintenanceDate());
+        v.setNextMaintenanceDate(dto.getNextMaintenanceDate());
     }
 }

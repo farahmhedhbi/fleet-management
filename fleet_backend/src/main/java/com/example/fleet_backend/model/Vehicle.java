@@ -54,6 +54,12 @@ public class Vehicle {
     @JoinColumn(name = "driver_id")
     private Driver driver;
 
+    // Vehicle.java
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
+
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -213,6 +219,14 @@ public class Vehicle {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+    public User getOwner() {
+        return owner;
     }
 
     public enum FuelType {

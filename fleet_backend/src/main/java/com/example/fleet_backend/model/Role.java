@@ -48,5 +48,6 @@ public class Role {
         ROLE_DRIVER,
         ROLE_OWNER,
         ROLE_ADMIN,
+        ROLE_API_CLIENT,
     }
 }
