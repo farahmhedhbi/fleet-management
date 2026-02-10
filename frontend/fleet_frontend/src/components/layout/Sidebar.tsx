@@ -14,6 +14,7 @@ import {
   FileText,
   Settings,
   X,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
 
@@ -50,12 +51,14 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Profile", href: "/profile", icon: Users, show: isDriver },
 
     // ✅ OWNER/ADMIN
-    { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner || isAdmin },
-    { name: "Drivers", href: "/drivers", icon: Users, show: isOwner || isAdmin },
+    { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
+    { name: "Drivers", href: "/drivers", icon: Users, show: isOwner  },
 
     // ✅ ADMIN only (Sprint 3)
     { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isAdmin },
     { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isAdmin },
+    { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
+    { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
 
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwner || isAdmin },
 

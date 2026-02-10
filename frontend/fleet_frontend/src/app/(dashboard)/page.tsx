@@ -13,7 +13,7 @@ export default function VehiclesPage() {
   const { user } = useAuth();
   const role = user?.role;
 
-  const canManage = role === "ROLE_ADMIN" || role === "ROLE_OWNER";
+  const canManage =  role === "ROLE_OWNER";
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);

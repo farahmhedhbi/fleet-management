@@ -23,6 +23,7 @@ export interface Vehicle {
   driverEmail?: string
   createdAt: string
   updatedAt: string
+  ownerId?: number;
 }
 
 export interface VehicleDTO {

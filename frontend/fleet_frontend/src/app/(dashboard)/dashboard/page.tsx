@@ -135,61 +135,94 @@ export default function DashboardPage() {
   };
 
   const quickActions = useMemo(() => {
-    return isDriver
-      ? [
-          {
-            title: "My Vehicles",
-            description: "View assigned vehicles",
-            icon: Car,
-            color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
-            hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-            action: () => router.push("/my-vehicles"),
-          },
-          {
-            title: "My Profile",
-            description: "View my information",
-            icon: Users,
-            color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-            hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-            action: () => router.push("/profile"),
-          },
-        ]
-      : [
-          {
-            title: "Dispatch Vehicle",
-            description: "Assign trip to driver",
-            icon: Route,
-            color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-            hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-            action: () => router.push("/dispatch"),
-          },
-          {
-            title: "Add Vehicle",
-            description: "Register new fleet vehicle",
-            icon: Car,
-            color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
-            hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-            action: () => router.push("/vehicles/create"),
-          },
-          {
-            title: "Schedule Maintenance",
-            description: "Plan vehicle service",
-            icon: Settings,
-            color: "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600",
-            hoverColor: "hover:shadow-lg hover:shadow-amber-500/25",
-            action: () => router.push("/maintenance"),
-          },
-          {
-            title: "Fleet Analytics",
-            description: "View performance reports",
-            icon: BarChart3,
-            color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
-            hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
-            action: () => router.push("/analytics"),
-          },
-        ];
-  }, [isDriver, router]);
+  // ✅ DRIVER
+  if (isDriver) {
+    return [
+      {
+        title: "My Vehicles",
+        description: "View assigned vehicles",
+        icon: Car,
+        color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
+        hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
+        action: () => router.push("/my-vehicles"),
+      },
+      {
+        title: "My Profile",
+        description: "View my information",
+        icon: Users,
+        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
+        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+        action: () => router.push("/profile"),
+      },
+    ];
+  }
 
+  // ✅ ADMIN (READ ONLY)
+  if (isAdmin) {
+    return [
+      {
+        title: "View Vehicles",
+        description: "Consult fleet vehicles (read-only)",
+        icon: Car,
+        color: "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
+        hoverColor: "hover:shadow-lg hover:shadow-slate-500/20",
+        action: () => router.push("/vehicles"),
+      },
+      {
+        title: "View Drivers",
+        description: "Consult drivers list (read-only)",
+        icon: Users,
+        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
+        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+        action: () => router.push("/drivers"),
+      },
+      {
+        title: "Reports",
+        description: "View analytics and KPIs",
+        icon: BarChart3,
+        color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
+        hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
+        action: () => router.push("/reports"),
+      },
+    ];
+  }
+
+  // ✅ OWNER (full)
+  return [
+    {
+      title: "Dispatch Vehicle",
+      description: "Assign trip to driver",
+      icon: Route,
+      color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
+      hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+      action: () => router.push("/dispatch"),
+    },
+    {
+      title: "Add Vehicle",
+      description: "Register new fleet vehicle",
+      icon: Car,
+      color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
+      hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
+      action: () => router.push("/vehicles/create"),
+    },
+    {
+      title: "Schedule Maintenance",
+      description: "Plan vehicle service",
+      icon: Settings,
+      color: "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600",
+      hoverColor: "hover:shadow-lg hover:shadow-amber-500/25",
+      action: () => router.push("/maintenance"),
+    },
+    {
+      title: "Fleet Analytics",
+      description: "View performance reports",
+      icon: BarChart3,
+      color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
+      hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
+      action: () => router.push("/analytics"),
+    },
+  ];
+}, [isDriver, isAdmin, router]);
   if (loading) {
     return (
       <div className="p-8">
