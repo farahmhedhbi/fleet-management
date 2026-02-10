@@ -7,7 +7,24 @@ import Link from 'next/link'
 import { toast } from 'react-toastify'
 import { driverService } from '@/lib/services/driverService'
 import { DriverDTO } from '@/types/driver'
-import { ArrowLeft, UserPlus, Sparkles, TrendingUp, Zap, Shield, Car, Mail, Phone, Calendar, Star, Users, Activity, Award, User, CheckCircle, Clock, AlertCircle, FileText, MapPin, Target, Navigation, BatteryCharging } from 'lucide-react'
+import {
+  ArrowLeft,
+  UserPlus,
+  Sparkles,
+  Zap,
+  Shield,
+  Car,
+  Mail,
+  Phone,
+  Calendar,
+  Star,
+  Users,
+  Activity,
+  Award,
+  User,
+  FileText,
+  Navigation,
+} from 'lucide-react'
 
 export default function CreateDriverPage() {
   const { user, isAuthenticated } = useAuth()
@@ -26,6 +43,8 @@ export default function CreateDriverPage() {
     status: 'ACTIVE',
   })
 
+  const isAdmin = user?.role === 'ROLE_ADMIN'
+
   // Effet de particules claires
   useEffect(() => {
     if (!containerRef.current) return
@@ -38,7 +57,7 @@ export default function CreateDriverPage() {
       const size = Math.random() * 3 + 1
       const colors = ['#60a5fa', '#38bdf8', '#a78bfa', '#34d399']
       const color = colors[Math.floor(Math.random() * colors.length)]
-      
+
       particle.className = 'particle absolute rounded-full'
       particle.style.cssText = `
         width: ${size}px;
@@ -51,13 +70,13 @@ export default function CreateDriverPage() {
         animation-delay: ${Math.random() * 3}s;
         filter: blur(0.5px);
       `
-      
+
       container.appendChild(particle)
       particles.push(particle)
     }
 
     return () => {
-      particles.forEach(p => p.remove())
+      particles.forEach((p) => p.remove())
     }
   }, [])
 
@@ -67,25 +86,31 @@ export default function CreateDriverPage() {
       return
     }
 
-    // Vérifier les permissions
-    if (user?.role !== 'ROLE_ADMIN' && user?.role !== 'ROLE_OWNER') {
-      router.push('/dashboard')
+    // ✅ ADMIN ONLY (front)
+    if (user?.role !== 'ROLE_ADMIN') {
+      router.push('/drivers')
       return
     }
   }, [isAuthenticated, user, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
-      [name]: name === 'ecoScore' ? parseFloat(value) || 0.0 : value
+      [name]: name === 'ecoScore' ? parseFloat(value) || 0.0 : value,
     }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    // ✅ sécurité front supplémentaire
+    if (!isAdmin) {
+      toast.error("Accès refusé : seul l'admin peut créer un conducteur.")
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -97,12 +122,12 @@ export default function CreateDriverPage() {
 
       await driverService.create(formData)
       toast.success('Conducteur créé avec succès !')
-      
+
       router.push('/drivers')
       router.refresh()
     } catch (error: any) {
       console.error('Error creating driver:', error)
-      
+
       if (error.status === 400) {
         if (error.data?.message?.includes('Email')) {
           toast.error('Cet email existe déjà ou est invalide')
@@ -111,21 +136,13 @@ export default function CreateDriverPage() {
         } else {
           toast.error(error.data?.message || 'Données invalides. Veuillez vérifier vos informations.')
         }
+      } else if (error.status === 403) {
+        toast.error("Accès refusé : vous n'avez pas la permission.")
       } else {
         toast.error(error.message || 'Échec de la création du conducteur')
       }
     } finally {
       setLoading(false)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'ACTIVE': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      case 'INACTIVE': return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'ON_LEAVE': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'SUSPENDED': return 'bg-rose-100 text-rose-800 border-rose-200'
-      default: return 'bg-slate-100 text-slate-800 border-slate-200'
     }
   }
 
@@ -138,19 +155,14 @@ export default function CreateDriverPage() {
         </button>
       </div>
 
-      {/* Header avec effets spéciaux */}
+      {/* Header */}
       <div className="relative pt-16 pb-8 overflow-hidden">
-        {/* Effets de fond */}
         <div className="absolute inset-0 bg-gradient-to-b from-blue-100/20 via-transparent to-cyan-100/20"></div>
         <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-blue-200/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-cyan-200/10 rounded-full blur-3xl"></div>
-        
+
         <div className="container mx-auto px-6 relative z-10">
-          {/* Bouton retour */}
-          <Link
-            href="/drivers"
-            className="flex items-center gap-2 text-slate-600 hover:text-blue-600 mb-8 group transition-all duration-300"
-          >
+          <Link href="/drivers" className="flex items-center gap-2 text-slate-600 hover:text-blue-600 mb-8 group transition-all duration-300">
             <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Retour aux conducteurs</span>
           </Link>
@@ -164,12 +176,12 @@ export default function CreateDriverPage() {
                 <br />
                 <span className="text-3xl text-slate-600 font-normal">Ajoutez un membre à votre équipe</span>
               </h1>
-              
+
               <p className="text-xl text-slate-600 max-w-2xl">
                 Complétez le formulaire ci-dessous pour intégrer un nouveau conducteur dans votre flotte
               </p>
             </div>
-            
+
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-2xl blur-xl opacity-30"></div>
               <div className="relative w-32 h-32 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-2xl">
@@ -197,7 +209,7 @@ export default function CreateDriverPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -212,7 +224,7 @@ export default function CreateDriverPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -227,7 +239,7 @@ export default function CreateDriverPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -248,9 +260,7 @@ export default function CreateDriverPage() {
       {/* Main Content */}
       <div className="container mx-auto px-6 pb-16">
         <div className="max-w-4xl mx-auto">
-          {/* Form Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-            {/* Form Header */}
             <div className="px-8 py-6 bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg">
@@ -262,8 +272,7 @@ export default function CreateDriverPage() {
                 </div>
               </div>
             </div>
-            
-            {/* Form Content */}
+
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
               {/* Personal Information */}
               <div className="space-y-6">
@@ -273,7 +282,7 @@ export default function CreateDriverPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-800">Informations personnelles</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-slate-700">
@@ -315,7 +324,7 @@ export default function CreateDriverPage() {
                   </div>
                   <h3 className="text-lg font-semibold text-slate-800">Informations de contact</h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-slate-700">
@@ -336,9 +345,7 @@ export default function CreateDriverPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Numéro de téléphone
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">Numéro de téléphone</label>
                     <div className="relative group">
                       <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
                       <input
@@ -347,14 +354,14 @@ export default function CreateDriverPage() {
                         value={formData.phone}
                         onChange={handleChange}
                         className="w-full pl-12 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all placeholder-slate-500 hover:border-slate-400"
-                        placeholder="+1 (555) 123-4567"
+                        placeholder="+216 ..."
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Driver Details - Section mise en évidence */}
+              {/* Driver Details */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-r from-purple-100 to-pink-200 rounded-lg">
@@ -365,9 +372,8 @@ export default function CreateDriverPage() {
                     IMPORTANT
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Numéro de permis - Champ mis en évidence */}
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
                       <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 px-3 py-1 rounded-lg text-xs font-bold border border-purple-200">
@@ -401,9 +407,7 @@ export default function CreateDriverPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Date d'expiration du permis
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">Date d'expiration du permis</label>
                     <div className="relative group">
                       <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
                       <input
@@ -419,9 +423,7 @@ export default function CreateDriverPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Score écologique
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">Score écologique</label>
                     <div className="relative group">
                       <Star className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-hover:text-amber-500 transition-colors" />
                       <input
@@ -439,9 +441,7 @@ export default function CreateDriverPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Statut du conducteur
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">Statut du conducteur</label>
                     <div className="relative group">
                       <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/5 to-blue-400/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                       <select
@@ -450,16 +450,23 @@ export default function CreateDriverPage() {
                         onChange={handleChange}
                         className="relative w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all appearance-none hover:border-slate-400"
                       >
-                        <option value="ACTIVE" className="text-emerald-600 font-medium">🟢 Actif - En service</option>
-                        <option value="INACTIVE" className="text-amber-600 font-medium">🟡 Inactif - En attente</option>
-                        <option value="ON_LEAVE" className="text-blue-600 font-medium">🔵 En congé - Absent</option>
-                        <option value="SUSPENDED" className="text-rose-600 font-medium">🔴 Suspendu - Non autorisé</option>
+                        <option value="ACTIVE" className="text-emerald-600 font-medium">
+                          🟢 Actif - En service
+                        </option>
+                        <option value="INACTIVE" className="text-amber-600 font-medium">
+                          🟡 Inactif - En attente
+                        </option>
+                        <option value="ON_LEAVE" className="text-blue-600 font-medium">
+                          🔵 En congé - Absent
+                        </option>
+                        <option value="SUSPENDED" className="text-rose-600 font-medium">
+                          🔴 Suspendu - Non autorisé
+                        </option>
                       </select>
                     </div>
                   </div>
                 </div>
 
-                {/* Additional Driver Info */}
                 <div className="mt-6 p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg">
@@ -484,7 +491,7 @@ export default function CreateDriverPage() {
                 </div>
               </div>
 
-              {/* Form Actions */}
+              {/* Actions */}
               <div className="pt-8 border-t border-slate-200">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
@@ -498,16 +505,21 @@ export default function CreateDriverPage() {
                       Annuler
                     </span>
                   </button>
+
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !isAdmin}
                     className="flex-1 px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
                   >
                     {loading ? (
                       <span className="flex items-center justify-center">
                         <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
                         </svg>
                         Création en cours...
                       </span>
@@ -523,7 +535,6 @@ export default function CreateDriverPage() {
               </div>
             </form>
 
-            {/* Form Footer */}
             <div className="px-8 py-6 bg-gradient-to-r from-slate-50 to-blue-50/50 border-t border-slate-200">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -536,11 +547,11 @@ export default function CreateDriverPage() {
                     <span className="text-sm text-slate-600">Intégration instantanée</span>
                   </div>
                 </div>
-                
+
                 <div className="text-right">
                   <span className="text-sm text-slate-600">
                     <span className="font-semibold text-blue-600">Important : </span>
-                    Les champs marqués d'un <span className="text-red-500 font-bold">*</span> sont obligatoires
+                    Les champs marqués d&apos;un <span className="text-red-500 font-bold">*</span> sont obligatoires
                   </span>
                 </div>
               </div>
@@ -571,7 +582,7 @@ export default function CreateDriverPage() {
                 </li>
               </ul>
             </div>
-            
+
             <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl border border-emerald-200 p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg">
@@ -598,19 +609,39 @@ export default function CreateDriverPage() {
         </div>
       </div>
 
-      {/* Styles d'animation */}
+      {/* Styles */}
       <style jsx global>{`
         @keyframes gradient-text {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          0%,
+          100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
         }
 
         @keyframes float-particle {
-          0% { transform: translateY(0) rotate(0deg); opacity: 0.1; }
-          25% { transform: translateY(-40px) rotate(90deg); opacity: 0.3; }
-          50% { transform: translateY(-20px) rotate(180deg); opacity: 0.2; }
-          75% { transform: translateY(-40px) rotate(270deg); opacity: 0.3; }
-          100% { transform: translateY(0) rotate(360deg); opacity: 0.1; }
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 0.1;
+          }
+          25% {
+            transform: translateY(-40px) rotate(90deg);
+            opacity: 0.3;
+          }
+          50% {
+            transform: translateY(-20px) rotate(180deg);
+            opacity: 0.2;
+          }
+          75% {
+            transform: translateY(-40px) rotate(270deg);
+            opacity: 0.3;
+          }
+          100% {
+            transform: translateY(0) rotate(360deg);
+            opacity: 0.1;
+          }
         }
 
         .animate-gradient-text {

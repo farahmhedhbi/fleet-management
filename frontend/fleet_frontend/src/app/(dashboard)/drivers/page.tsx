@@ -46,9 +46,12 @@ export default function DriversPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [exporting, setExporting] = useState(false)
 
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // ✅ Admin only actions
+  const isAdmin = user?.role === 'ROLE_ADMIN'
 
   // ✅ Export PDF (table) - exporte la liste affichée (filteredDrivers)
   const handleExportPDF = async () => {
@@ -61,7 +64,6 @@ export default function DriversPage() {
         return
       }
 
-      // import dynamique (évite problèmes SSR / build)
       const jsPDF = (await import('jspdf')).default
       const autoTable = (await import('jspdf-autotable')).default
 
@@ -70,7 +72,6 @@ export default function DriversPage() {
       const now = new Date()
       const dateStr = now.toISOString().slice(0, 10)
 
-      // Header
       doc.setFontSize(18)
       doc.text('Liste des Conducteurs', 40, 50)
 
@@ -78,7 +79,6 @@ export default function DriversPage() {
       doc.text(`Exporté le: ${dateStr}`, 40, 70)
       doc.text(`Total: ${rows.length}`, 40, 86)
 
-      // Table data
       const head = [['ID', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Permis', 'Statut']]
       const body = rows.map((d) => [
         String(d.id ?? ''),
@@ -100,20 +100,18 @@ export default function DriversPage() {
           overflow: 'linebreak',
         },
         headStyles: {
-          // (pas de couleur forcée pour rester simple)
           fontStyle: 'bold',
         },
         columnStyles: {
-          0: { cellWidth: 45 },  // ID
-          1: { cellWidth: 90 },  // Prénom
-          2: { cellWidth: 90 },  // Nom
-          3: { cellWidth: 220 }, // Email
-          4: { cellWidth: 110 }, // Téléphone
-          5: { cellWidth: 110 }, // Permis
-          6: { cellWidth: 90 },  // Statut
+          0: { cellWidth: 45 },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 90 },
+          3: { cellWidth: 220 },
+          4: { cellWidth: 110 },
+          5: { cellWidth: 110 },
+          6: { cellWidth: 90 },
         },
         didDrawPage: (data) => {
-          // Footer page
           const pageCount = doc.getNumberOfPages()
           doc.setFontSize(9)
           doc.text(
@@ -209,6 +207,12 @@ export default function DriversPage() {
 
   const handleDelete = async (id: number) => {
     try {
+      // ✅ front-only guard
+      if (!isAdmin) {
+        alert("Accès refusé : seul l'admin peut supprimer un conducteur.")
+        return
+      }
+
       await driverService.delete(id)
       setShowDeleteModal(null)
       fetchDrivers()
@@ -317,16 +321,19 @@ export default function DriversPage() {
                 <span className="font-medium text-slate-700">{exporting ? 'Export...' : 'Exporter PDF'}</span>
               </button>
 
-              <Link href="/drivers/new" className="relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl blur-md opacity-70 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-4 rounded-xl flex items-center gap-3 font-bold text-lg text-white shadow-lg hover:shadow-2xl transition-all duration-500 group-hover:scale-105">
-                  <div className="relative">
-                    <Plus className="h-6 w-6" />
-                    <div className="absolute -inset-1 bg-white/30 rounded-full blur-sm"></div>
+              {/* ✅ ADMIN ONLY: bouton créer */}
+              {isAdmin && (
+                <Link href="/drivers/new" className="relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl blur-md opacity-70 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-4 rounded-xl flex items-center gap-3 font-bold text-lg text-white shadow-lg hover:shadow-2xl transition-all duration-500 group-hover:scale-105">
+                    <div className="relative">
+                      <Plus className="h-6 w-6" />
+                      <div className="absolute -inset-1 bg-white/30 rounded-full blur-sm"></div>
+                    </div>
+                    Nouveau Conducteur
                   </div>
-                  Nouveau Conducteur
-                </div>
-              </Link>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -506,14 +513,18 @@ export default function DriversPage() {
             <p className="text-slate-600 mb-8 max-w-md mx-auto">
               {searchQuery ? 'Essayez avec des termes de recherche différents.' : 'Commencez par ajouter votre premier conducteur à la flotte.'}
             </p>
-            <Link
-              href="/drivers/new"
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-105 group"
-            >
-              <Plus className="h-6 w-6" />
-              Ajouter un conducteur
-              <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
+
+            {/* ✅ ADMIN ONLY */}
+            {isAdmin && (
+              <Link
+                href="/drivers/new"
+                className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-105 group"
+              >
+                <Plus className="h-6 w-6" />
+                Ajouter un conducteur
+                <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            )}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -633,19 +644,37 @@ export default function DriversPage() {
 
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => router.push(`/drivers/edit/${driver.id}`)}
-                          className="p-2 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all group/edit shadow-sm"
-                          title="Modifier"
+                          onClick={() => {
+                            if (!isAdmin) return
+                            router.push(`/drivers/edit/${driver.id}`)
+                          }}
+                          disabled={!isAdmin}
+                          className={`p-2 bg-white border border-slate-300 rounded-lg transition-all group/edit shadow-sm ${
+                            isAdmin
+                              ? 'hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600'
+                              : 'opacity-50 cursor-not-allowed'
+                          }`}
+                          title={isAdmin ? 'Modifier' : 'Réservé Admin'}
                         >
                           <Edit className="h-4 w-4 group-hover/edit:scale-110 transition-transform" />
                         </button>
+
                         <button
-                          onClick={() => setShowDeleteModal(driver.id)}
-                          className="p-2 bg-white border border-slate-300 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all group/delete shadow-sm"
-                          title="Supprimer"
+                          onClick={() => {
+                            if (!isAdmin) return
+                            setShowDeleteModal(driver.id)
+                          }}
+                          disabled={!isAdmin}
+                          className={`p-2 bg-white border border-slate-300 rounded-lg transition-all group/delete shadow-sm ${
+                            isAdmin
+                              ? 'hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600'
+                              : 'opacity-50 cursor-not-allowed'
+                          }`}
+                          title={isAdmin ? 'Supprimer' : 'Réservé Admin'}
                         >
                           <Trash2 className="h-4 w-4 group-hover/delete:scale-110 transition-transform" />
                         </button>
+
                         <button
                           onClick={() => setSelectedDriver(driver)}
                           className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all shadow-md"
@@ -719,16 +748,28 @@ export default function DriversPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => router.push(`/drivers/edit/${driver.id}`)}
-                              className="p-2 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm"
-                              title="Edit"
+                              onClick={() => {
+                                if (!isAdmin) return
+                                router.push(`/drivers/edit/${driver.id}`)
+                              }}
+                              disabled={!isAdmin}
+                              className={`p-2 bg-white border border-slate-300 rounded-lg transition-colors shadow-sm ${
+                                isAdmin ? 'hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600' : 'opacity-50 cursor-not-allowed'
+                              }`}
+                              title={isAdmin ? 'Edit' : 'Réservé Admin'}
                             >
                               <Edit size={16} />
                             </button>
                             <button
-                              onClick={() => setShowDeleteModal(driver.id)}
-                              className="p-2 bg-white border border-slate-300 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors shadow-sm"
-                              title="Delete"
+                              onClick={() => {
+                                if (!isAdmin) return
+                                setShowDeleteModal(driver.id)
+                              }}
+                              disabled={!isAdmin}
+                              className={`p-2 bg-white border border-slate-300 rounded-lg transition-colors shadow-sm ${
+                                isAdmin ? 'hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600' : 'opacity-50 cursor-not-allowed'
+                              }`}
+                              title={isAdmin ? 'Delete' : 'Réservé Admin'}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -838,12 +879,16 @@ export default function DriversPage() {
                 >
                   Fermer
                 </button>
-                <button
-                  onClick={() => router.push(`/drivers/edit/${selectedDriver.id}`)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"
-                >
-                  Modifier
-                </button>
+
+                {/* ✅ ADMIN ONLY */}
+                {isAdmin && (
+                  <button
+                    onClick={() => router.push(`/drivers/edit/${selectedDriver.id}`)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"
+                  >
+                    Modifier
+                  </button>
+                )}
               </div>
             </div>
           </div>

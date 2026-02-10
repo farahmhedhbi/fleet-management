@@ -41,9 +41,9 @@ public class DriverController {
         return driverService.getDriverById(id);
     }
 
-    // ✅ OWNER/ADMIN: create driver
+    // ✅ ADMIN only: create driver
     @PostMapping
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public DriverDTO create(@RequestBody DriverDTO dto) {
         return driverService.createDriver(dto);
     }
