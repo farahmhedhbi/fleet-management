@@ -44,10 +44,15 @@ async create(payload: VehicleDTO): Promise<Vehicle> {
 
 
   // ✅ OWNER/ADMIN
-  async update(id: number, payload: VehicleDTO): Promise<Vehicle> {
-    const res = await api.put<Vehicle>(`/api/vehicles/${id}`, payload);
-    return res.data;
-  },
+async update(id: number, payload: VehicleDTO): Promise<Vehicle> {
+  const fixed: any = { ...payload };
+  fixed.lastMaintenanceDate = toLocalDateTime(fixed.lastMaintenanceDate);
+  fixed.nextMaintenanceDate = toLocalDateTime(fixed.nextMaintenanceDate);
+
+  const res = await api.put<Vehicle>(`/api/vehicles/${id}`, fixed);
+  return res.data;
+},
+
 
   // ✅ OWNER/ADMIN
   async remove(id: number): Promise<void> {
