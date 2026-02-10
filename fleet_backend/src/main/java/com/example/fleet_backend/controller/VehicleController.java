@@ -42,12 +42,15 @@ public class VehicleController {
         return vehicleService.createVehicleSecured(dto, auth);
     }
 
-    // ✅ OWNER/ADMIN seulement
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public VehicleDTO update(@PathVariable Long id, @RequestBody VehicleDTO dto, Authentication auth) {
+        System.out.println("UPDATE AUTH user=" + auth.getName());
+        System.out.println("UPDATE AUTH roles=" + auth.getAuthorities());
+        System.out.println("UPDATE AUTH id=" + com.example.fleet_backend.security.AuthUtil.userId(auth));
         return vehicleService.updateVehicleSecured(id, dto, auth);
     }
+
 
     // ✅ OWNER/ADMIN seulement
     @DeleteMapping("/{id}")
