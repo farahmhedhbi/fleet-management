@@ -1,6 +1,5 @@
 package com.example.fleet_backend.security;
 
-import com.example.fleet_backend.service.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;

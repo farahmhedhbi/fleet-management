@@ -1,5 +1,6 @@
 package com.example.fleet_backend.config;
 
+import com.example.fleet_backend.security.AuthEntryPointJwt;
 import com.example.fleet_backend.security.AuthTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,9 +21,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final AuthTokenFilter authTokenFilter;
+    private final AuthEntryPointJwt unauthorizedHandler;
 
-    public SecurityConfig(AuthTokenFilter authTokenFilter) {
+    public SecurityConfig(AuthTokenFilter authTokenFilter, AuthEntryPointJwt unauthorizedHandler) {
         this.authTokenFilter = authTokenFilter;
+        this.unauthorizedHandler = unauthorizedHandler;
     }
 
     @Bean
@@ -31,45 +34,43 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
 
-                        // ✅ preflight
+                // ✅ IMPORTANT : renvoyer 401 quand pas authentifié
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
+
+                .authorizeHttpRequests(auth -> auth
+                        // ✅ Preflight CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ auth
+                        // ✅ Auth Sprint 1
                         .requestMatchers("/api/auth/**").permitAll()
 
-
-                        // ✅ DRIVER: profile
+                        // ✅ DRIVER
                         .requestMatchers(HttpMethod.GET, "/api/drivers/me").hasAuthority("ROLE_DRIVER")
 
-                        // ✅ VEHICLES READ
+                        // ✅ Vehicles READ
                         .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_DRIVER", "ROLE_OWNER", "ROLE_ADMIN")
 
-                        // ✅ ADMIN management
-                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        // ✅ DRIVERS MANAGE
+                        // ✅ Drivers manage (Owner/Admin)
                         .requestMatchers("/api/drivers/**")
                         .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
 
-                        // ✅ VEHICLES WRITE
-                        .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER")
-                        .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER")
+                        // ✅ Vehicles WRITE (Owner)
+                        .requestMatchers(HttpMethod.POST, "/api/vehicles/**").hasAuthority("ROLE_OWNER")
+                        .requestMatchers(HttpMethod.PUT, "/api/vehicles/**").hasAuthority("ROLE_OWNER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**").hasAuthority("ROLE_OWNER")
 
-                        // ✅ Sprint 3
-                        .requestMatchers("/import/**").hasAuthority("ROLE_ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/data/**")
-                        .hasAnyAuthority("ROLE_API_CLIENT", "ROLE_ADMIN")
+                        // ✅ Admin CRUD users / roles / supervision
+                        .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
 
+                        // ✅ Tout le reste protégé
                         .anyRequest().authenticated()
                 );
 
+        // ✅ Filtre JWT
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 

@@ -2,6 +2,7 @@ package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.CreateUserRequest;
 import com.example.fleet_backend.dto.UpdateUserRequest;
+import com.example.fleet_backend.dto.UserAdminDTO;
 import com.example.fleet_backend.dto.UserDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Role;
@@ -102,5 +103,7 @@ public class AdminService {
         }
         userRepository.deleteById(id);
     }
+
+
 }
 

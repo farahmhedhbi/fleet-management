@@ -3,7 +3,7 @@ package com.example.fleet_backend.controller;
 import com.example.fleet_backend.dto.*;
 import com.example.fleet_backend.service.AuthService;
 import com.example.fleet_backend.service.PasswordResetService;
-import com.example.fleet_backend.service.UserDetailsImpl;
+import com.example.fleet_backend.security.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,19 +50,33 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
+
         try {
             logger.info("Register attempt for email: {}, role: {}",
                     registerRequest.getEmail(), registerRequest.getRole());
 
-            var user = authService.registerUser(
+            // ✅ normaliser le rôle (DRIVER => ROLE_DRIVER)
+            String normalizedRole = authService.normalizeRoleNamePublic(registerRequest.getRole());
+
+            // ✅ si DRIVER => licenseNumber obligatoire
+            if ("ROLE_DRIVER".equals(normalizedRole)) {
+                if (registerRequest.getLicenseNumber() == null ||
+                        registerRequest.getLicenseNumber().trim().isEmpty()) {
+                    throw new IllegalArgumentException("licenseNumber is required for DRIVER");
+                }
+            }
+
+            // ✅ Inscription (avec licenseNumber)
+            authService.registerUser(
                     registerRequest.getFirstName(),
                     registerRequest.getLastName(),
                     registerRequest.getEmail(),
                     registerRequest.getPassword(),
-                    registerRequest.getRole()
+                    registerRequest.getRole(),
+                    registerRequest.getLicenseNumber()
             );
 
-            // Après l'inscription, authentifier l'utilisateur et retourner un token
+            // ✅ Après l'inscription : auto-login et retourner token
             AuthRequest authRequest = new AuthRequest(
                     registerRequest.getEmail(),
                     registerRequest.getPassword()
@@ -71,12 +85,20 @@ public class AuthController {
             AuthResponse response = authService.authenticateUser(authRequest);
             return ResponseEntity.ok(response);
 
+        } catch (IllegalArgumentException e) {
+            logger.error("Registration validation error: {}", e.getMessage(), e);
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            error.put("error", "Validation failed");
+            return ResponseEntity.badRequest().body(error);
+
         } catch (RuntimeException e) {
             logger.error("Registration error: {}", e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
             error.put("error", "Registration failed");
             return ResponseEntity.badRequest().body(error);
+
         } catch (Exception e) {
             logger.error("Unexpected registration error: {}", e.getMessage(), e);
             Map<String, String> error = new HashMap<>();
@@ -85,6 +107,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
 
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {

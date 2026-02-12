@@ -1,23 +1,31 @@
 package com.example.fleet_backend.exception;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<?> notFound(ResourceNotFoundException e) {
+        return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
     }
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<?> handleNotFound(ResourceNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<?> forbidden() {
+        return ResponseEntity.status(403).body(Map.of("error", "Forbidden"));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<?> badRequest(IllegalArgumentException e) {
+        return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> serverError(Exception e) {
+        return ResponseEntity.status(500).body(Map.of("error", "Internal server error"));
     }
 }
-

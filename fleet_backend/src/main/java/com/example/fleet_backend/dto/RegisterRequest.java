@@ -25,6 +25,9 @@ public class RegisterRequest {
     @NotBlank
     private String role; // ADMIN, OWNER, DRIVER
 
+    // obligatoire seulement si DRIVER
+    private String licenseNumber;
+
     public String getEmail() {
         return email;
     }
@@ -72,4 +75,8 @@ public class RegisterRequest {
     public void setRole(String role) {
         this.role = role;
     }
+
+    public String getLicenseNumber() { return licenseNumber; }
+    public void setLicenseNumber(String licenseNumber) { this.licenseNumber = licenseNumber; }
+
 }

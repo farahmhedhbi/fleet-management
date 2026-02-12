@@ -1,8 +1,6 @@
 package com.example.fleet_backend.security;
 
-import com.example.fleet_backend.service.UserDetailsImpl;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 
 /**
  * Classe utilitaire (helper) pour éviter de répéter du code partout:
@@ -10,6 +8,12 @@ import org.springframework.security.core.GrantedAuthority;
  * - vérifier s'il possède un rôle
  */
 public class AuthUtil {
+    private AuthUtil() {}
+
+    public static String email(Authentication auth) {
+        if (auth == null) return null;
+        return auth.getName(); // email si UserDetails.username = email
+    }
 
     /**
      * Retourne l'ID de l'utilisateur connecté à partir de Authentication.
@@ -29,31 +33,29 @@ public class AuthUtil {
         return null;
     }
 
-    /**
-     * Vérifie si l'utilisateur a un rôle donné.
-     *
-     * On construit le format Spring Security "ROLE_XXX"
-     * Exemple: roleNoPrefix="admin" -> wanted="ROLE_ADMIN"
-     *
-     * @param roleNoPrefix rôle sans "ROLE_" (ex: "ADMIN", "OWNER")
-     * @return true si l'utilisateur possède ce rôle
-     */
-    public static boolean hasRole(Authentication auth, String roleNoPrefix) {
+    public static boolean hasRole(Authentication auth, String role) {
+        if (auth == null || auth.getAuthorities() == null) return false;
 
-        // Standard Spring Security: les rôles sont généralement préfixés par "ROLE_"
-        String wanted = "ROLE_" + roleNoPrefix.toUpperCase();
+        String r = role == null ? "" : role.trim().toUpperCase();
+        if (r.isEmpty()) return false;
 
-        // auth.getAuthorities() contient toutes les permissions/roles de l'utilisateur
-        for (GrantedAuthority a : auth.getAuthorities()) {
-            if (wanted.equals(a.getAuthority())) return true;
-        }
-        return false;
+        // Accepte "OWNER" ou "ROLE_OWNER"
+        if (!r.startsWith("ROLE_")) r = "ROLE_" + r;
+        final String expected = r;
+
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> expected.equals(a.getAuthority()));
     }
 
-    /**
-     * Raccourci pratique: vérifie si l'utilisateur est ADMIN.
-     */
     public static boolean isAdmin(Authentication auth) {
         return hasRole(auth, "ADMIN");
+    }
+
+    public static boolean isOwner(Authentication auth) {
+        return hasRole(auth, "OWNER");
+    }
+
+    public static boolean isDriver(Authentication auth) {
+        return hasRole(auth, "DRIVER");
     }
 }

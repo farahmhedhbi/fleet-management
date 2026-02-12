@@ -40,7 +40,7 @@ public class AdminController {
     }
 
     // ===== Users management =====
-    @GetMapping("/users")
+    @GetMapping("/users/summary")
     public List<UserDTO> users() {
         return adminService.listUsers();
     }
@@ -60,9 +60,11 @@ public class AdminController {
         return adminService.updateUser(id, req);
     }
 
-    @DeleteMapping("/users/{id}")
+    @DeleteMapping("/manage/users/{id}")
     public void delete(@PathVariable Long id) {
         adminService.deleteUser(id);
     }
+
+
 }
 

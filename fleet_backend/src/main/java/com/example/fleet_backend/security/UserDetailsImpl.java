@@ -1,4 +1,4 @@
-package com.example.fleet_backend.service;
+package com.example.fleet_backend.security;
 
 import com.example.fleet_backend.model.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -23,6 +23,9 @@ public class UserDetailsImpl implements UserDetails {
     // ✅ utile pour debug
     private final String role;
 
+    private final boolean enabled;
+
+
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserDetailsImpl(Long id,
@@ -31,6 +34,7 @@ public class UserDetailsImpl implements UserDetails {
                            String email,
                            String password,
                            String role,
+                           boolean enabled,
                            Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.firstName = firstName;
@@ -38,6 +42,7 @@ public class UserDetailsImpl implements UserDetails {
         this.email = email;
         this.password = password;
         this.role = role;
+        this.enabled = enabled;
         this.authorities = authorities;
     }
 
@@ -67,6 +72,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.getEmail(),
                 user.getPassword(),
                 normalized,
+                user.isEnabled(),
                 List.of(authority)
         );
     }
@@ -113,8 +119,8 @@ public class UserDetailsImpl implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
-    @Override
-    public boolean isEnabled() { return true; }
+    // ✅ MAINTENANT ça respecte User.enabled
+    @Override public boolean isEnabled() { return enabled; }
 
     @Override
     public boolean equals(Object o) {

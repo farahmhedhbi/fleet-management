@@ -2,6 +2,7 @@ package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.UserRepository;
+import com.example.fleet_backend.security.UserDetailsImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

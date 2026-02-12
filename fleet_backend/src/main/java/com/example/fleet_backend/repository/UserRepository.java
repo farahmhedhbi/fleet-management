@@ -13,4 +13,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Boolean existsByEmail(String email);
     @Query("select u from User u where u.role.name = 'ROLE_OWNER'")
     List<User> findAllOwners();
+
+    List<User> findAllByEnabled(Boolean enabled);
 }
