@@ -39,6 +39,7 @@ public class SecurityConfig {
                         // ✅ auth
                         .requestMatchers("/api/auth/**").permitAll()
 
+
                         // ✅ DRIVER: profile
                         .requestMatchers(HttpMethod.GET, "/api/drivers/me").hasAuthority("ROLE_DRIVER")
 

@@ -1,9 +1,8 @@
 package com.example.fleet_backend.controller;
 
-import com.example.fleet_backend.dto.AuthRequest;
-import com.example.fleet_backend.dto.AuthResponse;
-import com.example.fleet_backend.dto.RegisterRequest;
+import com.example.fleet_backend.dto.*;
 import com.example.fleet_backend.service.AuthService;
+import com.example.fleet_backend.service.PasswordResetService;
 import com.example.fleet_backend.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -26,6 +25,13 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private final PasswordResetService passwordResetService;
+
+    public AuthController(PasswordResetService passwordResetService) {
+        this.passwordResetService = passwordResetService;
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody AuthRequest authRequest) {
@@ -100,6 +106,24 @@ public class AuthController {
                 "lastName", user.getLastName(),
                 "roles", user.getAuthorities()
         ));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        String token = passwordResetService.createResetToken(req.getEmail());
+
+        // Pour PFE : retourner token
+        return ResponseEntity.ok(Map.of(
+                "message", "Token de réinitialisation généré",
+                "token", token,
+                "expiresInMinutes", 15
+        ));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        passwordResetService.resetPassword(req.getToken(), req.getNewPassword());
+        return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
     }
 
 }
