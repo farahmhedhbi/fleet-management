@@ -10,6 +10,7 @@ export interface RegisterRequest {
   password: string
   phone?: string
   role: 'ROLE_DRIVER' | 'ROLE_OWNER' | 'ROLE_ADMIN'
+  licenseNumber?: string;
 }
 
 export interface AuthResponse {

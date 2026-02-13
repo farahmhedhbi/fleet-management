@@ -68,6 +68,7 @@ export default function RegisterPage() {
     password: "",
     phone: "",
     role: "ROLE_DRIVER", // ✅ correct pour le backend Spring Security
+    licenseNumber: "" ,
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -125,6 +126,14 @@ export default function RegisterPage() {
       return;
     }
 
+    if (formData.role === "ROLE_DRIVER") {
+        if (!formData.licenseNumber || !formData.licenseNumber.trim()) {
+          toast.error("License Number obligatoire pour Driver");
+          return;
+        }
+      }
+
+
     setLoading(true);
     try {
       const result = await register(formData);
@@ -142,6 +151,10 @@ export default function RegisterPage() {
   };
 
   const selectedRole = roles.find((r) => r.value === formData.role);
+  const payload: RegisterRequest =
+  formData.role === "ROLE_DRIVER"
+    ? formData
+    : { ...formData, licenseNumber: undefined };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_700px_at_20%_10%,rgba(56,189,248,0.18),transparent_60%),radial-gradient(900px_650px_at_85%_85%,rgba(16,185,129,0.14),transparent_60%),linear-gradient(to_bottom,#f8fafc,white,#f8fafc)]">
@@ -322,6 +335,23 @@ export default function RegisterPage() {
                     />
                   </div>
                 </InputShell>
+                {formData.role === "ROLE_DRIVER" && (
+                <InputShell label="License Number" required hint="Obligatoire pour Driver">
+                  <div className="relative">
+                    <Car className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      name="licenseNumber"
+                      value={formData.licenseNumber ?? ""}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
+                      placeholder="Ex: TN-123456"
+                      required
+                    />
+                  </div>
+                </InputShell>
+              )}
+
 
                 <InputShell label="Role" required>
                   <div className="relative">
