@@ -7,7 +7,14 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/register', '/', '/api/auth']
+  const publicRoutes = [
+  "/login",
+  "/register",
+  "/",
+  "/forgot-password",
+  "/reset-password",
+  "/api/auth",
+];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   // Protected routes
@@ -51,7 +58,7 @@ export function middleware(request: NextRequest) {
       // If token is invalid, clear cookies and redirect to login
       const response = NextResponse.redirect(new URL('/login', request.url))
       response.cookies.delete('token')
-      response.cookies.delete('user')
+      response.cookies.delete('role')
       return response
     }
   }

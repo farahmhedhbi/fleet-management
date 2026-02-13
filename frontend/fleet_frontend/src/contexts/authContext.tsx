@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { setAuthCookies, clearAuthCookies } from "@/lib/utils/cookies";
 import { useRouter } from "next/navigation";
 import { authService, LoginRequest, RegisterRequest, AuthResponse } from "@/lib/services/authService";
 
@@ -47,12 +48,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setToken(null);
-    setUser(null);
-    router.push("/login");
-  };
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+
+  // ✅ AJOUTE CETTE LIGNE
+  clearAuthCookies();
+
+  setToken(null);
+  setUser(null);
+  router.push("/login");
+};
+
 
   const login = async (payload: LoginRequest) => {
     try {
@@ -69,10 +75,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(u));
 
+      // ✅ AJOUTE CETTE LIGNE
+      setAuthCookies(data.token, data.role);
+
       setToken(data.token);
       setUser(u);
 
       router.push("/dashboard");
+
+
       return { success: true };
     } catch (e: any) {
       return {
@@ -96,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(u));
+      setAuthCookies(data.token, data.role);
+
 
       setToken(data.token);
       setUser(u);

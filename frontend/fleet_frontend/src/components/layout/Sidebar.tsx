@@ -99,12 +99,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             </button>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-xl">
-            <div className="text-lg font-bold tracking-tight">Fleet Management</div>
-            <div className="mt-1 text-xs text-slate-200">
-              {isAdmin ? "Admin Panel" : isOwner ? "Owner Portal" : "Driver Portal"}
-            </div>
-          </div>
+          
 
           <nav className="mt-6 space-y-2">
             {items

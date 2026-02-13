@@ -160,22 +160,7 @@ export default function DashboardPage() {
   // ✅ ADMIN (READ ONLY)
   if (isAdmin) {
     return [
-      {
-        title: "View Vehicles",
-        description: "Consult fleet vehicles (read-only)",
-        icon: Car,
-        color: "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
-        hoverColor: "hover:shadow-lg hover:shadow-slate-500/20",
-        action: () => router.push("/vehicles"),
-      },
-      {
-        title: "View Drivers",
-        description: "Consult drivers list (read-only)",
-        icon: Users,
-        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-        action: () => router.push("/drivers"),
-      },
+      
       {
         title: "Reports",
         description: "View analytics and KPIs",
@@ -298,12 +283,7 @@ export default function DashboardPage() {
         <div className="p-5 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center justify-between">
             <div className="font-bold text-slate-900">Recent Vehicles</div>
-            <button
-              onClick={() => router.push(isDriver ? "/my-vehicles" : "/vehicles")}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-              View all
-            </button>
+            
           </div>
         </div>
         <div className="p-5">
