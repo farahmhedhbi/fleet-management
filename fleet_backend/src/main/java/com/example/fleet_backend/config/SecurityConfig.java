@@ -44,6 +44,7 @@ public class SecurityConfig {
 
                         // ✅ Auth Sprint 1
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
 
                         // ✅ DRIVER
                         .requestMatchers(HttpMethod.GET, "/api/drivers/me").hasAuthority("ROLE_DRIVER")

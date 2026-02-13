@@ -6,6 +6,7 @@ import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.PasswordResetTokenRepository;
 import com.example.fleet_backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -20,35 +21,40 @@ public class PasswordResetService {
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+
+    @Value("${app.frontend.reset-url}")
+    private String resetUrl; // ex: http://localhost:3000/reset-password
 
     public PasswordResetService(UserRepository userRepository,
                                 PasswordResetTokenRepository tokenRepository,
-                                PasswordEncoder passwordEncoder) {
+                                PasswordEncoder passwordEncoder,
+                                EmailService emailService) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
-    public String createResetToken(String email) {
+    public void createResetTokenAndSendEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        // Supprimer ancien token (si existe)
-        tokenRepository.deleteByUserId(user.getId());
+        tokenRepository.deleteByUserId(user.getId()); // comme ton code :contentReference[oaicite:5]{index=5}
 
         String token = UUID.randomUUID().toString();
+
         PasswordResetToken resetToken = new PasswordResetToken();
         resetToken.setToken(token);
         resetToken.setUser(user);
-        resetToken.setExpiresAt(Instant.now().plus(Duration.ofMinutes(15)));
+        resetToken.setExpiresAt(Instant.now().plus(Duration.ofMinutes(15))); // ton code :contentReference[oaicite:6]{index=6}
         resetToken.setUsed(false);
-
         tokenRepository.save(resetToken);
 
-        // Dans un vrai système : envoyer par email.
-        // Pour PFE : tu peux retourner le token dans la réponse.
-        return token;
+        String link = resetUrl + "?token=" + token;
+        emailService.sendPasswordResetEmail(user.getEmail(), link);
     }
+
 
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = tokenRepository.findByToken(token)

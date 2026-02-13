@@ -4,6 +4,7 @@ import com.example.fleet_backend.dto.*;
 import com.example.fleet_backend.service.AuthService;
 import com.example.fleet_backend.service.PasswordResetService;
 import com.example.fleet_backend.security.UserDetailsImpl;
+import com.example.fleet_backend.service.UserService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,12 @@ public class AuthController {
     @Autowired
     private final PasswordResetService passwordResetService;
 
-    public AuthController(PasswordResetService passwordResetService) {
+    @Autowired
+    private final UserService userService ;
+
+    public AuthController(PasswordResetService passwordResetService , UserService userService) {
         this.passwordResetService = passwordResetService;
+        this.userService = userService ;
     }
 
     @PostMapping("/login")
@@ -131,22 +136,17 @@ public class AuthController {
         ));
     }
 
-    @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
-        String token = passwordResetService.createResetToken(req.getEmail());
-
-        // Pour PFE : retourner token
-        return ResponseEntity.ok(Map.of(
-                "message", "Token de réinitialisation généré",
-                "token", token,
-                "expiresInMinutes", 15
-        ));
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest req,
+                                            Authentication auth) {
+        // auth.getName() = email (car ton JWT subject = email)
+        userService.changePassword(auth.getName(), req.oldPassword, req.newPassword);
+        return ResponseEntity.ok(Map.of("message", "Mot de passe changé."));
     }
 
-    @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
-        passwordResetService.resetPassword(req.getToken(), req.getNewPassword());
-        return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
+    public static class ChangePasswordRequest {
+        public String oldPassword;
+        public String newPassword;
     }
 
 }
