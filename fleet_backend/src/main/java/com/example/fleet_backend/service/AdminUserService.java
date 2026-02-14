@@ -49,6 +49,7 @@ public class AdminUserService {
         dto.email = u.getEmail();
         dto.role = (u.getRole() != null ? u.getRole().getName() : null);
         dto.enabled = u.isEnabled();
+        dto.lastLoginAt = u.getLastLoginAt();
         return dto;
     }
 }

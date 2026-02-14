@@ -18,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 public class AuthService {
 
@@ -44,6 +46,8 @@ public class AuthService {
     }
 
     public AuthResponse authenticateUser(AuthRequest authRequest) {
+
+        // 1️⃣ Authentification (vérifie email + password)
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         authRequest.getEmail(),
@@ -52,16 +56,27 @@ public class AuthService {
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtil.generateJwtToken(authentication);
 
+        // 2️⃣ Récupérer l'utilisateur connecté
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        // ✅ 1er rôle (ex: ROLE_OWNER)
+        // 3️⃣ ✅ Mettre à jour lastLoginAt (APRÈS login réussi)
+        User user = userRepository.findByEmail(userDetails.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        // 4️⃣ Générer JWT
+        String jwt = jwtUtil.generateJwtToken(authentication);
+
+        // 5️⃣ Récupérer le rôle
         String role = userDetails.getAuthorities().stream()
                 .findFirst()
                 .map(a -> a.getAuthority())
                 .orElse(null);
 
+        // 6️⃣ Retourner réponse
         return new AuthResponse(
                 jwt,
                 "Bearer",
@@ -72,6 +87,7 @@ public class AuthService {
                 role
         );
     }
+
 
     @Transactional
     public User registerUser(String firstName, String lastName,
