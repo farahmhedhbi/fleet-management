@@ -59,6 +59,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isAdmin },
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
+    { name: "Comptes actifs", href: "/admin/active-accounts", icon: Users, show: isAdmin },
+    { name: "Rôles & Permissions", href: "/admin/roles", icon: Shield, show: isAdmin },
+
 
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwner || isAdmin },
 
