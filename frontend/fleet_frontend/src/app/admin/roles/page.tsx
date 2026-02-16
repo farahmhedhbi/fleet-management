@@ -2,19 +2,60 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { adminUsersService, AdminUser, RoleName } from "@/lib/services/adminUsersService";
+import {
+  adminUsersService,
+  AdminUser,
+  RoleName,
+} from "@/lib/services/adminUsersService";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
+import {
+  RefreshCcw,
+  Shield,
+  Users,
+  UserCog,
+  BadgeCheck,
+  Mail,
+  Save,
+} from "lucide-react";
 
 const ROLE_OPTIONS: RoleName[] = ["ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER"];
+
+function cn(...classes: (string | false | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function roleChip(role?: string) {
+  const r = String(role || "");
+  if (r.includes("ADMIN"))
+    return "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600";
+  if (r.includes("OWNER"))
+    return "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600";
+  if (r.includes("DRIVER"))
+    return "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700";
+  return "bg-gradient-to-r from-slate-500 to-slate-700";
+}
+
+function saveButtonGradient(role?: RoleName) {
+  const r = String(role || "");
+  if (r.includes("ADMIN"))
+    return "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600 hover:shadow-purple-500/25";
+  if (r.includes("OWNER"))
+    return "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25";
+  if (r.includes("DRIVER"))
+    return "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:shadow-blue-500/25";
+  return "bg-gradient-to-r from-slate-600 to-slate-800 hover:shadow-slate-500/25";
+}
 
 export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [draftRoles, setDraftRoles] = useState<Record<number, RoleName>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function load() {
     try {
+      setIsRefreshing(true);
       setLoading(true);
       const data = await adminUsersService.list(); // tous
       setUsers(data);
@@ -30,6 +71,7 @@ export default function RolesPage() {
       toastError(e?.response?.data?.message || "Erreur chargement utilisateurs");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }
 
@@ -39,6 +81,14 @@ export default function RolesPage() {
 
   const rows = useMemo(() => users, [users]);
 
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const admin = rows.filter((u) => String(u.role).includes("ADMIN")).length;
+    const owner = rows.filter((u) => String(u.role).includes("OWNER")).length;
+    const driver = rows.filter((u) => String(u.role).includes("DRIVER")).length;
+    return { total, admin, owner, driver };
+  }, [rows]);
+
   function onChangeRole(userId: number, role: RoleName) {
     setDraftRoles((prev) => ({ ...prev, [userId]: role }));
   }
@@ -46,20 +96,20 @@ export default function RolesPage() {
   async function save(user: AdminUser) {
     const newRole = draftRoles[user.id];
     if (!newRole || String(user.role) === newRole) {
-      toastInfoLocal("Aucun changement");
+      toastSuccess("Aucun changement");
       return;
     }
 
     try {
       setBusyId(user.id);
-      const updated = await adminUsersService.updateUser(user.id, { role: newRole });
+      const updated = await adminUsersService.updateUser(user.id, {
+        role: newRole,
+      });
 
-      // backend retourne UserDTO (pas UserAdminDTO) → on garde enabled/lastLoginAt existant
+      // backend retourne UserDTO → on garde enabled/lastLoginAt existant
       setUsers((prev) =>
         prev.map((u) =>
-          u.id === user.id
-            ? { ...u, role: updated.role ?? newRole }
-            : u
+          u.id === user.id ? { ...u, role: updated.role ?? newRole } : u
         )
       );
 
@@ -71,51 +121,105 @@ export default function RolesPage() {
     }
   }
 
-  function toastInfoLocal(msg: string) {
-    // si tu as toastInfo dans ton Toast.tsx tu peux l'utiliser
-    // sinon on utilise success neutre
-    toastSuccess(msg);
-  }
-
   return (
     <ProtectedRoute requiredRoles={["ROLE_ADMIN"]}>
-      <div className="p-6 space-y-6">
+      <div className="p-8 space-y-8">
+        {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               Rôles & permissions
             </h1>
-            <p className="text-slate-600 mt-1">
+            <p className="mt-1 text-slate-600">
               Modifier le rôle des utilisateurs (ADMIN / OWNER / DRIVER).
             </p>
           </div>
 
           <button
             onClick={load}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
           >
-            Rafraîchir
+            <RefreshCcw
+              className={isRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+            />
+            Refresh
           </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        {/* Stats row */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-600">Total users</div>
+              <Users className="h-5 w-5 text-slate-400" />
+            </div>
+            <div className="mt-2 text-3xl font-extrabold text-slate-900">
+              {stats.total}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-600">Admins</div>
+              <Shield className="h-5 w-5 text-purple-500" />
+            </div>
+            <div className="mt-2 text-3xl font-extrabold text-slate-900">
+              {stats.admin}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-600">Owners</div>
+              <UserCog className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div className="mt-2 text-3xl font-extrabold text-slate-900">
+              {stats.owner}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-600">Drivers</div>
+              <BadgeCheck className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="mt-2 text-3xl font-extrabold text-slate-900">
+              {stats.driver}
+            </div>
+          </div>
+        </div>
+
+        {/* Table card */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <div className="p-5 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="h-5 w-5 text-slate-700" />
+                Utilisateurs
+              </div>
+              <div className="text-xs font-semibold text-slate-500">
+                Modifiez le rôle puis cliquez sur <span className="text-slate-700">Enregistrer</span>
+              </div>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+            <table className="min-w-full">
+              <thead className="bg-white">
+                <tr className="border-b border-slate-200">
+                  <th className="px-6 py-4 text-left text-xs font-extrabold uppercase tracking-wider text-slate-600">
                     Utilisateur
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-4 text-left text-xs font-extrabold uppercase tracking-wider text-slate-600">
                     Rôle
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-4 text-right text-xs font-extrabold uppercase tracking-wider text-slate-600">
                     Action
                   </th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
                     <td className="px-6 py-6 text-slate-600" colSpan={3}>
@@ -130,44 +234,77 @@ export default function RolesPage() {
                   </tr>
                 ) : (
                   rows.map((u) => {
-                    const current = draftRoles[u.id] || (u.role as RoleName) || "ROLE_DRIVER";
+                    const current =
+                      draftRoles[u.id] || (u.role as RoleName) || "ROLE_DRIVER";
                     const changed = String(u.role) !== current;
 
                     return (
-                      <tr key={u.id} className="hover:bg-slate-50">
+                      <tr key={u.id} className="hover:bg-slate-50 transition">
+                        {/* User */}
                         <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-900">
-                            {u.firstName} {u.lastName}
+                          <div className="flex items-start gap-3">
+                            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
+                              <BadgeCheck className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-slate-900">
+                                {u.firstName} {u.lastName}
+                              </div>
+                              <div className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                <Mail className="h-4 w-4 text-slate-400" />
+                                {u.email}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-sm text-slate-600">{u.email}</div>
                         </td>
 
+                        {/* Role */}
                         <td className="px-6 py-4">
-                          <select
-                            value={current}
-                            onChange={(e) => onChangeRole(u.id, e.target.value as RoleName)}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-                          >
-                            {ROLE_OPTIONS.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <select
+                              value={current}
+                              onChange={(e) =>
+                                onChangeRole(u.id, e.target.value as RoleName)
+                              }
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                            >
+                              {ROLE_OPTIONS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
 
-                          {changed && (
-                            <span className="ml-3 inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-                              Modifié
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold text-white shadow",
+                                roleChip(current)
+                              )}
+                            >
+                              <span className="h-2 w-2 rounded-full bg-white/70" />
+                              {current}
                             </span>
-                          )}
+
+                            {changed && (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-extrabold text-amber-700 border border-amber-200">
+                                Modifié
+                              </span>
+                            )}
+                          </div>
                         </td>
 
+                        {/* Action */}
                         <td className="px-6 py-4 text-right">
                           <button
                             onClick={() => save(u)}
                             disabled={busyId === u.id || !changed}
-                            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                            className={cn(
+                              "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg",
+                              saveButtonGradient(current),
+                              "disabled:opacity-50 disabled:cursor-not-allowed"
+                            )}
                           >
+                            <Save className="h-4 w-4" />
                             {busyId === u.id ? "..." : "Enregistrer"}
                           </button>
                         </td>
