@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { User, CreateUserDTO, UpdateUserDTO } from "@/types/user";
+import type { User, CreateUserDTO, UpdateUserDTO, InviteUserDTO } from "@/types/user";
 import type { Vehicle } from "@/types/vehicle";
 
 export const adminService = {
@@ -32,10 +32,18 @@ export const adminService = {
 
   async updateUser(id: number, payload: UpdateUserDTO): Promise<User> {
     const res = await api.put<User>(`/api/admin/users/${id}`, payload);
+    console.log("PUT /api/admin/users/" + id, payload);
     return res.data;
+    
   },
 
   async deleteUser(id: number): Promise<void> {
     await api.delete(`/api/admin/users/${id}`);
+  },
+
+  // ✅ NEW: Invite user (flow pro)
+  async inviteUser(payload: InviteUserDTO): Promise<User> {
+    const res = await api.post<User>("/api/admin/users/invite", payload);
+    return res.data;
   },
 };

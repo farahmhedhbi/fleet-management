@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminOnly } from "@/components/layout/AdminOnly";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { adminService } from "@/lib/services/adminService";
-import type { User, RoleName, CreateUserDTO, UpdateUserDTO } from "@/types/user";
+import type { User, RoleName, InviteUserDTO, UpdateUserDTO } from "@/types/user";
 import {
   Plus,
   RefreshCcw,
@@ -18,7 +18,7 @@ import {
   Mail,
   BadgeCheck,
   UserCog,
-  Lock,
+  KeyRound,
 } from "lucide-react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
@@ -42,12 +42,11 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
   const [q, setQ] = useState("");
 
   // modal state
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"create" | "edit">("create");
+  const [mode, setMode] = useState<"invite" | "edit">("invite");
   const [editing, setEditing] = useState<User | null>(null);
 
   // form
@@ -55,7 +54,12 @@ export default function AdminUsersPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<RoleName>("ROLE_OWNER");
-  const [password, setPassword] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+
+  // edit-only
+  const [newPassword, setNewPassword] = useState("");
+
+  const isDriver = role === "ROLE_DRIVER";
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -80,7 +84,7 @@ export default function AdminUsersPage() {
       const data = await adminService.listUsers();
       setUsers(data);
     } catch (e: any) {
-      toastError(e?.response?.data?.message || "Erreur chargement users");
+      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur chargement users");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -96,13 +100,14 @@ export default function AdminUsersPage() {
     setLastName("");
     setEmail("");
     setRole("ROLE_OWNER");
-    setPassword("");
+    setLicenseNumber("");
+    setNewPassword("");
     setEditing(null);
   }
 
-  function openCreate() {
+  function openInvite() {
     resetForm();
-    setMode("create");
+    setMode("invite");
     setOpen(true);
   }
 
@@ -114,7 +119,10 @@ export default function AdminUsersPage() {
     setLastName(u.lastName);
     setEmail(u.email);
     setRole(u.role);
-    setPassword("");
+
+    // ✅ si ton API renvoie licenseNumber dans listUsers(), on le pré-remplit
+    setLicenseNumber(u.licenseNumber || "");
+
     setOpen(true);
   }
 
@@ -124,31 +132,47 @@ export default function AdminUsersPage() {
       return;
     }
 
+    // ✅ IMPORTANT: si role DRIVER -> license obligatoire (invite + edit)
+    if (isDriver && !licenseNumber.trim()) {
+      toastError("licenseNumber is required for ROLE_DRIVER");
+      return;
+    }
+
     try {
-      if (mode === "create") {
-        if (!password.trim()) {
-          toastError("password is required for create");
-          return;
-        }
-        const payload: CreateUserDTO = { firstName, lastName, email, password, role };
-        const created = await adminService.createUser(payload);
-        setUsers((prev) => [created, ...prev]);
-        toastSuccess("User created");
+      if (mode === "invite") {
+        const payload: InviteUserDTO = {
+          firstName,
+          lastName,
+          email,
+          role,
+          ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
+        };
+
+        const invited = await adminService.inviteUser(payload);
+        setUsers((prev) => [invited, ...prev]);
+        toastSuccess("Invitation envoyée ✅ L’utilisateur doit activer son compte par email.");
         setOpen(false);
         return;
       }
 
       if (mode === "edit" && editing) {
-        const payload: UpdateUserDTO = { firstName, lastName, email, role };
-        if (password.trim()) payload.password = password;
+        const payload: UpdateUserDTO = {
+          firstName,
+          lastName,
+          email,
+          role,
+          ...(newPassword.trim() ? { password: newPassword.trim() } : {}),
+          ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
+        };
 
         const updated = await adminService.updateUser(editing.id, payload);
-        setUsers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+        setUsers((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
         toastSuccess("User updated");
+        console.log("UPDATE payload =>", payload);
         setOpen(false);
       }
     } catch (e: any) {
-      toastError(e?.response?.data?.message || "Erreur save user");
+      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur save user");
     }
   }
 
@@ -161,14 +185,14 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.filter((x) => x.id !== u.id));
       toastSuccess("User deleted");
     } catch (e: any) {
-      toastError(e?.response?.data?.message || "Erreur delete user");
+      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur delete user");
     }
   }
 
   return (
     <ProtectedRoute requiredRoles={["ROLE_ADMIN"]}>
       <AdminOnly>
-        <AdminShell title="Users Management" subtitle="Create, update and delete platform users.">
+        <AdminShell title="Users Management" subtitle="Invite, update and delete platform users.">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
@@ -176,7 +200,9 @@ export default function AdminUsersPage() {
                 <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
                   Users Management
                 </h1>
-                <p className="mt-1 text-slate-600">Manage platform users, roles and access.</p>
+                <p className="mt-1 text-slate-600">
+                  Flow pro: Admin invite → email token → user définit son mot de passe.
+                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -189,11 +215,11 @@ export default function AdminUsersPage() {
                 </button>
 
                 <button
-                  onClick={openCreate}
+                  onClick={openInvite}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25"
                 >
                   <Plus className="h-4 w-4" />
-                  New User
+                  Invite User
                 </button>
               </div>
             </div>
@@ -289,14 +315,29 @@ export default function AdminUsersPage() {
                               {u.email}
                             </div>
 
-                            <div
-                              className={cn(
-                                "mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold text-white shadow",
-                                roleChip(String(u.role))
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <div
+                                className={cn(
+                                  "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold text-white shadow",
+                                  roleChip(String(u.role))
+                                )}
+                              >
+                                <Shield className="h-3.5 w-3.5" />
+                                {u.role}
+                              </div>
+
+                              {"enabled" in u && (
+                                <div
+                                  className={cn(
+                                    "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-extrabold shadow",
+                                    u.enabled
+                                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                                      : "border border-amber-200 bg-amber-50 text-amber-800"
+                                  )}
+                                >
+                                  {u.enabled ? "Enabled" : "Disabled"}
+                                </div>
                               )}
-                            >
-                              <Shield className="h-3.5 w-3.5" />
-                              {u.role}
                             </div>
                           </div>
                         </div>
@@ -325,23 +366,27 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            {/* Modal create/edit */}
+            {/* Modal invite/edit */}
             {open && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                 <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
                   <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <div className="flex items-start gap-3">
                       <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
-                        {mode === "create" ? <Plus className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
+                        {mode === "invite" ? (
+                          <KeyRound className="h-5 w-5" />
+                        ) : (
+                          <Pencil className="h-5 w-5" />
+                        )}
                       </div>
 
                       <div>
                         <div className="text-xs font-extrabold text-slate-600">
-                          {mode === "create" ? "CREATE USER" : "EDIT USER"}
+                          {mode === "invite" ? "INVITE USER" : "EDIT USER"}
                         </div>
                         <div className="text-xl font-extrabold text-slate-900">
-                          {mode === "create"
-                            ? "New platform user"
+                          {mode === "invite"
+                            ? "Invitation (email activation)"
                             : `${editing?.firstName} ${editing?.lastName}`}
                         </div>
                       </div>
@@ -390,7 +435,7 @@ export default function AdminUsersPage() {
                         <div className="text-sm font-semibold text-slate-700">Role</div>
                         <select
                           value={role}
-                          onChange={(e) => setRole(e.target.value as any)}
+                          onChange={(e) => setRole(e.target.value as RoleName)}
                           className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
                         >
                           {ROLES.map((r) => (
@@ -401,21 +446,41 @@ export default function AdminUsersPage() {
                         </select>
                       </div>
 
+                      {/* ✅ DRIVER licenseNumber (invite + edit) */}
                       <div>
                         <div className="text-sm font-semibold text-slate-700">
-                          {mode === "create" ? "Password" : "New password (optional)"}
+                          License number {isDriver ? "(required)" : "(only for drivers)"}
                         </div>
-                        <div className="relative mt-1">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                          <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                          />
-                        </div>
+                        <input
+                          value={licenseNumber}
+                          onChange={(e) => setLicenseNumber(e.target.value)}
+                          disabled={!isDriver}
+                          placeholder={isDriver ? "ex: TN-DR-1234" : "Only for drivers"}
+                          className={cn(
+                            "mt-1 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2",
+                            !isDriver
+                              ? "border-slate-200 bg-slate-50 text-slate-400 focus:ring-slate-200"
+                              : "border-slate-200 bg-white text-slate-800 focus:ring-slate-200"
+                          )}
+                        />
                       </div>
                     </div>
+
+                    {/* optional password in edit */}
+                    {mode === "edit" && (
+                      <div>
+                        <div className="text-sm font-semibold text-slate-700">
+                          New password (optional)
+                        </div>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
+                          placeholder="Leave empty to keep current password"
+                        />
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button
@@ -431,7 +496,7 @@ export default function AdminUsersPage() {
                         className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg bg-gradient-to-r from-slate-900 to-slate-800"
                       >
                         <Save className="h-4 w-4" />
-                        Save
+                        {mode === "invite" ? "Send Invite" : "Save"}
                       </button>
                     </div>
                   </div>
