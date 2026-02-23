@@ -5,10 +5,10 @@ import com.example.fleet_backend.model.PasswordResetToken;
 import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.PasswordResetTokenRepository;
 import com.example.fleet_backend.repository.UserRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -26,6 +26,9 @@ public class PasswordResetService {
     @Value("${app.frontend.reset-url}")
     private String resetUrl; // ex: http://localhost:3000/reset-password
 
+    @Value("${app.frontend.activation-url}")
+    private String activationUrl; // ex: http://localhost:3000/activate-account
+
     public PasswordResetService(UserRepository userRepository,
                                 PasswordResetTokenRepository tokenRepository,
                                 PasswordEncoder passwordEncoder,
@@ -40,40 +43,58 @@ public class PasswordResetService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        tokenRepository.deleteByUserId(user.getId()); // comme ton code :contentReference[oaicite:5]{index=5}
+        // Supprime les anciens tokens de cet user (si tu as cette méthode repo)
+        tokenRepository.deleteByUserId(user.getId());
 
         String token = UUID.randomUUID().toString();
 
         PasswordResetToken resetToken = new PasswordResetToken();
         resetToken.setToken(token);
         resetToken.setUser(user);
-        resetToken.setExpiresAt(Instant.now().plus(Duration.ofMinutes(15))); // ton code :contentReference[oaicite:6]{index=6}
+        resetToken.setExpiresAt(Instant.now().plus(Duration.ofMinutes(15)));
         resetToken.setUsed(false);
+
         tokenRepository.save(resetToken);
 
         String link = resetUrl + "?token=" + token;
         emailService.sendPasswordResetEmail(user.getEmail(), link);
     }
 
-
     public void resetPassword(String token, String newPassword) {
-        PasswordResetToken resetToken = tokenRepository.findByToken(token)
+        PasswordResetToken t = tokenRepository.findByToken(token)
                 .orElseThrow(() -> new IllegalArgumentException("Token invalide"));
 
-        if (resetToken.isUsed()) {
-            throw new IllegalArgumentException("Token déjà utilisé");
-        }
+        if (t.isUsed()) throw new IllegalArgumentException("Token déjà utilisé");
+        if (t.getExpiresAt().isBefore(Instant.now())) throw new IllegalArgumentException("Token expiré");
 
-        if (resetToken.getExpiresAt().isBefore(Instant.now())) {
-            throw new IllegalArgumentException("Token expiré");
-        }
-
-        User user = resetToken.getUser();
+        User user = t.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setEnabled(true);
         userRepository.save(user);
 
-        resetToken.setUsed(true);
-        tokenRepository.save(resetToken);
+        // Marquer utilisé puis supprimer
+        t.setUsed(true);
+        tokenRepository.save(t);
+        tokenRepository.deleteById(t.getId());
+    }
+
+    public void createActivationTokenAndSendEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        tokenRepository.deleteByUserId(user.getId());
+
+        String token = UUID.randomUUID().toString();
+
+        PasswordResetToken t = new PasswordResetToken();
+        t.setToken(token);
+        t.setUser(user);
+        t.setExpiresAt(Instant.now().plus(Duration.ofHours(24)));
+        t.setUsed(false);
+
+        tokenRepository.save(t);
+
+        String link = activationUrl + "?token=" + token;
+        emailService.sendAccountActivationEmail(user.getEmail(), link);
     }
 }
-

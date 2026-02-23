@@ -1,6 +1,6 @@
 package com.example.fleet_backend.controller;
 
-import com.example.fleet_backend.dto.CreateUserRequest;
+import com.example.fleet_backend.dto.AdminInviteUserRequest;
 import com.example.fleet_backend.dto.UpdateUserRequest;
 import com.example.fleet_backend.dto.UserDTO;
 import com.example.fleet_backend.dto.VehicleDTO;
@@ -35,24 +35,15 @@ public class AdminController {
     @GetMapping("/owners/{ownerId}/vehicles")
     public List<VehicleDTO> vehiclesByOwner(@PathVariable Long ownerId) {
         return vehicleRepository.findByOwnerId(ownerId)
-                .stream().map(VehicleDTO::new)
+                .stream()
+                .map(VehicleDTO::new)
                 .collect(Collectors.toList());
     }
 
-    // ===== Users management =====
-    @GetMapping("/users/summary")
-    public List<UserDTO> users() {
-        return adminService.listUsers();
-    }
-
+    // ===== Users (details / update / invite) =====
     @GetMapping("/users/{id}")
     public UserDTO get(@PathVariable Long id) {
         return adminService.getUser(id);
-    }
-
-    @PostMapping("/users")
-    public UserDTO create(@RequestBody CreateUserRequest req) {
-        return adminService.createUser(req);
     }
 
     @PutMapping("/users/{id}")
@@ -60,11 +51,10 @@ public class AdminController {
         return adminService.updateUser(id, req);
     }
 
-    @DeleteMapping("/manage/users/{id}")
-    public void delete(@PathVariable Long id) {
-        adminService.deleteUser(id);
+    @PostMapping("/users/invite")
+    public UserDTO invite(@RequestBody AdminInviteUserRequest req) {
+        return adminService.inviteUser(req);
     }
 
 
 }
-

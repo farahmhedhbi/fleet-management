@@ -26,4 +26,5 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     boolean existsByRegistrationNumber(String registrationNumber);
 
     boolean existsByVin(String vin);
+    void deleteByOwnerId(Long ownerId);
 }

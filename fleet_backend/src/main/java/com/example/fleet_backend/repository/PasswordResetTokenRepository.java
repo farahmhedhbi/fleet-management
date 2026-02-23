@@ -9,10 +9,12 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
+    // ✅ Delete tokens by userId : il faut @Modifying + @Query + @Param
     @Modifying
     @Query("delete from PasswordResetToken t where t.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
-
     java.util.Optional<PasswordResetToken> findByToken(String token);
+
+
 }
 
