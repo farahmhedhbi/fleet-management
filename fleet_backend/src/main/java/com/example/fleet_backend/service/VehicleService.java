@@ -214,4 +214,12 @@ public class VehicleService {
         v.setLastMaintenanceDate(dto.getLastMaintenanceDate());
         v.setNextMaintenanceDate(dto.getNextMaintenanceDate());
     }
+    @Transactional
+    public Vehicle unassignDriver(Long vehicleId) {
+        Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
+
+        vehicle.setDriver(null); // ✅ تفريغ
+        return vehicleRepository.save(vehicle);
+    }
 }
