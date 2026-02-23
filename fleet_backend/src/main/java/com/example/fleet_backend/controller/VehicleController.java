@@ -1,6 +1,7 @@
 package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.VehicleDTO;
+import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.service.VehicleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -72,5 +73,10 @@ public class VehicleController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {
         return vehicleService.removeDriverFromVehicleSecured(id, auth);
+    }
+    @PostMapping("/{id}/unassign-driver")
+    public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id) {
+        Vehicle updated = vehicleService.unassignDriver(id);
+        return ResponseEntity.ok(updated);
     }
 }

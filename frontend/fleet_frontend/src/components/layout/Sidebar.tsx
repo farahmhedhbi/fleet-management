@@ -17,6 +17,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
+import { Route } from "lucide-react";
 
 type SidebarProps = {
   sidebarOpen: boolean;
@@ -53,6 +54,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     // ✅ OWNER/ADMIN
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwner  },
+
+{ name: "Assignments", href: "/owner/assignments", icon: Route, show: isOwner },
 
     // ✅ ADMIN only (Sprint 3)
     { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isAdmin },

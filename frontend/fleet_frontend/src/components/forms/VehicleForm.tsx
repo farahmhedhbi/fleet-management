@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { VehicleDTO, VehicleStatus, FuelType, TransmissionType } from '@/types/vehicle'
+import { VehicleDTO } from '@/types/vehicle'
 import { Driver } from '@/types/driver'
 import { toast } from 'react-toastify'
 import { vehicleService } from '@/lib/services/vehicleService'
@@ -15,13 +15,53 @@ interface VehicleFormProps {
   onSuccess: () => void
 }
 
+/**
+ * Convertit une valeur d'input date:
+ * - "" | undefined | null => null
+ * - "YYYY-MM-DD" => "YYYY-MM-DDT00:00:00" (compatible LocalDateTime)
+ * - "YYYY-MM-DDTHH:mm:ss" => inchangé
+ */
+const toLocalDateTimeOrNull = (v: any): string | null => {
+  if (v === undefined || v === null) return null
+  const s = String(v).trim()
+  if (!s) return null
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return `${s}T00:00:00`
+  }
+  return s
+}
+
 export const VehicleForm: React.FC<VehicleFormProps> = ({
   isOpen,
   onClose,
   vehicle,
   onSuccess
 }) => {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<VehicleDTO>()
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors }
+  } = useForm<VehicleDTO>({
+    defaultValues: {
+      registrationNumber: '',
+      brand: '',
+      model: '',
+      year: new Date().getFullYear(),
+      color: '',
+      vin: '',
+      fuelType: 'GASOLINE' as any,
+      transmission: 'MANUAL' as any,
+      status: 'AVAILABLE' as any,
+      mileage: 0,
+      // ✅ IMPORTANT: pas de "" pour LocalDateTime -> sinon 400
+      lastMaintenanceDate: undefined as any,
+      nextMaintenanceDate: undefined as any,
+      driverId: undefined
+    }
+  })
+
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingDrivers, setLoadingDrivers] = useState(false)
@@ -32,17 +72,16 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
 
   useEffect(() => {
     if (vehicle) {
-      // Préparer les dates pour l'affichage dans les inputs date
-      const formattedVehicle = {
+      // Pour afficher dans <input type="date">, on garde "YYYY-MM-DD"
+      const formattedVehicle: any = {
         ...vehicle,
-        lastMaintenanceDate: vehicle.lastMaintenanceDate 
-          ? vehicle.lastMaintenanceDate.split('T')[0]
-          : '',
-        nextMaintenanceDate: vehicle.nextMaintenanceDate 
-          ? vehicle.nextMaintenanceDate.split('T')[0]
-          : ''
+        lastMaintenanceDate: vehicle.lastMaintenanceDate
+          ? String(vehicle.lastMaintenanceDate).split('T')[0]
+          : undefined,
+        nextMaintenanceDate: vehicle.nextMaintenanceDate
+          ? String(vehicle.nextMaintenanceDate).split('T')[0]
+          : undefined
       }
-      
       reset(formattedVehicle)
     } else {
       reset({
@@ -52,12 +91,13 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
         year: new Date().getFullYear(),
         color: '',
         vin: '',
-        fuelType: 'GASOLINE',
-        transmission: 'MANUAL',
-        status: 'AVAILABLE',
+        fuelType: 'GASOLINE' as any,
+        transmission: 'MANUAL' as any,
+        status: 'AVAILABLE' as any,
         mileage: 0,
-        lastMaintenanceDate: '',
-        nextMaintenanceDate: '',
+        // ✅ IMPORTANT
+        lastMaintenanceDate: undefined as any,
+        nextMaintenanceDate: undefined as any,
         driverId: undefined
       })
     }
@@ -70,7 +110,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
       setDrivers(data)
     } catch (error: any) {
       console.error('Failed to load drivers:', error)
-      toast.error(error.message || 'Failed to load drivers')
+      toast.error(error?.response?.data?.message || error.message || 'Failed to load drivers')
     } finally {
       setLoadingDrivers(false)
     }
@@ -79,26 +119,55 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
   const onSubmit = async (data: VehicleDTO) => {
     setLoading(true)
     try {
-      console.log('Form data before submission:', data)
-      
+      // ✅ Payload corrigé pour le backend (LocalDateTime + numbers + nulls)
+      const payload: any = {
+        ...data,
+
+        // numbers
+        year: data.year == null ? null : Number(data.year),
+        mileage: data.mileage == null ? 0 : Number(data.mileage),
+
+        // driverId: "" -> null ; string -> number
+        driverId: data.driverId == null ? null : Number(data.driverId),
+
+        // LocalDateTime attendu par Spring (pas "" et pas "YYYY-MM-DD")
+        lastMaintenanceDate: toLocalDateTimeOrNull((data as any).lastMaintenanceDate),
+        nextMaintenanceDate: toLocalDateTimeOrNull((data as any).nextMaintenanceDate),
+
+        // trim strings
+        registrationNumber: data.registrationNumber?.trim(),
+        brand: data.brand?.trim(),
+        model: data.model?.trim(),
+        color: data.color?.trim() ? data.color.trim() : null,
+
+        // vin vide => null (évite problèmes unique + validation)
+        vin: data.vin?.trim() ? data.vin.trim() : null
+      }
+
+      console.log('Payload sent to backend:', payload)
+
       if (vehicle?.id) {
-        await vehicleService.update(vehicle.id, data)
+        await vehicleService.update(vehicle.id, payload)
         toast.success('Vehicle updated successfully')
       } else {
-        await vehicleService.create(data)
+        await vehicleService.create(payload)
         toast.success('Vehicle created successfully')
       }
+
       onSuccess()
       onClose()
     } catch (error: any) {
-      console.error('Form submission error:', error)
-      toast.error(error.message || 'An error occurred')
+      console.error('Form submission error:', {
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message
+      })
+      toast.error(error?.response?.data?.message || error.message || 'An error occurred')
     } finally {
       setLoading(false)
     }
   }
 
-  // Si le modal n'est pas ouvert, ne rien afficher
   if (!isOpen) return null
 
   return (
@@ -109,10 +178,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
             <h2 className="text-2xl font-bold text-gray-900">
               {vehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
             </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
-            >
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
               ✕
             </button>
           </div>
@@ -126,7 +192,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                 </label>
                 <input
                   type="text"
-                  {...register('registrationNumber', { 
+                  {...register('registrationNumber', {
                     required: 'Registration number is required',
                     pattern: {
                       value: /^[A-Z0-9-]+$/,
@@ -137,7 +203,9 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                   placeholder="ABC-123"
                 />
                 {errors.registrationNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.registrationNumber.message}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.registrationNumber.message as any}
+                  </p>
                 )}
               </div>
 
@@ -154,7 +222,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     placeholder="Toyota"
                   />
                   {errors.brand && (
-                    <p className="mt-1 text-sm text-red-600">{errors.brand.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.brand.message as any}</p>
                   )}
                 </div>
 
@@ -169,7 +237,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     placeholder="Camry"
                   />
                   {errors.model && (
-                    <p className="mt-1 text-sm text-red-600">{errors.model.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.model.message as any}</p>
                   )}
                 </div>
 
@@ -179,12 +247,12 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                   </label>
                   <input
                     type="number"
-                    {...register('year', { 
+                    {...register('year', {
                       required: 'Year is required',
                       min: { value: 1900, message: 'Year must be after 1900' },
-                      max: { 
-                        value: new Date().getFullYear() + 1, 
-                        message: 'Year cannot be more than 1 year in the future' 
+                      max: {
+                        value: new Date().getFullYear() + 1,
+                        message: 'Year cannot be more than 1 year in the future'
                       },
                       valueAsNumber: true
                     })}
@@ -192,7 +260,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     placeholder="2023"
                   />
                   {errors.year && (
-                    <p className="mt-1 text-sm text-red-600">{errors.year.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.year.message as any}</p>
                   )}
                 </div>
               </div>
@@ -227,7 +295,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     placeholder="1HGBH41JXMN109186"
                   />
                   {errors.vin && (
-                    <p className="mt-1 text-sm text-red-600">{errors.vin.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.vin.message as any}</p>
                   )}
                 </div>
               </div>
@@ -282,7 +350,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     <option value="RESERVED">Reserved</option>
                   </select>
                   {errors.status && (
-                    <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.status.message as any}</p>
                   )}
                 </div>
 
@@ -302,7 +370,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                     placeholder="0"
                   />
                   {errors.mileage && (
-                    <p className="mt-1 text-sm text-red-600">{errors.mileage.message}</p>
+                    <p className="mt-1 text-sm text-red-600">{errors.mileage.message as any}</p>
                   )}
                 </div>
               </div>
@@ -315,7 +383,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                   </label>
                   <input
                     type="date"
-                    {...register('lastMaintenanceDate')}
+                    {...register('lastMaintenanceDate' as any)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   />
                 </div>
@@ -326,7 +394,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                   </label>
                   <input
                     type="date"
-                    {...register('nextMaintenanceDate')}
+                    {...register('nextMaintenanceDate' as any)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   />
                 </div>
@@ -339,7 +407,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                 </label>
                 <select
                   {...register('driverId', {
-                    setValueAs: (value) => value === '' ? undefined : Number(value)
+                    setValueAs: (value) => (value === '' ? undefined : Number(value))
                   })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   disabled={loadingDrivers}
@@ -367,22 +435,13 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
               >
                 Cancel
               </button>
+
               <button
                 type="submit"
                 disabled={loading}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {vehicle ? 'Updating...' : 'Creating...'}
-                  </span>
-                ) : (
-                  vehicle ? 'Update Vehicle' : 'Create Vehicle'
-                )}
+                {loading ? (vehicle ? 'Updating...' : 'Creating...') : (vehicle ? 'Update Vehicle' : 'Create Vehicle')}
               </button>
             </div>
           </form>
