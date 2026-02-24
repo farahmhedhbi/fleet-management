@@ -1,9 +1,42 @@
 package com.example.fleet_backend.dto;
 
+/**
+ * ✅ RegisterResponse
+ *
+ * DTO retourné après l'inscription réussie d’un utilisateur.
+ *
+ * Utilisé dans :
+ * - AuthController.register(...)
+ * - AuthService.registerUser(...)
+ *
+ * Objectif :
+ * - Confirmer la création du compte
+ * - Retourner les informations essentielles
+ * - Ne jamais exposer le password
+ */
 public class RegisterResponse {
+
+    /**
+     * ✅ Message informatif
+     * Exemple :
+     * "User registered successfully"
+     */
     private String message;
+
+    /**
+     * ✅ ID du nouvel utilisateur
+     */
     private Long userId;
+
+    /**
+     * ✅ Email du compte créé
+     */
     private String email;
+
+    /**
+     * ✅ Rôle attribué
+     * Exemple : ROLE_DRIVER, ROLE_OWNER
+     */
     private String role;
 
     public RegisterResponse() {}
@@ -15,7 +48,10 @@ public class RegisterResponse {
         this.role = role;
     }
 
-    // Getters and Setters
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
+
     public String getMessage() {
         return message;
     }

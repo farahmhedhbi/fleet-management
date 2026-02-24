@@ -3,7 +3,21 @@ package com.example.fleet_backend.dto;
 import com.example.fleet_backend.model.Vehicle;
 import java.time.LocalDateTime;
 
+/**
+ * ✅ VehicleDTO
+ *
+ * Data Transfer Object utilisé pour :
+ * - Envoyer les données véhicule au frontend
+ * - Éviter d’exposer directement l’entité JPA
+ * - Ajouter des champs enrichis (driverName, driverEmail)
+ *
+ * Avantages :
+ * - Séparation Entity / API
+ * - Contrôle des données exposées
+ * - Format propre pour le frontend
+ */
 public class VehicleDTO {
+
     private Long id;
     private String registrationNumber;
     private String brand;
@@ -11,20 +25,33 @@ public class VehicleDTO {
     private Integer year;
     private String color;
     private String vin;
+
     private Vehicle.FuelType fuelType;
     private Vehicle.TransmissionType transmission;
     private Vehicle.VehicleStatus status;
+
     private Double mileage;
     private LocalDateTime lastMaintenanceDate;
     private LocalDateTime nextMaintenanceDate;
+
+    /**
+     * ✅ Données enrichies du conducteur
+     * (pas juste driverId, mais aussi nom + email)
+     */
     private Long driverId;
     private String driverName;
     private String driverEmail;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public VehicleDTO() {}
 
+    /**
+     * ✅ Constructeur de mapping Entity → DTO
+     *
+     * Transforme un Vehicle en VehicleDTO.
+     */
     public VehicleDTO(Vehicle vehicle) {
         this.id = vehicle.getId();
         this.registrationNumber = vehicle.getRegistrationNumber();
@@ -39,157 +66,76 @@ public class VehicleDTO {
         this.mileage = vehicle.getMileage();
         this.lastMaintenanceDate = vehicle.getLastMaintenanceDate();
         this.nextMaintenanceDate = vehicle.getNextMaintenanceDate();
+
+        /**
+         * ✅ Mapping du driver si assigné
+         */
         if (vehicle.getDriver() != null) {
             this.driverId = vehicle.getDriver().getId();
-            this.driverName = vehicle.getDriver().getFirstName() + " " + vehicle.getDriver().getLastName();
+            this.driverName = vehicle.getDriver().getFirstName() + " " +
+                    vehicle.getDriver().getLastName();
             this.driverEmail = vehicle.getDriver().getEmail();
         }
+
         this.createdAt = vehicle.getCreatedAt();
         this.updatedAt = vehicle.getUpdatedAt();
     }
 
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public String getRegistrationNumber() {
-        return registrationNumber;
-    }
+    public String getRegistrationNumber() { return registrationNumber; }
+    public void setRegistrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; }
 
-    public void setRegistrationNumber(String registrationNumber) {
-        this.registrationNumber = registrationNumber;
-    }
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
 
-    public String getBrand() {
-        return brand;
-    }
+    public String getModel() { return model; }
+    public void setModel(String model) { this.model = model; }
 
-    public void setBrand(String brand) {
-        this.brand = brand;
-    }
+    public Integer getYear() { return year; }
+    public void setYear(Integer year) { this.year = year; }
 
-    public String getModel() {
-        return model;
-    }
+    public String getColor() { return color; }
+    public void setColor(String color) { this.color = color; }
 
-    public void setModel(String model) {
-        this.model = model;
-    }
+    public String getVin() { return vin; }
+    public void setVin(String vin) { this.vin = vin; }
 
-    public Integer getYear() {
-        return year;
-    }
+    public Vehicle.FuelType getFuelType() { return fuelType; }
+    public void setFuelType(Vehicle.FuelType fuelType) { this.fuelType = fuelType; }
 
-    public void setYear(Integer year) {
-        this.year = year;
-    }
+    public Vehicle.TransmissionType getTransmission() { return transmission; }
+    public void setTransmission(Vehicle.TransmissionType transmission) { this.transmission = transmission; }
 
-    public String getColor() {
-        return color;
-    }
+    public Vehicle.VehicleStatus getStatus() { return status; }
+    public void setStatus(Vehicle.VehicleStatus status) { this.status = status; }
 
-    public void setColor(String color) {
-        this.color = color;
-    }
+    public Double getMileage() { return mileage; }
+    public void setMileage(Double mileage) { this.mileage = mileage; }
 
-    public String getVin() {
-        return vin;
-    }
+    public LocalDateTime getLastMaintenanceDate() { return lastMaintenanceDate; }
+    public void setLastMaintenanceDate(LocalDateTime lastMaintenanceDate) { this.lastMaintenanceDate = lastMaintenanceDate; }
 
-    public void setVin(String vin) {
-        this.vin = vin;
-    }
+    public LocalDateTime getNextMaintenanceDate() { return nextMaintenanceDate; }
+    public void setNextMaintenanceDate(LocalDateTime nextMaintenanceDate) { this.nextMaintenanceDate = nextMaintenanceDate; }
 
-    public Vehicle.FuelType getFuelType() {
-        return fuelType;
-    }
+    public Long getDriverId() { return driverId; }
+    public void setDriverId(Long driverId) { this.driverId = driverId; }
 
-    public void setFuelType(Vehicle.FuelType fuelType) {
-        this.fuelType = fuelType;
-    }
+    public String getDriverName() { return driverName; }
+    public void setDriverName(String driverName) { this.driverName = driverName; }
 
-    public Vehicle.TransmissionType getTransmission() {
-        return transmission;
-    }
+    public String getDriverEmail() { return driverEmail; }
+    public void setDriverEmail(String driverEmail) { this.driverEmail = driverEmail; }
 
-    public void setTransmission(Vehicle.TransmissionType transmission) {
-        this.transmission = transmission;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public Vehicle.VehicleStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(Vehicle.VehicleStatus status) {
-        this.status = status;
-    }
-
-    public Double getMileage() {
-        return mileage;
-    }
-
-    public void setMileage(Double mileage) {
-        this.mileage = mileage;
-    }
-
-    public LocalDateTime getLastMaintenanceDate() {
-        return lastMaintenanceDate;
-    }
-
-    public void setLastMaintenanceDate(LocalDateTime lastMaintenanceDate) {
-        this.lastMaintenanceDate = lastMaintenanceDate;
-    }
-
-    public LocalDateTime getNextMaintenanceDate() {
-        return nextMaintenanceDate;
-    }
-
-    public void setNextMaintenanceDate(LocalDateTime nextMaintenanceDate) {
-        this.nextMaintenanceDate = nextMaintenanceDate;
-    }
-
-    public Long getDriverId() {
-        return driverId;
-    }
-
-    public void setDriverId(Long driverId) {
-        this.driverId = driverId;
-    }
-
-    public String getDriverName() {
-        return driverName;
-    }
-
-    public void setDriverName(String driverName) {
-        this.driverName = driverName;
-    }
-
-    public String getDriverEmail() {
-        return driverEmail;
-    }
-
-    public void setDriverEmail(String driverEmail) {
-        this.driverEmail = driverEmail;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

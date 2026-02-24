@@ -10,70 +10,133 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * ✅ VehicleController
+ *
+ * Contrôleur REST pour la gestion des véhicules.
+ * Toutes les routes sont protégées par Spring Security (JWT + rôles).
+ *
+ * Base URL : /api/vehicles
+ */
 @RestController
 @RequestMapping("/api/vehicles")
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = "*", maxAge = 3600) // Autorise le frontend (CORS)
 public class VehicleController {
 
     private final VehicleService vehicleService;
 
+    // Injection par constructeur (bonne pratique)
     public VehicleController(VehicleService vehicleService) {
         this.vehicleService = vehicleService;
     }
 
-    // ✅ DRIVER/OWNER/ADMIN -> filtrage dans le service
+    /**
+     * ✅ LISTE des véhicules accessibles à l'utilisateur connecté
+     *
+     * - DRIVER : voit ses véhicules
+     * - OWNER  : voit ses véhicules
+     * - ADMIN  : voit tout
+     *
+     * Le filtrage réel est effectué dans le service.
+     */
     @GetMapping
     @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
     public List<VehicleDTO> list(Authentication auth) {
         return vehicleService.getVehiclesForConnectedUser(auth);
     }
 
-    // ✅ DRIVER/OWNER/ADMIN -> service vérifie périmètre
+    /**
+     * ✅ Récupérer un véhicule par ID
+     *
+     * Le service vérifie si l'utilisateur a le droit d'y accéder.
+     */
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
     public VehicleDTO getById(@PathVariable Long id, Authentication auth) {
         return vehicleService.getVehicleByIdSecured(id, auth);
     }
 
+    /**
+     * ✅ Créer un véhicule
+     *
+     * Autorisé uniquement pour OWNER et ADMIN.
+     * L'owner sera automatiquement lié via Authentication.
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public VehicleDTO create(@RequestBody VehicleDTO dto, Authentication auth) {
+
+        // Logs utiles pour debug JWT (à retirer en production)
         System.out.println("AUTH user=" + auth.getName());
         System.out.println("AUTH roles=" + auth.getAuthorities());
+
         return vehicleService.createVehicleSecured(dto, auth);
     }
 
+    /**
+     * ✅ Modifier un véhicule
+     *
+     * OWNER peut modifier uniquement ses véhicules.
+     * ADMIN peut modifier tous les véhicules.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public VehicleDTO update(@PathVariable Long id, @RequestBody VehicleDTO dto, Authentication auth) {
+    public VehicleDTO update(@PathVariable Long id,
+                             @RequestBody VehicleDTO dto,
+                             Authentication auth) {
+
+        // Debug sécurité
         System.out.println("UPDATE AUTH user=" + auth.getName());
         System.out.println("UPDATE AUTH roles=" + auth.getAuthorities());
-        System.out.println("UPDATE AUTH id=" + com.example.fleet_backend.security.AuthUtil.userId(auth));
+        System.out.println("UPDATE AUTH id=" +
+                com.example.fleet_backend.security.AuthUtil.userId(auth));
+
         return vehicleService.updateVehicleSecured(id, dto, auth);
     }
 
-
-    // ✅ OWNER/ADMIN seulement
+    /**
+     * ✅ Supprimer un véhicule
+     *
+     * - OWNER : peut supprimer ses véhicules
+     * - ADMIN : peut supprimer tous
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         vehicleService.deleteVehicleSecured(id, auth);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().build(); // 204 No Content
     }
 
-    // ✅ assign driver : OWNER/ADMIN seulement
+    /**
+     * ✅ Assigner un conducteur à un véhicule
+     *
+     * OWNER ou ADMIN uniquement.
+     */
     @PostMapping("/{id}/assign-driver/{driverId}")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public VehicleDTO assignDriver(@PathVariable Long id, @PathVariable Long driverId, Authentication auth) {
+    public VehicleDTO assignDriver(@PathVariable Long id,
+                                   @PathVariable Long driverId,
+                                   Authentication auth) {
         return vehicleService.assignDriverToVehicleSecured(id, driverId, auth);
     }
 
-    // ✅ remove driver : OWNER/ADMIN seulement
+    /**
+     * ✅ Retirer le conducteur d’un véhicule (version sécurisée)
+     *
+     * OWNER ou ADMIN uniquement.
+     */
     @PostMapping("/{id}/remove-driver")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {
         return vehicleService.removeDriverFromVehicleSecured(id, auth);
     }
+
+    /**
+     * ⚠ Version non sécurisée (pas de @PreAuthorize ici)
+     * À sécuriser si utilisé en production.
+     *
+     * Retire le conducteur d’un véhicule.
+     */
     @PostMapping("/{id}/unassign-driver")
     public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id) {
         Vehicle updated = vehicleService.unassignDriver(id);

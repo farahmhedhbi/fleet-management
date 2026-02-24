@@ -4,6 +4,7 @@ import com.example.fleet_backend.model.Driver;
 import java.time.LocalDateTime;
 
 public class DriverDTO {
+
     private Long id;
     private String firstName;
     private String lastName;
@@ -33,6 +34,7 @@ public class DriverDTO {
     }
 
     // Getters and Setters
+
     public Long getId() {
         return id;
     }

@@ -1,7 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  POM.xml = fichier de configuration Maven.
+  - Définit la version de Spring Boot + Java
+  - Liste les dépendances (libs) utilisées par ton backend
+  - Configure le build (compilation + packaging .jar)
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+    <!--
+	   Parent Spring Boot:
+	  - Gère automatiquement les versions compatibles de la plupart des dépendances
+	  - Évite de mettre des versions partout (sauf exceptions comme jjwt)
+	-->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
@@ -27,39 +38,58 @@
 		<url/>
 	</scm>
 	<properties>
+        <!--  Version Java utilisée pour compiler le projet -->
 		<java.version>17</java.version>
 	</properties>
 
 	<dependencies>
-		<!-- Spring Boot Starters -->
+        <!-- ========================= -->
+        <!--  SPRING BOOT STARTERS    -->
+        <!-- ========================= -->
+
+        <!--  API REST: Controllers, Tomcat embarqué, JSON (Jackson), etc -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+        <!--  Sécurité: Spring Security (authentification + autorisations) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+        <!--  JPA/Hibernate: mapping entités, repositories, transactions -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
-
+        <!--  Validation: @Valid, @NotNull, @Email, etc -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
-		<!-- Database -->
+        <!-- ========================= -->
+        <!--  DATABASE                -->
+        <!-- ========================= -->
+
+        <!--  Driver PostgreSQL (utilisé seulement à l'exécution) -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- JWT -->
+        <!-- ========================= -->
+        <!--  JWT (JSON Web Token)    -->
+        <!-- ========================= -->
+        <!--
+           JJWT (io.jsonwebtoken):
+          - jjwt-api: interfaces/contrats
+          - jjwt-impl + jjwt-jackson: impl runtime + sérialisation JSON
+          💡 Important: impl/jackson en runtime car seulement nécessaires au lancement.
+        -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
@@ -78,33 +108,42 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Development -->
+        <!-- ========================= -->
+        <!--  DEV / OUTILS            -->
+        <!-- ========================= -->
+        <!--  Devtools: hot reload (utile en dev, désactivable en prod) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
-
-		<!-- Test -->
+        <!-- ========================= -->
+        <!-- TESTS                   -->
+        <!-- ========================= -->
+        <!-- Tests Spring Boot (JUnit, MockMvc) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
+        <!--  Tests pour sécurité: @WithMockUser, etc -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- CSV Parser -->
+        <!-- ========================= -->
+        <!-- FEATURES SPECIFIQUES    -->
+        <!-- ========================= -->
+        <!--  Lire/écrire des fichiers CSV (import/export) -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-csv</artifactId>
 			<version>1.10.0</version>
 		</dependency>
-		<dependency>
+        <!-- Envoi d'emails: activation compte, reset password, notifications -->
+        <dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
@@ -113,6 +152,11 @@
 
 	<build>
 		<plugins>
+            <!--
+			  Plugin Spring Boot:
+			  - Permet "mvn spring-boot:run"
+			  - Génère un jar exécutable: java -jar target/xxx.jar
+			-->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
