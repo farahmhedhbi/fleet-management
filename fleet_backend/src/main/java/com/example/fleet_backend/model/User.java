@@ -108,7 +108,8 @@ public class User {
     private LocalDateTime lastLoginAt;
 
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
-    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public void setLastLoginAt(LocalDateTime lastLoginAt)
+    { this.lastLoginAt = lastLoginAt; }
 
     /**
      * Constructeur vide requis par JPA
