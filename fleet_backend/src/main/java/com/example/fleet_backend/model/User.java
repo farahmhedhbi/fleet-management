@@ -2,6 +2,9 @@ package com.example.fleet_backend.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+
 
 /**
  * ✅ Entité User
@@ -145,6 +148,39 @@ public class User {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    // =========================
+// SUBSCRIPTION (OWNER)
+// =========================
+    public enum SubscriptionStatus {
+        TRIAL, ACTIVE, EXPIRED
+    }
+
+    @Column(name = "trial_start_at")
+    private LocalDateTime trialStartAt;
+
+    @Column(name = "trial_end_at")
+    private LocalDateTime trialEndAt;
+
+    @Column(name = "paid_until")
+    private LocalDateTime paidUntil;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_status", length = 20, nullable = false)
+    private SubscriptionStatus subscriptionStatus = SubscriptionStatus.TRIAL;
+
+    // getters/setters
+    public LocalDateTime getTrialStartAt() { return trialStartAt; }
+    public void setTrialStartAt(LocalDateTime trialStartAt) { this.trialStartAt = trialStartAt; }
+
+    public LocalDateTime getTrialEndAt() { return trialEndAt; }
+    public void setTrialEndAt(LocalDateTime trialEndAt) { this.trialEndAt = trialEndAt; }
+
+    public LocalDateTime getPaidUntil() { return paidUntil; }
+    public void setPaidUntil(LocalDateTime paidUntil) { this.paidUntil = paidUntil; }
+
+    public SubscriptionStatus getSubscriptionStatus() { return subscriptionStatus; }
+    public void setSubscriptionStatus(SubscriptionStatus subscriptionStatus) { this.subscriptionStatus = subscriptionStatus; }
 
     // =========================
     // GETTERS & SETTERS

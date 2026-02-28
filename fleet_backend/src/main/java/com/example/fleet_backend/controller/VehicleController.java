@@ -2,6 +2,7 @@ package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.VehicleDTO;
 import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.security.SubscriptionGuard;
 import com.example.fleet_backend.service.VehicleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,10 +25,12 @@ import java.util.List;
 public class VehicleController {
 
     private final VehicleService vehicleService;
+    private final SubscriptionGuard subscriptionGuard;
 
     // Injection par constructeur (bonne pratique)
-    public VehicleController(VehicleService vehicleService) {
+    public VehicleController(VehicleService vehicleService , SubscriptionGuard subscriptionGuard) {
         this.vehicleService = vehicleService;
+        this.subscriptionGuard = subscriptionGuard;
     }
 
     /**
@@ -42,6 +45,7 @@ public class VehicleController {
     @GetMapping
     @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
     public List<VehicleDTO> list(Authentication auth) {
+        subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehiclesForConnectedUser(auth);
     }
 
@@ -53,6 +57,7 @@ public class VehicleController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
     public VehicleDTO getById(@PathVariable Long id, Authentication auth) {
+        subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehicleByIdSecured(id, auth);
     }
 
@@ -69,6 +74,7 @@ public class VehicleController {
         // Logs utiles pour debug JWT (à retirer en production)
         System.out.println("AUTH user=" + auth.getName());
         System.out.println("AUTH roles=" + auth.getAuthorities());
+        subscriptionGuard.requireOwnerActive(auth);
 
         return vehicleService.createVehicleSecured(dto, auth);
     }
@@ -90,6 +96,7 @@ public class VehicleController {
         System.out.println("UPDATE AUTH roles=" + auth.getAuthorities());
         System.out.println("UPDATE AUTH id=" +
                 com.example.fleet_backend.security.AuthUtil.userId(auth));
+        subscriptionGuard.requireOwnerActive(auth);
 
         return vehicleService.updateVehicleSecured(id, dto, auth);
     }
@@ -117,6 +124,7 @@ public class VehicleController {
     public VehicleDTO assignDriver(@PathVariable Long id,
                                    @PathVariable Long driverId,
                                    Authentication auth) {
+        subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.assignDriverToVehicleSecured(id, driverId, auth);
     }
 
@@ -128,6 +136,7 @@ public class VehicleController {
     @PostMapping("/{id}/remove-driver")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {
+        subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.removeDriverFromVehicleSecured(id, auth);
     }
 

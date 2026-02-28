@@ -1,11 +1,9 @@
 package com.example.fleet_backend.controller;
 
-import com.example.fleet_backend.dto.AdminInviteUserRequest;
-import com.example.fleet_backend.dto.UpdateUserRequest;
-import com.example.fleet_backend.dto.UserDTO;
-import com.example.fleet_backend.dto.VehicleDTO;
+import com.example.fleet_backend.dto.*;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.service.AdminService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -136,5 +134,16 @@ public class AdminController {
             @RequestBody AdminInviteUserRequest req) {
 
         return adminService.inviteUser(req);
+    }
+
+    @PostMapping("/users/{id}/activate-subscription")
+    public ResponseEntity<UserDTO> activateSubscription(@PathVariable Long id,
+                                                        @RequestBody(required = false) ActivateSubscriptionRequest req) {
+        return ResponseEntity.ok(adminService.activateOwnerSubscription(id, req));
+    }
+
+    @GetMapping("/users/{id}/payments")
+    public ResponseEntity<?> payments(@PathVariable Long id) {
+        return ResponseEntity.ok(adminService.listPaymentsForUser(id));
     }
 }

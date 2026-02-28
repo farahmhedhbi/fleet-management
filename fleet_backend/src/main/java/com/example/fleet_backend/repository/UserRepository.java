@@ -81,4 +81,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * SELECT * FROM users WHERE enabled = ?
      */
     List<User> findAllByEnabled(Boolean enabled);
+
+    // ✅ NEW: vérifier / compter les admins (admin unique)
+    long countByRole_Name(String roleName);
+    boolean existsByRole_Name(String roleName);
+
+    Optional<User> findFirstByRole_Name(String roleName);
+
 }
