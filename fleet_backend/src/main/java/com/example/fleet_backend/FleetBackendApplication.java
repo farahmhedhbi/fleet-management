@@ -71,25 +71,28 @@ public class FleetBackendApplication {
 			// =========================================================
 			// 2) Création user ADMIN par défaut
 			// =========================================================
-			//  Objectif: avoir un compte admin prêt pour gérer l'application dès le 1er lancement.
-			if (userRepository.findByEmail("admin@fleet.com").isEmpty()) {
+			// =========================================================
+// 2) Création user ADMIN par défaut (ADMIN UNIQUE)
+// =========================================================
+			long adminCount = userRepository.countByRole_Name("ROLE_ADMIN");
 
-				//  On récupère le rôle ADMIN depuis la DB (sinon exception)
+			if (adminCount == 0) {
 				Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
 						.orElseThrow(() -> new RuntimeException("Admin role not found"));
 
-				//  PasswordEncoder = hash du mot de passe (sécurité)
-				//  Ne jamais enregistrer un mot de passe en clair.
 				User admin = new User("Admin", "User", "admin@fleet.com",
 						passwordEncoder.encode("admin123"),
 						adminRole
 				);
-
-				//  enabled=true: compte activé (utile si tu as activation email)
 				admin.setEnabled(true);
 
 				userRepository.save(admin);
-				System.out.println("Admin user créé: admin@fleet.com / admin123");
+				System.out.println("✅ Admin user créé: admin@fleet.com / admin123");
+			} else if (adminCount == 1) {
+				System.out.println("✅ Admin unique déjà existant (ok).");
+			} else {
+				System.out.println("⚠️ ATTENTION: Plusieurs admins détectés (" + adminCount + ").");
+				System.out.println("⚠️ Tu dois supprimer/désactiver les admins en trop.");
 			}
 
 			// =========================================================
