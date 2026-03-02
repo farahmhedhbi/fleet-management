@@ -400,29 +400,7 @@ export const VehicleForm: React.FC<VehicleFormProps> = ({
                 </div>
               </div>
 
-              {/* Driver Assignment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign to Driver
-                </label>
-                <select
-                  {...register('driverId', {
-                    setValueAs: (value) => (value === '' ? undefined : Number(value))
-                  })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  disabled={loadingDrivers}
-                >
-                  <option value="">No driver assigned</option>
-                  {drivers.map((driver) => (
-                    <option key={driver.id} value={driver.id}>
-                      {driver.firstName} {driver.lastName} ({driver.licenseNumber})
-                    </option>
-                  ))}
-                </select>
-                {loadingDrivers && (
-                  <p className="mt-2 text-sm text-gray-500">Loading drivers...</p>
-                )}
-              </div>
+           
             </div>
 
             {/* Form Actions */}

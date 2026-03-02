@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import React, { Dispatch, SetStateAction } from "react";
 import {
   Home,
@@ -46,6 +47,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   const items: NavItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
+    { name: "Missions", href: "/missions", icon: FileText, show: isOwner  },
+    { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
 
     // ✅ DRIVER only
     { name: "My Vehicles", href: "/my-vehicles", icon: Car, show: isDriver },
@@ -55,11 +58,11 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwner  },
 
-{ name: "Assignments", href: "/owner/assignments", icon: Route, show: isOwner },
+
 
     // ✅ ADMIN only (Sprint 3)
-    { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isAdmin },
-    { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isAdmin },
+    { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isOwner},
+    { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isOwner },
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Comptes actifs", href: "/admin/active-accounts", icon: Users, show: isAdmin },

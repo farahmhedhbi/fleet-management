@@ -48,7 +48,7 @@ export default function ApiTestPage() {
   }
 
   return (
-    <ProtectedRoute requiredRoles={["ROLE_ADMIN", "ROLE_OWNER"]}>
+    <ProtectedRoute requiredRoles={[ "ROLE_OWNER"]}>
       <main className="min-h-[calc(100vh-64px)] bg-slate-50 px-4 py-8">
         <div className="mx-auto max-w-3xl">
           {/* Header */}
