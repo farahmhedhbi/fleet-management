@@ -1,14 +1,26 @@
 // src/contexts/authContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/services/authService";
 import { api } from "@/lib/api";
 import { setAuthCookies, clearAuthCookies } from "@/lib/utils/cookies";
-import type { LoginRequest, RegisterRequest, AuthResponse, UserSession } from "@/types/auth";
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  UserSession,
+} from "@/types/auth";
 
-type Role = UserSession["role"];
+/** ✅ Export Role to use it elsewhere (ProtectedRoute, etc.) */
+export type Role = UserSession["role"];
 
 type AuthContextType = {
   user: UserSession | null;
@@ -16,13 +28,16 @@ type AuthContextType = {
   loading: boolean;
   isAuthenticated: boolean;
 
-  login: (payload: LoginRequest) => Promise<{ success: boolean; message?: string }>;
-  register: (payload: RegisterRequest) => Promise<{ success: boolean; message?: string }>;
-  logout: () => void;
+  login: (
+    payload: LoginRequest
+  ) => Promise<{ success: boolean; message?: string }>;
+  register: (
+    payload: RegisterRequest
+  ) => Promise<{ success: boolean; message?: string }>;
+  logout: (redirectTo?: string) => void;
 
   hasAnyRole: (...roles: Role[]) => boolean;
 
-  // ✅ NEW
   refreshMe: () => Promise<void>;
 };
 
@@ -35,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Charger session (token + user)
+  // ✅ Load session from localStorage
   useEffect(() => {
     try {
       const t = localStorage.getItem("token");
@@ -43,63 +58,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(t);
       setUser(u ? (JSON.parse(u) as UserSession) : null);
+    } catch (e) {
+      console.error("Failed to parse session:", e);
+      setToken(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    clearAuthCookies();
-    setToken(null);
-    setUser(null);
-    router.push("/login");
+  const logout = (redirectTo: string = "/login") => {
+    try {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      clearAuthCookies();
+    } finally {
+      setToken(null);
+      setUser(null);
+      router.push(redirectTo);
+    }
   };
 
- const refreshMe = async () => {
-  const t = localStorage.getItem("token");
-  if (!t) {
-    setToken(null);
-    setUser(null);
-    return;
-  }
-
-  try {
-    const res = await api.get("/api/auth/me");
-    const data = res.data;
-
-    const session: UserSession = {
-      id: data.id,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      role: data.role,
-
-      subscriptionStatus: data.subscriptionStatus,
-      trialStartAt: data.trialStartAt ?? null,
-      trialEndAt: data.trialEndAt ?? null,
-      paidUntil: data.paidUntil ?? null,
-    };
-
-    localStorage.setItem("user", JSON.stringify(session));
-    setUser(session);
-  } catch (e: any) {
-    const status = e?.response?.status;
-
-    // ✅ si 401/403 => token invalide ou interdit => logout
-    if (status === 401) logout();
-    else {
-      console.error("refreshMe failed:", e);
-      // ❌ ne pas logout sur 500
+  const refreshMe = async () => {
+    const t = localStorage.getItem("token");
+    if (!t) {
+      setToken(null);
+      setUser(null);
+      return;
     }
-  }
-};
+
+    try {
+      // ✅ If your api instance already injects Authorization, this still works.
+      const res = await api.get("/api/auth/me", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+
+      const data = res.data;
+
+      const session: UserSession = {
+        id: data.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        role: data.role,
+
+        subscriptionStatus: data.subscriptionStatus,
+        trialStartAt: data.trialStartAt ?? null,
+        trialEndAt: data.trialEndAt ?? null,
+        paidUntil: data.paidUntil ?? null,
+      };
+
+      localStorage.setItem("user", JSON.stringify(session));
+      setToken(t);
+      setUser(session);
+    } catch (e: any) {
+      const status = e?.response?.status;
+
+      // ✅ if invalid token => logout (401/403)
+      if (status === 401 || status === 403) logout("/login");
+      else console.error("refreshMe failed:", e);
+    }
+  };
+
   const login = async (payload: LoginRequest) => {
     try {
       const data: AuthResponse = await authService.login(payload);
 
-      // ✅ session initiale (peut ne pas inclure subscription)
       const session: UserSession = {
         id: data.id,
         firstName: data.firstName,
@@ -120,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(data.token);
       setUser(session);
 
-      // ✅ IMPORTANT : charger /me pour avoir le vrai statut (trial/paid)
+      // ✅ load real status from /me
       await refreshMe();
 
       router.push("/dashboard");
@@ -157,7 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(data.token);
       setUser(session);
 
-      // ✅ IMPORTANT : /me pour trialStartAt/trialEndAt
       await refreshMe();
 
       router.push("/dashboard");
@@ -187,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasAnyRole,
       refreshMe,
     }),
-    [user, token, loading]
+    [user, token, loading] // ✅ ok (functions are stable enough here)
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
