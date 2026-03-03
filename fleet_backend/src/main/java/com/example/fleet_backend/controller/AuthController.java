@@ -1,6 +1,7 @@
 package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.*;
+import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.security.UserDetailsImpl;
 import com.example.fleet_backend.service.AuthService;
 import com.example.fleet_backend.service.PasswordResetService;
@@ -113,8 +114,8 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {
-        if (authentication == null
-                || !authentication.isAuthenticated()
+
+        if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
             return ResponseEntity.status(401).body(Map.of(
                     "error", "UNAUTHORIZED",
@@ -122,23 +123,45 @@ public class AuthController {
             ));
         }
 
-        UserDetailsImpl principal = (UserDetailsImpl) authentication.getPrincipal();
+        // ✅ fiable même si principal n'est pas UserDetailsImpl
+        String email = authentication.getName();
 
-        var u = userService.getByEmail(principal.getEmail()); // ajoute méthode si besoin
+        // ✅ au cas où auth.getName() ne serait pas l'email (rare), fallback:
+        if (email == null || email.isBlank()) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof org.springframework.security.core.userdetails.User springUser) {
+                email = springUser.getUsername();
+            } else if (principal instanceof String s) {
+                email = s;
+            }
+        }
 
-        return ResponseEntity.ok(Map.of(
-                "id", principal.getId(),
-                "email", principal.getEmail(),
-                "firstName", principal.getFirstName(),
-                "lastName", principal.getLastName(),
-                "roles", principal.getAuthorities(),
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "error", "UNAUTHORIZED",
+                    "message", "Invalid principal"
+            ));
+        }
 
-                // ✅ subscription infos
-                "subscriptionStatus", u.getSubscriptionStatus(),
-                "trialEndAt", u.getTrialEndAt(),
-                "paidUntil", u.getPaidUntil()
-        ));
+        User u = userService.getByEmail(email); // doit exister
+
+        // ✅ HashMap accepte null (contrairement à Map.of)
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("id", u.getId());
+        body.put("email", u.getEmail());
+        body.put("firstName", u.getFirstName());
+        body.put("lastName", u.getLastName());
+        body.put("role", u.getRoleName());
+
+        body.put("subscriptionStatus", u.getSubscriptionStatus());
+        body.put("trialStartAt", u.getTrialStartAt());
+        body.put("trialEndAt", u.getTrialEndAt());
+        body.put("paidUntil", u.getPaidUntil());
+
+        return ResponseEntity.ok(body);
     }
+
+
 
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest req, Authentication auth) {

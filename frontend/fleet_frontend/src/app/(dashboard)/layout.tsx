@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Sidebar from '@/components/layout/Sidebar'
 import { useAuth } from '@/contexts/authContext'
-
+import { SubscriptionBanner } from '@/components/subscription/SubscriptionBanner'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -35,6 +35,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       
       <main className="lg:pl-64 pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+          {/* ✅ AJOUT ICI : Banner visible uniquement pour OWNER */}
+          {user.role === "ROLE_OWNER" && (
+            <SubscriptionBanner info={user} />
+          )}
+
           {pathname === '/dashboard' ? (
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900">

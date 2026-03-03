@@ -74,12 +74,7 @@ public class GlobalExceptionHandler {
      *
      * ⚠️ En production on éviterait d’exposer les détails internes.
      */
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> serverError(Exception e) {
-        return ResponseEntity
-                .status(500)
-                .body(Map.of("error", "Internal server error"));
-    }
+
     @ExceptionHandler(SubscriptionExpiredException.class)
     public ResponseEntity<?> handleSubscriptionExpired(SubscriptionExpiredException ex) {
         // 403 ou 402 (Payment Required). Beaucoup utilisent 403.
@@ -87,5 +82,15 @@ public class GlobalExceptionHandler {
                 "error", "SUBSCRIPTION_EXPIRED",
                 "message", "Votre période d’essai est terminée. Veuillez effectuer le paiement pour activer."
         ));
+    }
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> serverError(Exception e) {
+        e.printStackTrace(); // ✅ dev only
+        return ResponseEntity
+                .status(500)
+                .body(Map.of(
+                        "error", "Internal server error",
+                        "message", e.getMessage()
+                ));
     }
 }
