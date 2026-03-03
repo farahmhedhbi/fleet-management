@@ -9,7 +9,7 @@ export const notificationService = {
 
   async unreadCount(): Promise<number> {
     const res = await api.get<number>("/api/notifications/unread-count");
-    return res.data;
+    return Number(res.data) || 0;
   },
 
   async markRead(id: number): Promise<void> {

@@ -62,7 +62,6 @@ function initials(first?: string, last?: string) {
  * - user.role = "ROLE_OWNER"
  * - user.roleName = "ROLE_OWNER"
  * - user.role = { name: "ROLE_OWNER" }
- * - user.role = { name: "ROLE_OWNER", ... }
  */
 function getRoleNameFromUser(user: any): string {
   if (!user) return "";
@@ -79,9 +78,12 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // ✅ ONLY OWNER sees notifications (robust)
   const roleName = useMemo(() => getRoleNameFromUser(user), [user]);
   const isOwner = roleName === "ROLE_OWNER" || roleName.includes("OWNER");
+  const isDriver = roleName === "ROLE_DRIVER" || roleName.includes("DRIVER");
+
+  // ✅ OWNER + DRIVER can see notifications
+  const canSeeNotifs = isOwner || isDriver;
 
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -113,7 +115,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   };
 
   const loadUnreadCount = async () => {
-    if (!isOwner) return;
+    if (!canSeeNotifs) return;
     try {
       const c = await notificationService.unreadCount();
       setUnreadCount(Number(c) || 0);
@@ -123,7 +125,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   };
 
   const loadNotifications = async () => {
-    if (!isOwner) return;
+    if (!canSeeNotifs) return;
     setNotifLoading(true);
     try {
       const list = await notificationService.list();
@@ -136,9 +138,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
     }
   };
 
-  // ✅ Poll unread count only for OWNER, otherwise reset
+  // ✅ Poll unread count for OWNER + DRIVER
   useEffect(() => {
-    if (!isOwner) {
+    if (!canSeeNotifs) {
       setUnreadCount(0);
       setNotifications([]);
       setNotifOpen(false);
@@ -149,7 +151,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
     const t = setInterval(loadUnreadCount, 15000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner]);
+  }, [canSeeNotifs]);
 
   const markRead = async (id: number) => {
     try {
@@ -171,6 +173,8 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       toast.error(e?.response?.data?.message || e?.message || "Mark all failed");
     }
   };
+
+  const openAllRoute = () => (isDriver ? "/my-missions" : "/missions");
 
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white/75 backdrop-blur-xl lg:pl-64">
@@ -207,8 +211,8 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
           {/* Right */}
           <div className="flex items-center gap-2">
-            {/* ✅ Notifications ONLY OWNER */}
-            {isOwner && (
+            {/* ✅ Notifications for OWNER + DRIVER */}
+            {canSeeNotifs && (
               <div className="relative" ref={notifRef}>
                 <button
                   onClick={async () => {
@@ -287,7 +291,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                                   <button
                                     onClick={() => {
                                       setNotifOpen(false);
-                                      router.push("/missions");
+                                      router.push(openAllRoute());
                                     }}
                                     className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-extrabold text-white hover:bg-slate-800"
                                   >
@@ -306,7 +310,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                         onClick={() => {
                           setNotifOpen(false);
-                          router.push("/missions");
+                          router.push(openAllRoute());
                         }}
                       >
                         Voir tout

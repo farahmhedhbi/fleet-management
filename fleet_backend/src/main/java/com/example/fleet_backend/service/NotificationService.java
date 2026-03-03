@@ -3,7 +3,6 @@ package com.example.fleet_backend.service;
 import com.example.fleet_backend.dto.NotificationDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Notification;
-import com.example.fleet_backend.model.Role;
 import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.NotificationRepository;
 import com.example.fleet_backend.repository.UserRepository;
@@ -28,22 +27,12 @@ public class NotificationService {
     }
 
     /**
-     * ✅ Crée une notification UNIQUEMENT pour OWNER.
-     * - ADMIN : jamais
-     * - DRIVER : jamais
-     * - autre : jamais
+     * ✅ Crée une notification pour un utilisateur (recipient).
+     * (Tu peux laisser sans filtre de rôle, car le listing est par recipient_id)
      */
-    public void createForOwnerOnly(Long recipientId, String title, String message, Long missionId) {
+    public void createForUser(Long recipientId, String title, String message, Long missionId) {
         User u = userRepository.findById(recipientId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + recipientId));
-
-        // ✅ BON: role name réel stocké en DB (ex: "ROLE_OWNER")
-        String roleName = u.getRoleName(); // ✅ utilise ta méthode
-
-        // ✅ ONLY OWNER
-        if (!"ROLE_OWNER".equals(roleName)) {
-            return; // do nothing
-        }
 
         Notification n = new Notification();
         n.setRecipient(u);
@@ -54,7 +43,7 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
-    // ✅ OWNER: list my notifications
+    // ✅ OWNER/DRIVER: list my notifications
     public List<NotificationDTO> myNotifications(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
         return notificationRepository.findTop30ByRecipientIdOrderByCreatedAtDesc(userId)
@@ -63,13 +52,13 @@ public class NotificationService {
                 .collect(Collectors.toList());
     }
 
-    // ✅ OWNER: unread count
+    // ✅ OWNER/DRIVER: unread count
     public long myUnreadCount(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
         return notificationRepository.countByRecipientIdAndReadFalse(userId);
     }
 
-    // ✅ OWNER: mark single as read
+    // ✅ OWNER/DRIVER: mark single as read
     public void markRead(Long notificationId, Authentication auth) {
         Long userId = AuthUtil.userId(auth);
 
@@ -84,7 +73,7 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
-    // ✅ OWNER: mark all as read (top 30)
+    // ✅ OWNER/DRIVER: mark all as read (top 30)
     public void markAllRead(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
         List<Notification> list = notificationRepository.findTop30ByRecipientIdOrderByCreatedAtDesc(userId);

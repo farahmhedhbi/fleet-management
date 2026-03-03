@@ -118,7 +118,20 @@ public class MissionService {
         m.setDriver(d);
         m.setOwner(owner);
 
-        return new MissionDTO(missionRepository.save(m));
+        Mission saved = missionRepository.save(m);
+
+        // ✅ Notify DRIVER ONLY (owner will NOT receive this)
+        User driverUser = userRepository.findByEmail(d.getEmail()).orElse(null);
+        if (driverUser != null) {
+            notificationService.createForUser(
+                    driverUser.getId(),
+                    "New mission assigned",
+                    "You have been assigned to mission: " + saved.getTitle(),
+                    saved.getId()
+            );
+        }
+
+        return new MissionDTO(saved);
     }
 
     public MissionDTO updateStatus(Long id, Mission.MissionStatus status, Authentication auth) {
@@ -160,17 +173,52 @@ public class MissionService {
         Mission m = missionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + id));
 
+        // ✅ Keep info BEFORE delete
+        Driver driver = m.getDriver();
+        User owner = m.getOwner();
+        String missionTitle = m.getTitle();
+        Long missionId = m.getId();
+
+        // ✅ ADMIN can delete any
         if (AuthUtil.isAdmin(auth)) {
             missionRepository.delete(m);
+
+            // (OPTIONNEL) notify driver even when admin deletes
+            if (driver != null && driver.getEmail() != null) {
+                User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
+                if (driverUser != null) {
+                    notificationService.createForUser(
+                            driverUser.getId(),
+                            "Mission canceled",
+                            "Mission was canceled: " + (missionTitle != null ? missionTitle : ("#" + missionId)),
+                            null // mission deleted, so no missionId link
+                    );
+                }
+            }
             return;
         }
 
+        // ✅ OWNER can delete only own missions
         if (AuthUtil.hasRole(auth, "OWNER")) {
             Long ownerId = AuthUtil.userId(auth);
-            if (m.getOwner() == null || !m.getOwner().getId().equals(ownerId)) {
+            if (owner == null || !owner.getId().equals(ownerId)) {
                 throw new AccessDeniedException("Not your mission");
             }
+
             missionRepository.delete(m);
+
+            // ✅ Notify DRIVER (owner deleted mission)
+            if (driver != null && driver.getEmail() != null) {
+                User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
+                if (driverUser != null) {
+                    notificationService.createForUser(
+                            driverUser.getId(),
+                            "Mission canceled",
+                            "Owner canceled mission: " + (missionTitle != null ? missionTitle : ("#" + missionId)),
+                            null // mission removed => no link
+                    );
+                }
+            }
             return;
         }
 
@@ -200,9 +248,9 @@ public class MissionService {
 
         Mission saved = missionRepository.save(m);
 
+        // ✅ Notify OWNER ONLY (driver will NOT receive this)
         Long ownerId = saved.getOwner().getId();
-        // ✅ OWNER only notifications
-        notificationService.createForOwnerOnly(
+        notificationService.createForUser(
                 ownerId,
                 "Mission started",
                 "Driver started mission: " + saved.getTitle(),
@@ -234,8 +282,9 @@ public class MissionService {
 
         Mission saved = missionRepository.save(m);
 
+        // ✅ Notify OWNER ONLY
         Long ownerId = saved.getOwner().getId();
-        notificationService.createForOwnerOnly(
+        notificationService.createForUser(
                 ownerId,
                 "Mission finished",
                 "Driver finished mission: " + saved.getTitle(),
