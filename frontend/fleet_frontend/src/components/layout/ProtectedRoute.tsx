@@ -1,3 +1,4 @@
+// src/components/layout/ProtectedRoute.tsx
 "use client";
 
 import React, { ReactNode, useEffect } from "react";
@@ -9,10 +10,12 @@ export function ProtectedRoute({
   children,
   requiredRoles,
   redirectTo = "/login",
+  fallback = <LoadingSpinner />,
 }: {
   children: ReactNode;
   requiredRoles?: Role[];
   redirectTo?: string;
+  fallback?: ReactNode;
 }) {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -20,21 +23,31 @@ export function ProtectedRoute({
   useEffect(() => {
     if (loading) return;
 
+    // ✅ not logged in
     if (!isAuthenticated) {
-      router.push(redirectTo);
+      router.replace(redirectTo);
       return;
     }
 
-    if (requiredRoles && user?.role) {
-      const ok = requiredRoles.includes(user.role);
-      if (!ok) router.push("/dashboard");
-    }
-  }, [loading, isAuthenticated, requiredRoles, user?.role, router, redirectTo]);
+    // ✅ logged in but user not yet ready (rare, but possible)
+    if (!user) return;
 
-  if (loading) return <LoadingSpinner />;
+    // ✅ role check
+    if (requiredRoles?.length) {
+      const ok = requiredRoles.includes(user.role);
+      if (!ok) router.replace("/dashboard");
+    }
+  }, [loading, isAuthenticated, user, requiredRoles, router, redirectTo]);
+
+  // UI states
+  if (loading) return <>{fallback}</>;
+
   if (!isAuthenticated) return null;
 
-  if (requiredRoles && user?.role) {
+  // If authenticated but user not loaded yet => show fallback (avoid blank)
+  if (!user) return <>{fallback}</>;
+
+  if (requiredRoles?.length) {
     const ok = requiredRoles.includes(user.role);
     if (!ok) return null;
   }
