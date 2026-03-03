@@ -1,89 +1,129 @@
+// src/contexts/authContext.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { setAuthCookies, clearAuthCookies } from "@/lib/utils/cookies";
 import { useRouter } from "next/navigation";
-import { authService, LoginRequest, RegisterRequest, AuthResponse } from "@/lib/services/authService";
+import { authService } from "@/lib/services/authService";
+import { api } from "@/lib/api";
+import { setAuthCookies, clearAuthCookies } from "@/lib/utils/cookies";
+import type { LoginRequest, RegisterRequest, AuthResponse, UserSession } from "@/types/auth";
 
-export type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
+type Role = UserSession["role"];
 
-export interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: Role;
-}
-
-interface AuthContextType {
-  user: User | null;
+type AuthContextType = {
+  user: UserSession | null;
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
+
   login: (payload: LoginRequest) => Promise<{ success: boolean; message?: string }>;
   register: (payload: RegisterRequest) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
+
   hasAnyRole: (...roles: Role[]) => boolean;
-}
+
+  // ✅ NEW
+  refreshMe: () => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // load session from localStorage once
+  // ✅ Charger session (token + user)
   useEffect(() => {
     try {
       const t = localStorage.getItem("token");
       const u = localStorage.getItem("user");
 
       setToken(t);
-      setUser(u ? JSON.parse(u) : null);
+      setUser(u ? (JSON.parse(u) as UserSession) : null);
     } finally {
       setLoading(false);
     }
   }, []);
 
   const logout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    clearAuthCookies();
+    setToken(null);
+    setUser(null);
+    router.push("/login");
+  };
 
-  // ✅ AJOUTE CETTE LIGNE
-  clearAuthCookies();
+ const refreshMe = async () => {
+  const t = localStorage.getItem("token");
+  if (!t) {
+    setToken(null);
+    setUser(null);
+    return;
+  }
 
-  setToken(null);
-  setUser(null);
-  router.push("/login");
+  try {
+    const res = await api.get("/api/auth/me");
+    const data = res.data;
+
+    const session: UserSession = {
+      id: data.id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      role: data.role,
+
+      subscriptionStatus: data.subscriptionStatus,
+      trialStartAt: data.trialStartAt ?? null,
+      trialEndAt: data.trialEndAt ?? null,
+      paidUntil: data.paidUntil ?? null,
+    };
+
+    localStorage.setItem("user", JSON.stringify(session));
+    setUser(session);
+  } catch (e: any) {
+    const status = e?.response?.status;
+
+    // ✅ si 401/403 => token invalide ou interdit => logout
+    if (status === 401) logout();
+    else {
+      console.error("refreshMe failed:", e);
+      // ❌ ne pas logout sur 500
+    }
+  }
 };
-
-
   const login = async (payload: LoginRequest) => {
     try {
       const data: AuthResponse = await authService.login(payload);
 
-      const u: User = {
+      // ✅ session initiale (peut ne pas inclure subscription)
+      const session: UserSession = {
         id: data.id,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         role: data.role,
+
+        subscriptionStatus: data.subscriptionStatus,
+        trialStartAt: data.trialStartAt ?? null,
+        trialEndAt: data.trialEndAt ?? null,
+        paidUntil: data.paidUntil ?? null,
       };
 
       localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(u));
-
-      // ✅ AJOUTE CETTE LIGNE
+      localStorage.setItem("user", JSON.stringify(session));
       setAuthCookies(data.token, data.role);
 
       setToken(data.token);
-      setUser(u);
+      setUser(session);
+
+      // ✅ IMPORTANT : charger /me pour avoir le vrai statut (trial/paid)
+      await refreshMe();
 
       router.push("/dashboard");
-
-
       return { success: true };
     } catch (e: any) {
       return {
@@ -97,21 +137,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data: AuthResponse = await authService.register(payload);
 
-      const u: User = {
+      const session: UserSession = {
         id: data.id,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         role: data.role,
+
+        subscriptionStatus: data.subscriptionStatus,
+        trialStartAt: data.trialStartAt ?? null,
+        trialEndAt: data.trialEndAt ?? null,
+        paidUntil: data.paidUntil ?? null,
       };
 
       localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(u));
+      localStorage.setItem("user", JSON.stringify(session));
       setAuthCookies(data.token, data.role);
 
-
       setToken(data.token);
-      setUser(u);
+      setUser(session);
+
+      // ✅ IMPORTANT : /me pour trialStartAt/trialEndAt
+      await refreshMe();
 
       router.push("/dashboard");
       return { success: true };
@@ -138,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       hasAnyRole,
+      refreshMe,
     }),
     [user, token, loading]
   );

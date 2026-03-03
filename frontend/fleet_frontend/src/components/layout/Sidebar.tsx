@@ -16,6 +16,7 @@ import {
   Settings,
   X,
   Shield,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
 import { Route } from "lucide-react";
@@ -58,7 +59,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwner  },
 
-
+    { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
     // ✅ ADMIN only (Sprint 3)
     { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isOwner},

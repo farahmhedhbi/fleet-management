@@ -57,25 +57,20 @@ public class AuthService {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        // Charger l'utilisateur DB
         User user = userRepository.findByEmail(userDetails.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // ✅ Mettre à jour lastLoginAt
-        user.setLastLoginAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        user.setLastLoginAt(now);
 
-        // ✅ Mettre à jour statut abonnement OWNER au login (TRIAL/ACTIVE/EXPIRED)
         if ("ROLE_OWNER".equals(user.getRoleName())) {
-            LocalDateTime now = LocalDateTime.now();
 
-            // ACTIVE mais paidUntil expiré => EXPIRED
             if (user.getSubscriptionStatus() == User.SubscriptionStatus.ACTIVE) {
                 if (user.getPaidUntil() == null || user.getPaidUntil().isBefore(now)) {
                     user.setSubscriptionStatus(User.SubscriptionStatus.EXPIRED);
                 }
             }
 
-            // TRIAL mais trialEnd expiré => EXPIRED
             if (user.getSubscriptionStatus() == User.SubscriptionStatus.TRIAL) {
                 if (user.getTrialEndAt() != null && user.getTrialEndAt().isBefore(now)) {
                     user.setSubscriptionStatus(User.SubscriptionStatus.EXPIRED);
@@ -83,28 +78,8 @@ public class AuthService {
             }
         }
 
-        // Sauvegarder les changements (lastLoginAt + subscriptionStatus)
         userRepository.save(user);
 
-        if ("ROLE_OWNER".equals(user.getRoleName())) {
-            LocalDateTime now = LocalDateTime.now();
-
-            // ACTIVE mais paidUntil expiré -> EXPIRED
-            if (user.getSubscriptionStatus() == User.SubscriptionStatus.ACTIVE) {
-                if (user.getPaidUntil() == null || user.getPaidUntil().isBefore(now)) {
-                    user.setSubscriptionStatus(User.SubscriptionStatus.EXPIRED);
-                }
-            }
-
-            // TRIAL mais trialEnd expiré -> EXPIRED
-            if (user.getSubscriptionStatus() == User.SubscriptionStatus.TRIAL) {
-                if (user.getTrialEndAt() != null && user.getTrialEndAt().isBefore(now)) {
-                    user.setSubscriptionStatus(User.SubscriptionStatus.EXPIRED);
-                }
-            }
-
-            userRepository.save(user);
-        }
         String jwt = jwtUtil.generateJwtToken(authentication);
 
         String role = userDetails.getAuthorities().stream()

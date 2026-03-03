@@ -1,12 +1,11 @@
+// src/lib/utils/cookies.ts
 export function setAuthCookies(token: string, role: string) {
-  // 7 jours (tu peux changer)
-  const maxAge = 60 * 60 * 24 * 7;
-
-  document.cookie = `token=${token}; path=/; max-age=${maxAge}`;
-  document.cookie = `role=${role}; path=/; max-age=${maxAge}`;
+  // cookies lisibles par middleware (pas httpOnly car set côté client)
+  document.cookie = `token=${encodeURIComponent(token)}; Path=/; SameSite=Lax`;
+  document.cookie = `role=${encodeURIComponent(role)}; Path=/; SameSite=Lax`;
 }
 
 export function clearAuthCookies() {
-  document.cookie = `token=; path=/; max-age=0`;
-  document.cookie = `role=; path=/; max-age=0`;
+  document.cookie = "token=; Path=/; Max-Age=0; SameSite=Lax";
+  document.cookie = "role=; Path=/; Max-Age=0; SameSite=Lax";
 }

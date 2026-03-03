@@ -130,6 +130,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**")
                         .hasAuthority("ROLE_ADMIN")
 
+                        .requestMatchers("/api/auth/me").authenticated()
                         // ==========================
                         // 🔒 Tout le reste sécurisé
                         // ==========================
