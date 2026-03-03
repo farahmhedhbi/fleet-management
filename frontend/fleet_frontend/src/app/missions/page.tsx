@@ -32,6 +32,19 @@ function toApiLocalDateTime(v: string) {
   return v.length === 16 ? `${v}:00` : v;
 }
 
+// ✅ MIN "now" for datetime-local (no past dates)
+function minNowLocal() {
+  const now = new Date();
+  now.setSeconds(0, 0); // datetime-local doesn't use seconds
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yyyy = now.getFullYear();
+  const mm = pad(now.getMonth() + 1);
+  const dd = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mi = pad(now.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
 function statusBadge(status?: MissionStatus) {
   const s = String(status || "PLANNED");
   if (s === "DONE") return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -66,12 +79,23 @@ function getRoleNameFromUser(user: any): string {
 }
 
 // ✅ interval overlap: [aStart,aEnd] with [bStart,bEnd]
-function overlaps(aStartISO: string, aEndISO: string, bStartISO: string, bEndISO: string) {
+function overlaps(
+  aStartISO: string,
+  aEndISO: string,
+  bStartISO: string,
+  bEndISO: string
+) {
   const as = new Date(aStartISO).getTime();
   const ae = new Date(aEndISO).getTime();
   const bs = new Date(bStartISO).getTime();
   const be = new Date(bEndISO).getTime();
-  if (Number.isNaN(as) || Number.isNaN(ae) || Number.isNaN(bs) || Number.isNaN(be)) return false;
+  if (
+    Number.isNaN(as) ||
+    Number.isNaN(ae) ||
+    Number.isNaN(bs) ||
+    Number.isNaN(be)
+  )
+    return false;
   return as < be && ae > bs;
 }
 
@@ -117,7 +141,9 @@ export default function MissionsPage() {
       setDrivers(ds);
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.response?.data?.message || e?.message || "Failed to load missions");
+      toast.error(
+        e?.response?.data?.message || e?.message || "Failed to load missions"
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -134,7 +160,11 @@ export default function MissionsPage() {
     if (!query) return missions;
 
     return missions.filter((m) => {
-      const t = `${m.title ?? ""} ${m.description ?? ""} ${m.vehicleRegistrationNumber ?? ""} ${m.driverName ?? ""} ${m.driverEmail ?? ""} ${m.status ?? ""}`.toLowerCase();
+      const t = `${m.title ?? ""} ${m.description ?? ""} ${
+        (m as any).vehicleRegistrationNumber ?? ""
+      } ${(m as any).driverName ?? ""} ${(m as any).driverEmail ?? ""} ${
+        m.status ?? ""
+      }`.toLowerCase();
       return t.includes(query);
     });
   }, [missions, q]);
@@ -212,7 +242,16 @@ export default function MissionsPage() {
     // ✅ quick local validation
     const sISO = toApiLocalDateTime(form.startDate);
     const eISO = toApiLocalDateTime(form.endDate);
-    if (!new Date(eISO).getTime() || !new Date(sISO).getTime()) return toast.warn("Invalid dates");
+
+    const sTime = new Date(sISO).getTime();
+    const eTime = new Date(eISO).getTime();
+    if (Number.isNaN(sTime) || Number.isNaN(eTime)) return toast.warn("Invalid dates");
+
+    // ✅ no past dates (today or later)
+    const now = new Date();
+    if (new Date(sISO) < now) return toast.warn("Start date must be today or later.");
+    if (new Date(eISO) < now) return toast.warn("End date must be today or later.");
+
     if (new Date(eISO) <= new Date(sISO)) return toast.warn("End date must be after start date");
 
     if (busyVehicleIds.has(Number(form.vehicleId))) {
@@ -384,16 +423,18 @@ export default function MissionsPage() {
                       Vehicle
                     </div>
                     <div className="mt-1 text-sm text-slate-900 font-semibold">
-                      {m.vehicleRegistrationNumber || `#${m.vehicleId}`}
+                      {(m as any).vehicleRegistrationNumber || `#${(m as any).vehicleId}`}
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="text-sm font-bold text-slate-700">Driver</div>
                     <div className="mt-1 text-sm text-slate-900 font-semibold">
-                      {m.driverName || `#${m.driverId}`}
+                      {(m as any).driverName || `#${(m as any).driverId}`}
                     </div>
-                    {m.driverEmail && <div className="text-sm text-slate-600">{m.driverEmail}</div>}
+                    {(m as any).driverEmail && (
+                      <div className="text-sm text-slate-600">{(m as any).driverEmail}</div>
+                    )}
                   </div>
 
                   {m.description && (
@@ -404,10 +445,8 @@ export default function MissionsPage() {
                   )}
 
                   <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                  
-
                     <button
-                      onClick={() => deleteMission(m.id)}
+                      onClick={() => deleteMission((m as any).id)}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-all"
                       title="Delete mission"
                     >
@@ -431,9 +470,7 @@ export default function MissionsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="text-xl font-extrabold">Create Mission</div>
-                    <div className="text-sm text-white/80">
-                      Choose vehicle + driver + dates
-                    </div>
+                    <div className="text-sm text-white/80">Choose vehicle + driver + dates</div>
                   </div>
 
                   <button
@@ -479,6 +516,7 @@ export default function MissionsPage() {
                     <input
                       type="datetime-local"
                       value={form.startDate}
+                      min={minNowLocal()}
                       onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       disabled={creating}
@@ -490,6 +528,7 @@ export default function MissionsPage() {
                     <input
                       type="datetime-local"
                       value={form.endDate}
+                      min={minNowLocal()}
                       onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       disabled={creating}
@@ -573,9 +612,7 @@ export default function MissionsPage() {
                     disabled={creating}
                     className={cn(
                       "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-md hover:shadow-lg transition-all",
-                      creating
-                        ? "bg-slate-400 cursor-not-allowed"
-                        : "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600"
+                      creating ? "bg-slate-400 cursor-not-allowed" : "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600"
                     )}
                   >
                     <CheckCircle className={creating ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
@@ -584,7 +621,7 @@ export default function MissionsPage() {
                 </div>
 
                 {/* hint */}
-                {(form.startDate && form.endDate) && (
+                {form.startDate && form.endDate && (
                   <div className="text-xs font-semibold text-slate-500">
                     Busy options are disabled based on existing missions (status not DONE/CANCELED).
                     Backend will also block conflicts.
