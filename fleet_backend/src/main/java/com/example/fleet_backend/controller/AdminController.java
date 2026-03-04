@@ -136,14 +136,5 @@ public class AdminController {
         return adminService.inviteUser(req);
     }
 
-    @PostMapping("/users/{id}/activate-subscription")
-    public ResponseEntity<UserDTO> activateSubscription(@PathVariable Long id,
-                                                        @RequestBody(required = false) ActivateSubscriptionRequest req) {
-        return ResponseEntity.ok(adminService.activateOwnerSubscription(id, req));
-    }
 
-    @GetMapping("/users/{id}/payments")
-    public ResponseEntity<?> payments(@PathVariable Long id) {
-        return ResponseEntity.ok(adminService.listPaymentsForUser(id));
-    }
 }

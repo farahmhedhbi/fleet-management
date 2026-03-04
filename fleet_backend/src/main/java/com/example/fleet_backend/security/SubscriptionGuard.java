@@ -17,28 +17,27 @@ public class SubscriptionGuard {
     }
 
     public void requireOwnerActive(Authentication auth) {
-        if (auth == null || auth.getName() == null) {
-            throw new SubscriptionExpiredException("Not authenticated");
+        if (auth == null || auth.getName() == null) return;
+
+        User u = userRepository.findByEmailIgnoreCase(auth.getName())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // ✅ Ne rien faire si pas OWNER (DRIVER/ADMIN ne sont pas concernés)
+        if (!"ROLE_OWNER".equals(u.getRoleName())) return;
+
+        // ✅ ACTIVE: paidUntil doit être futur
+        if (u.getSubscriptionStatus() == User.SubscriptionStatus.ACTIVE) {
+            if (u.getPaidUntil() != null && u.getPaidUntil().isAfter(LocalDateTime.now())) return;
+            throw new SubscriptionExpiredException();
         }
 
-        User user = userRepository.findByEmail(auth.getName())
-                .orElseThrow(() -> new SubscriptionExpiredException("User not found"));
-
-        // On applique la règle seulement aux OWNER
-        if (!"ROLE_OWNER".equals(user.getRoleName())) return;
-
-        LocalDateTime now = LocalDateTime.now();
-
-        boolean inTrial = user.getSubscriptionStatus() == User.SubscriptionStatus.TRIAL
-                && user.getTrialEndAt() != null
-                && user.getTrialEndAt().isAfter(now);
-
-        boolean isPaidActive = user.getSubscriptionStatus() == User.SubscriptionStatus.ACTIVE
-                && user.getPaidUntil() != null
-                && user.getPaidUntil().isAfter(now);
-
-        if (!(inTrial || isPaidActive)) {
-            throw new SubscriptionExpiredException("SUBSCRIPTION_EXPIRED");
+        // ✅ TRIAL: trialEndAt doit être futur
+        if (u.getSubscriptionStatus() == User.SubscriptionStatus.TRIAL) {
+            if (u.getTrialEndAt() != null && u.getTrialEndAt().isAfter(LocalDateTime.now())) return;
+            throw new SubscriptionExpiredException();
         }
+
+        // ✅ EXPIRED
+        throw new SubscriptionExpiredException();
     }
 }

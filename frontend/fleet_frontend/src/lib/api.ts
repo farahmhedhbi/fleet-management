@@ -17,6 +17,15 @@ api.interceptors.request.use((config) => {
 
     if (!isPublicAuthEndpoint) {
       const token = localStorage.getItem("token");
+
+      // ✅ DEBUG (tu peux garder)
+      if (config.url?.includes("/api/admin")) {
+        console.log("[API DEBUG] admin call:", config.method, config.url, {
+          hasToken: !!token,
+          tokenPreview: token ? token.slice(0, 20) + "..." : null,
+        });
+      }
+
       if (token) {
         config.headers = config.headers ?? {};
         config.headers.Authorization = `Bearer ${token}`;
@@ -37,6 +46,12 @@ api.interceptors.response.use(
 
       // ✅ ne pas forcer redirect sur forgot/reset
       if (path.startsWith("/forgot-password") || path.startsWith("/reset-password")) {
+        return Promise.reject(error);
+      }
+
+      // ✅ IMPORTANT: sur /admin, NE PAS rediriger (sinon tu caches la vraie erreur)
+      if (path.startsWith("/admin")) {
+        console.error("[API] 401 on admin page:", error.response?.data);
         return Promise.reject(error);
       }
 

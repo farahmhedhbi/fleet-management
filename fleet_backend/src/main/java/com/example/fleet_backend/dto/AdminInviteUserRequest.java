@@ -33,19 +33,10 @@ public class AdminInviteUserRequest {
      */
     public String email;
 
-    /**
-     * Rôle à attribuer :
-     * - ROLE_OWNER
-     * - ROLE_DRIVER
-     * - ROLE_ADMIN
-     */
+
     public String role;
 
-    /**
-     * Numéro de permis (obligatoire si ROLE_DRIVER)
-     * Vérifié dans AdminService.maybeCreateOrUpdateDriverProfile(...)
-     */
-    public String licenseNumber;
+
 
     // =========================
     // GETTERS & SETTERS
@@ -83,11 +74,5 @@ public class AdminInviteUserRequest {
         this.role = role;
     }
 
-    public String getLicenseNumber() {
-        return licenseNumber;
-    }
 
-    public void setLicenseNumber(String licenseNumber) {
-        this.licenseNumber = licenseNumber;
-    }
 }

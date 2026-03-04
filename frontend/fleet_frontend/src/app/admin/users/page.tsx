@@ -27,7 +27,20 @@ function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-const ROLES: RoleName[] = ["ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER", "ROLE_API_CLIENT"];
+/**
+ * ✅ Invite: ADMIN peut inviter فقط OWNER
+ * ✅ List users: ne pas afficher les comptes ADMIN (liste + stats + recherche)
+ * ✅ Bloquer edit/delete si ADMIN arrive quand même depuis l'API
+ *
+ * ⚠️ Frontend masking seulement.
+ * ➜ recommandé: filtrer aussi côté backend.
+ */
+const ROLES_EDIT: RoleName[] = ["ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER", "ROLE_API_CLIENT"];
+
+function isAdminRole(role?: string) {
+  const r = String(role || "").toUpperCase();
+  return r === "ROLE_ADMIN" || r.includes("ADMIN");
+}
 
 function roleChip(role?: string) {
   const r = String(role || "");
@@ -53,36 +66,49 @@ export default function AdminUsersPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+
+  // role used mainly for EDIT; for INVITE we force ROLE_OWNER
   const [role, setRole] = useState<RoleName>("ROLE_OWNER");
   const [licenseNumber, setLicenseNumber] = useState("");
 
   // edit-only
   const [newPassword, setNewPassword] = useState("");
 
-  const isDriver = role === "ROLE_DRIVER";
+  const isInvite = mode === "invite";
+  const effectiveRole: RoleName = isInvite ? "ROLE_OWNER" : role;
+  const isDriver = effectiveRole === "ROLE_DRIVER";
+
+  /**
+   * ✅ Visible users = all users except ADMIN
+   * (applied to list + stats + search)
+   */
+  const visibleUsers = useMemo(() => {
+    return (users || []).filter((u) => !isAdminRole(u.role));
+  }, [users]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return users;
-    return users.filter((u) =>
+    if (!s) return visibleUsers;
+    return visibleUsers.filter((u) =>
       `${u.firstName} ${u.lastName} ${u.email} ${u.role}`.toLowerCase().includes(s)
     );
-  }, [users, q]);
+  }, [visibleUsers, q]);
 
   const stats = useMemo(() => {
-    const total = users.length;
-    const admin = users.filter((u) => String(u.role).includes("ADMIN")).length;
-    const owner = users.filter((u) => String(u.role).includes("OWNER")).length;
-    const driver = users.filter((u) => String(u.role).includes("DRIVER")).length;
+    const total = visibleUsers.length;
+    const admin = 0; // ✅ admin hidden
+    const owner = visibleUsers.filter((u) => String(u.role).includes("OWNER")).length;
+    const driver = visibleUsers.filter((u) => String(u.role).includes("DRIVER")).length;
     return { total, admin, owner, driver };
-  }, [users]);
+  }, [visibleUsers]);
 
   async function loadUsers() {
     setIsRefreshing(true);
     setLoading(true);
     try {
       const data = await adminService.listUsers();
-      setUsers(data);
+      // ✅ keep raw list; filtering is done via visibleUsers memo
+      setUsers(data || []);
     } catch (e: any) {
       toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur chargement users");
     } finally {
@@ -108,21 +134,25 @@ export default function AdminUsersPage() {
   function openInvite() {
     resetForm();
     setMode("invite");
+    setRole("ROLE_OWNER"); // ✅ forcé
     setOpen(true);
   }
 
   function openEdit(u: User) {
+    // ✅ extra safety: don't allow editing admin
+    if (isAdminRole(u.role)) {
+      toastError("Modification des comptes ADMIN interdite.");
+      return;
+    }
+
     resetForm();
     setMode("edit");
     setEditing(u);
-    setFirstName(u.firstName);
-    setLastName(u.lastName);
-    setEmail(u.email);
-    setRole(u.role);
-
-    // ✅ si ton API renvoie licenseNumber dans listUsers(), on le pré-remplit
+    setFirstName(u.firstName || "");
+    setLastName(u.lastName || "");
+    setEmail(u.email || "");
+    setRole((u.role as RoleName) || "ROLE_OWNER");
     setLicenseNumber(u.licenseNumber || "");
-
     setOpen(true);
   }
 
@@ -132,43 +162,62 @@ export default function AdminUsersPage() {
       return;
     }
 
-    // ✅ IMPORTANT: si role DRIVER -> license obligatoire (invite + edit)
-    if (isDriver && !licenseNumber.trim()) {
+    // ✅ licenseNumber seulement en EDIT quand role = DRIVER
+    if (!isInvite && isDriver && !licenseNumber.trim()) {
       toastError("licenseNumber is required for ROLE_DRIVER");
       return;
     }
 
     try {
       if (mode === "invite") {
+        // ✅ INVITE: only OWNER
         const payload: InviteUserDTO = {
-          firstName,
-          lastName,
-          email,
-          role,
-          ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          role: "ROLE_OWNER",
         };
 
         const invited = await adminService.inviteUser(payload);
-        setUsers((prev) => [invited, ...prev]);
+
+        // ✅ even if API returns admin by mistake, never show
+        if (!isAdminRole(invited?.role)) {
+          setUsers((prev) => [invited, ...(prev || [])]);
+        }
+
         toastSuccess("Invitation envoyée ✅ L’utilisateur doit activer son compte par email.");
         setOpen(false);
         return;
       }
 
       if (mode === "edit" && editing) {
+        // ✅ optional: prevent setting admin role from UI
+        if (isAdminRole(effectiveRole)) {
+          toastError("Impossible de définir ROLE_ADMIN depuis cette page.");
+          return;
+        }
+
         const payload: UpdateUserDTO = {
-          firstName,
-          lastName,
-          email,
-          role,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          role: effectiveRole,
           ...(newPassword.trim() ? { password: newPassword.trim() } : {}),
           ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
         };
 
         const updated = await adminService.updateUser(editing.id, payload);
-        setUsers((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
+
+        // ✅ if updated becomes admin, remove it from UI
+        if (isAdminRole(updated?.role)) {
+          setUsers((prev) => (prev || []).filter((x) => x.id !== editing.id));
+        } else {
+          setUsers((prev) =>
+            (prev || []).map((x) => (x.id === updated.id ? { ...x, ...updated } : x))
+          );
+        }
+
         toastSuccess("User updated");
-        console.log("UPDATE payload =>", payload);
         setOpen(false);
       }
     } catch (e: any) {
@@ -177,12 +226,18 @@ export default function AdminUsersPage() {
   }
 
   async function remove(u: User) {
+    // ✅ extra safety
+    if (isAdminRole(u.role)) {
+      toastError("Suppression des comptes ADMIN interdite.");
+      return;
+    }
+
     const ok = confirm(`Delete user ${u.firstName} ${u.lastName} (${u.email}) ?`);
     if (!ok) return;
 
     try {
       await adminService.deleteUser(u.id);
-      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      setUsers((prev) => (prev || []).filter((x) => x.id !== u.id));
       toastSuccess("User deleted");
     } catch (e: any) {
       toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur delete user");
@@ -201,7 +256,7 @@ export default function AdminUsersPage() {
                   Users Management
                 </h1>
                 <p className="mt-1 text-slate-600">
-                  Flow pro: Admin invite → email token → user définit son mot de passe.
+                  Flow pro: Admin invite (OWNER فقط) → email token → user définit son mot de passe.
                 </p>
               </div>
 
@@ -219,7 +274,7 @@ export default function AdminUsersPage() {
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25"
                 >
                   <Plus className="h-4 w-4" />
-                  Invite User
+                  Invite Owner
                 </button>
               </div>
             </div>
@@ -382,13 +437,18 @@ export default function AdminUsersPage() {
 
                       <div>
                         <div className="text-xs font-extrabold text-slate-600">
-                          {mode === "invite" ? "INVITE USER" : "EDIT USER"}
+                          {mode === "invite" ? "INVITE OWNER" : "EDIT USER"}
                         </div>
                         <div className="text-xl font-extrabold text-slate-900">
                           {mode === "invite"
-                            ? "Invitation (email activation)"
+                            ? "Invitation Owner (email activation)"
                             : `${editing?.firstName} ${editing?.lastName}`}
                         </div>
+                        {mode === "invite" && (
+                          <div className="mt-1 text-sm font-semibold text-slate-600">
+                            Rôle: <span className="font-extrabold text-emerald-700">ROLE_OWNER</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -430,41 +490,43 @@ export default function AdminUsersPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-700">Role</div>
-                        <select
-                          value={role}
-                          onChange={(e) => setRole(e.target.value as RoleName)}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                        >
-                          {ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* ✅ DRIVER licenseNumber (invite + edit) */}
-                      <div>
-                        <div className="text-sm font-semibold text-slate-700">
-                          License number {isDriver ? "(required)" : "(only for drivers)"}
+                    {/* ✅ EDIT: role + licenseNumber */}
+                    {!isInvite && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">Role</div>
+                          <select
+                            value={role}
+                            onChange={(e) => setRole(e.target.value as RoleName)}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
+                          >
+                            {ROLES_EDIT.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <input
-                          value={licenseNumber}
-                          onChange={(e) => setLicenseNumber(e.target.value)}
-                          disabled={!isDriver}
-                          placeholder={isDriver ? "ex: TN-DR-1234" : "Only for drivers"}
-                          className={cn(
-                            "mt-1 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2",
-                            !isDriver
-                              ? "border-slate-200 bg-slate-50 text-slate-400 focus:ring-slate-200"
-                              : "border-slate-200 bg-white text-slate-800 focus:ring-slate-200"
-                          )}
-                        />
+
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            License number {isDriver ? "(required)" : "(only for drivers)"}
+                          </div>
+                          <input
+                            value={licenseNumber}
+                            onChange={(e) => setLicenseNumber(e.target.value)}
+                            disabled={!isDriver}
+                            placeholder={isDriver ? "ex: TN-DR-1234" : "Only for drivers"}
+                            className={cn(
+                              "mt-1 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2",
+                              !isDriver
+                                ? "border-slate-200 bg-slate-50 text-slate-400 focus:ring-slate-200"
+                                : "border-slate-200 bg-white text-slate-800 focus:ring-slate-200"
+                            )}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* optional password in edit */}
                     {mode === "edit" && (

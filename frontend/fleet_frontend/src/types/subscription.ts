@@ -1,3 +1,4 @@
+// src/types/subscription.ts
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "EXPIRED";
 
 export type SubscriptionInfo = {
@@ -6,4 +7,3 @@ export type SubscriptionInfo = {
   trialEndAt?: string | null;
   paidUntil?: string | null;
 };
-

@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList } from "lucide-react";
-import React, { Dispatch, SetStateAction } from "react";
+import React, { Dispatch, SetStateAction, useMemo } from "react";
 import {
   Home,
   Car,
@@ -17,9 +16,11 @@ import {
   X,
   Shield,
   CreditCard,
+  ClipboardList,
 } from "lucide-react";
+
 import { useAuth } from "@/contexts/authContext";
-import { Route } from "lucide-react";
+import { isSubscriptionActive } from "@/lib/subscription";
 
 type SidebarProps = {
   sidebarOpen: boolean;
@@ -46,30 +47,42 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const isOwner = role === "ROLE_OWNER";
   const isDriver = role === "ROLE_DRIVER";
 
+  // ✅ OWNER premium visible seulement si abonnement actif (TRIAL valide ou ACTIVE valide)
+  const isOwnerActive = useMemo(() => {
+    if (!isOwner) return false;
+    return isSubscriptionActive(user ?? undefined);
+  }, [isOwner, user]);
+
   const items: NavItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
-    { name: "Missions", href: "/missions", icon: FileText, show: isOwner  },
-    { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
 
     
 
-    // ✅ OWNER/ADMIN
-    { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
-    { name: "Drivers", href: "/drivers", icon: Users, show: isOwner  },
+    // DRIVER
+    { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
+    { name: "My Vehicles", href: "/my-vehicles", icon: Car, show: isDriver },
+    { name: "Profile", href: "/profile", icon: Users, show: isDriver },
 
+
+    // OWNER premium
+    { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
+    { name: "Drivers", href: "/drivers", icon: Users, show: isOwnerActive },
+    { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
+    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive || isAdmin },
+
+    // Billing toujours visible pour OWNER
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
-    // ✅ ADMIN only (Sprint 3)
-    { name: "Import CSV", href: "/ingestion/import-csv", icon: Upload, show: isOwner},
-    { name: "Ingestion API", href: "/ingestion/api-test", icon: Webhook, show: isOwner },
+    // Admin
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Comptes actifs", href: "/admin/active-accounts", icon: Users, show: isAdmin },
-   
+
+    { name: "Rôles & Permissions", href: "/admin/roles", icon: Shield, show: isAdmin },
+    { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard, show: isAdmin },
 
 
-    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwner || isAdmin },
-
+    // commun
     { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
     { name: "Documents", href: "/documents", icon: FileText, show: true },
 
@@ -78,7 +91,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   return (
     <>
-      {/* ✅ Overlay mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/30 lg:hidden"
@@ -95,7 +107,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         )}
       >
         <div className="p-6">
-          {/* ✅ Header mobile (close button) */}
           <div className="mb-4 flex items-center justify-between lg:hidden">
             <div className="font-extrabold text-slate-900">Menu</div>
             <button
@@ -106,8 +117,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <X className="h-5 w-5" />
             </button>
           </div>
-
-          
 
           <nav className="mt-6 space-y-2">
             {items
@@ -120,7 +129,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <Link
                     key={it.href}
                     href={it.href}
-                    onClick={() => setSidebarOpen(false)} // ✅ ferme sur mobile
+                    onClick={() => setSidebarOpen(false)}
                     className={cn(
                       "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all",
                       active

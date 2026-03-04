@@ -17,7 +17,6 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // paiement appartient à un OWNER (User)
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -29,7 +28,6 @@ public class Payment {
     @Column(nullable = false)
     private Double amount;
 
-    // exemple: numéro reçu / référence virement / numéro chèque
     @Column(length = 120)
     private String reference;
 
@@ -41,6 +39,7 @@ public class Payment {
 
     @Column(name = "paid_at", nullable = false)
     private LocalDateTime paidAt = LocalDateTime.now();
+
 
     // ---------------- GETTERS / SETTERS ----------------
 

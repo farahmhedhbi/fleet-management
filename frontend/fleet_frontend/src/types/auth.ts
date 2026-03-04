@@ -43,8 +43,13 @@ export interface AuthResponse {
 
 export type UserSession = {
   id: number;
+  email: string;
   firstName: string;
   lastName: string;
-  email: string;
   role: "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
-} & SubscriptionInfo;
+
+  subscriptionStatus?: "TRIAL" | "ACTIVE" | "EXPIRED";
+  trialStartAt?: string | null;
+  trialEndAt?: string | null;
+  paidUntil?: string | null;
+};

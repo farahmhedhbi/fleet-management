@@ -1,62 +1,25 @@
 package com.example.fleet_backend.dto;
 
-/**
- * ✅ AuthResponse
- *
- * DTO retourné après authentification réussie.
- * Il contient le JWT ainsi que les informations essentielles
- * de l'utilisateur connecté.
- *
- * Utilisé dans :
- * AuthService.authenticateUser(...)
- */
+import java.time.Instant;
+
 public class AuthResponse {
+    public String token;
+    public String type;
+    public Long id;
+    public String email;
+    public String firstName;
+    public String lastName;
+    public String role;
 
-    /**
-     * 🔐 Token JWT généré après login
-     */
-    private String token;
+    // ✅ subscription
+    public String subscriptionStatus;
+    public Instant trialStartAt;
+    public Instant trialEndAt;
+    public Instant paidUntil;
 
-    /**
-     * Type du token (toujours "Bearer")
-     * Utilisé dans le header HTTP :
-     * Authorization: Bearer <token>
-     */
-    private String type = "Bearer";
-
-    /**
-     * ID de l'utilisateur connecté
-     */
-    private Long id;
-
-    /**
-     * Email (sert d'identifiant principal)
-     */
-    private String email;
-
-    /**
-     * Prénom utilisateur
-     */
-    private String firstName;
-
-    /**
-     * Nom utilisateur
-     */
-    private String lastName;
-
-    /**
-     * Rôle de l'utilisateur
-     * Exemple : ROLE_ADMIN, ROLE_OWNER, ROLE_DRIVER
-     */
-    private String role;
-
-    public AuthResponse() {}
-
-    /**
-     * Constructeur principal utilisé après login réussi
-     */
     public AuthResponse(String token, String type, Long id, String email,
-                        String firstName, String lastName, String role) {
+                        String firstName, String lastName, String role,
+                        String subscriptionStatus, Instant trialStartAt, Instant trialEndAt, Instant paidUntil) {
         this.token = token;
         this.type = type;
         this.id = id;
@@ -64,11 +27,11 @@ public class AuthResponse {
         this.firstName = firstName;
         this.lastName = lastName;
         this.role = role;
+        this.subscriptionStatus = subscriptionStatus;
+        this.trialStartAt = trialStartAt;
+        this.trialEndAt = trialEndAt;
+        this.paidUntil = paidUntil;
     }
-
-    // =========================
-    // GETTERS & SETTERS
-    // =========================
 
     public String getToken() {
         return token;
@@ -124,5 +87,37 @@ public class AuthResponse {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getSubscriptionStatus() {
+        return subscriptionStatus;
+    }
+
+    public void setSubscriptionStatus(String subscriptionStatus) {
+        this.subscriptionStatus = subscriptionStatus;
+    }
+
+    public Instant getTrialStartAt() {
+        return trialStartAt;
+    }
+
+    public void setTrialStartAt(Instant trialStartAt) {
+        this.trialStartAt = trialStartAt;
+    }
+
+    public Instant getTrialEndAt() {
+        return trialEndAt;
+    }
+
+    public void setTrialEndAt(Instant trialEndAt) {
+        this.trialEndAt = trialEndAt;
+    }
+
+    public Instant getPaidUntil() {
+        return paidUntil;
+    }
+
+    public void setPaidUntil(Instant paidUntil) {
+        this.paidUntil = paidUntil;
     }
 }

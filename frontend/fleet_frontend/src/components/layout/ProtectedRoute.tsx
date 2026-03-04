@@ -1,56 +1,46 @@
 // src/components/layout/ProtectedRoute.tsx
 "use client";
 
-import React, { ReactNode, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { useAuth, Role } from "@/contexts/authContext";
+import { useAuth } from "@/contexts/authContext";
+import { isSubscriptionActive } from "@/lib/subscription";
 
-export function ProtectedRoute({
-  children,
-  requiredRoles,
-  redirectTo = "/login",
-  fallback = <LoadingSpinner />,
-}: {
-  children: ReactNode;
+type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
+
+type Props = {
+  children: React.ReactNode;
   requiredRoles?: Role[];
-  redirectTo?: string;
-  fallback?: ReactNode;
-}) {
-  const { user, loading, isAuthenticated } = useAuth();
+  requireOwnerActive?: boolean; // ✅ NEW
+};
+
+export function ProtectedRoute({ children, requiredRoles, requireOwnerActive }: Props) {
   const router = useRouter();
+  const { user, loading, isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (loading) return;
 
-    // ✅ not logged in
-    if (!isAuthenticated) {
-      router.replace(redirectTo);
+    if (!isAuthenticated || !user) {
+      router.push("/login");
       return;
     }
 
-    // ✅ logged in but user not yet ready (rare, but possible)
-    if (!user) return;
-
-    // ✅ role check
-    if (requiredRoles?.length) {
-      const ok = requiredRoles.includes(user.role);
-      if (!ok) router.replace("/dashboard");
+    if (requiredRoles && !requiredRoles.includes(user.role)) {
+      router.push("/dashboard");
+      return;
     }
-  }, [loading, isAuthenticated, user, requiredRoles, router, redirectTo]);
 
-  // UI states
-  if (loading) return <>{fallback}</>;
+    if (requireOwnerActive && user.role === "ROLE_OWNER") {
+      if (!isSubscriptionActive(user)) {
+        router.push("/owner/billing");
+        return;
+      }
+    }
+  }, [loading, isAuthenticated, user, requiredRoles, requireOwnerActive, router]);
 
-  if (!isAuthenticated) return null;
-
-  // If authenticated but user not loaded yet => show fallback (avoid blank)
-  if (!user) return <>{fallback}</>;
-
-  if (requiredRoles?.length) {
-    const ok = requiredRoles.includes(user.role);
-    if (!ok) return null;
-  }
+  if (loading) return <div className="p-6">Chargement...</div>;
+  if (!user) return null;
 
   return <>{children}</>;
 

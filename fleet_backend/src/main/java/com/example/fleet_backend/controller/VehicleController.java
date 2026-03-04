@@ -110,22 +110,17 @@ public class VehicleController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
+        subscriptionGuard.requireOwnerActive(auth);
         vehicleService.deleteVehicleSecured(id, auth);
-        return ResponseEntity.noContent().build(); // 204 No Content
+        return ResponseEntity.noContent().build();
     }
 
-    /**
-     * ✅ Assigner un conducteur à un véhicule
-     *
-     * OWNER ou ADMIN uniquement.
-     */
-    @PostMapping("/{id}/assign-driver/{driverId}")
+    @PostMapping("/{id}/unassign-driver")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public VehicleDTO assignDriver(@PathVariable Long id,
-                                   @PathVariable Long driverId,
-                                   Authentication auth) {
+    public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
-        return vehicleService.assignDriverToVehicleSecured(id, driverId, auth);
+        Vehicle updated = vehicleService.unassignDriver(id);
+        return ResponseEntity.ok(updated);
     }
 
     /**
@@ -146,9 +141,5 @@ public class VehicleController {
      *
      * Retire le conducteur d’un véhicule.
      */
-    @PostMapping("/{id}/unassign-driver")
-    public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id) {
-        Vehicle updated = vehicleService.unassignDriver(id);
-        return ResponseEntity.ok(updated);
-    }
+
 }

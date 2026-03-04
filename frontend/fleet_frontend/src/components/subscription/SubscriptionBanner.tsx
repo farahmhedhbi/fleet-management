@@ -2,89 +2,85 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { isExpired } from "@/lib/subscription";
 import type { SubscriptionInfo } from "@/types/subscription";
-
-function fmt(d?: string | null) {
-  if (!d) return "-";
-  const dt = new Date(d);
-  return Number.isNaN(dt.getTime()) ? d : dt.toLocaleString();
-}
-
-function timeLeft(target?: string | null) {
-  if (!target) return null;
-
-  const end = new Date(target).getTime();
-  if (Number.isNaN(end)) return null;
-
-  const now = Date.now();
-  const diff = end - now;
-
-  if (diff <= 0) return { days: 0, hours: 0 };
-
-  const totalHours = Math.floor(diff / (1000 * 60 * 60));
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-
-  return { days, hours };
-}
+import {
+  fmtDateTime,
+  isSubscriptionActive,
+  isSubscriptionExpired,
+  remainingTime,
+} from "@/lib/subscription";
 
 export function SubscriptionBanner({ info }: { info: SubscriptionInfo }) {
   const status = info.subscriptionStatus;
 
-  // 🔄 rafraîchit chaque minute
+  // refresh chaque minute
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((x) => x + 1), 60 * 1000);
+    const id = setInterval(() => setTick((x) => x + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
-  const trialTime = useMemo(() => timeLeft(info.trialEndAt), [info.trialEndAt]);
-  const activeTime = useMemo(() => timeLeft(info.paidUntil), [info.paidUntil]);
+  const trialLeft = useMemo(() => remainingTime(info.trialEndAt), [info.trialEndAt]);
+  const activeLeft = useMemo(() => remainingTime(info.paidUntil), [info.paidUntil]);
 
   if (!status) return null;
 
-  if (status === "TRIAL") {
+  // EXPIRED (ou TRIAL/ACTIVE dépassé)
+  if (isSubscriptionExpired(info)) {
     return (
-      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <div className="font-semibold">🎁 Période d’essai (TRIAL)</div>
-
-        <div className="mt-1 text-sm text-slate-700">
-          Fin d’essai : <b>{fmt(info.trialEndAt)}</b>
-        </div>
-
-        {trialTime && (
-          <div className="mt-1 text-sm text-slate-800 font-medium">
-            ⏳ Temps restant :{" "}
-            <b>
-              {trialTime.days}j {trialTime.hours}h
-            </b>
+      <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-extrabold text-red-700">⛔ Abonnement expiré</div>
+            <div className="mt-1 text-sm text-slate-700">
+              Votre période d’accès est terminée. Les fonctionnalités premium sont bloquées
+              (Véhicules, Conducteurs, Missions, Rapports…).
+            </div>
+            <div className="mt-2 text-sm text-slate-700">
+              ✅ Pour réactiver: effectuez un paiement <b>hors ligne</b> (Cash/Virement/Chèque).
+              L’admin validera et activera votre compte.
+            </div>
           </div>
-        )}
 
-        <div className="mt-2 text-sm text-slate-700">
-          Après expiration, les actions seront bloquées.
-        </div>
-
-        <div className="mt-2 text-sm">
-          <Link className="underline" href="/owner/billing">
-            Voir instructions de paiement
+          <Link
+            href="/owner/billing"
+            className="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-red-700"
+          >
+            Activer maintenant
           </Link>
         </div>
       </div>
     );
   }
 
-  if (isExpired(status)) {
+  // TRIAL (actif)
+  if (status === "TRIAL") {
     return (
-      <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-        <div className="font-semibold">⛔ Abonnement expiré</div>
-        <div className="mt-1 text-sm text-slate-700">
-          Vos fonctionnalités sont désactivées.
-        </div>
-        <div className="mt-2 text-sm">
-          <Link className="underline" href="/owner/billing">
-            Activer l’abonnement
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-extrabold text-amber-800">🎁 Essai gratuit (TRIAL)</div>
+            <div className="mt-1 text-sm text-slate-700">
+              Fin d’essai : <b>{fmtDateTime(info.trialEndAt)}</b>
+            </div>
+
+            {trialLeft && (
+              <div className="mt-1 text-sm font-semibold text-slate-800">
+                ⏳ Temps restant : <b>{trialLeft.days}j {trialLeft.hours}h</b>
+              </div>
+            )}
+
+            <div className="mt-2 text-sm text-slate-700">
+              Après expiration, les fonctionnalités importantes seront bloquées.
+              Vous pouvez payer dès maintenant pour éviter toute interruption.
+            </div>
+          </div>
+
+          <Link
+            href="/owner/billing"
+            className="shrink-0 rounded-xl bg-amber-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-amber-700"
+          >
+            Voir paiement
           </Link>
         </div>
       </div>
@@ -92,22 +88,34 @@ export function SubscriptionBanner({ info }: { info: SubscriptionInfo }) {
   }
 
   // ACTIVE
-  return (
-    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-      <div className="font-semibold">✅ Abonnement actif</div>
+  if (isSubscriptionActive(info)) {
+    return (
+      <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-extrabold text-emerald-800">✅ Abonnement actif</div>
+            <div className="mt-1 text-sm text-slate-700">
+              Valable jusqu’au : <b>{fmtDateTime(info.paidUntil)}</b>
+            </div>
 
-      <div className="mt-1 text-sm text-slate-700">
-        Valable jusqu’au : <b>{fmt(info.paidUntil)}</b>
-      </div>
+            {activeLeft && (
+              <div className="mt-1 text-sm font-semibold text-slate-800">
+                ⏳ Temps restant : <b>{activeLeft.days}j {activeLeft.hours}h</b>
+              </div>
+            )}
+          </div>
 
-      {activeTime && (
-        <div className="mt-1 text-sm text-slate-800 font-medium">
-          ⏳ Temps restant :{" "}
-          <b>
-            {activeTime.days}j {activeTime.hours}h
-          </b>
+          <Link
+            href="/owner/billing"
+            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-emerald-700"
+          >
+            Gérer abonnement
+          </Link>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  // fallback (rare)
+  return null;
 }

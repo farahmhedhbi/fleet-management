@@ -15,14 +15,7 @@ import {
 import { useAuth } from "@/contexts/authContext";
 import { vehicleService } from "@/lib/services/vehicleService";
 import { driverService } from "@/lib/services/driverService";
-import {
-  adminStatsService,
-  type AdminStats,
-} from "@/lib/services/adminStatsService";
-import { toastError } from "@/components/ui/Toast";
-
-import type { Vehicle } from "@/types/vehicle";
-import type { Driver } from "@/types/driver";
+import { adminStatsService, type AdminStats } from "@/lib/services/adminStatsService";
 
 import {
   ResponsiveContainer,
@@ -35,16 +28,19 @@ import {
   YAxis,
 } from "recharts";
 
+import { toastError } from "@/components/ui/Toast";
+import type { Vehicle } from "@/types/vehicle";
+import type { Driver } from "@/types/driver";
+
+import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner";
+import { isSubscriptionActive, isSubscriptionExpired } from "@/lib/subscription";
+
 /* -------------------------------- utils -------------------------------- */
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-function calcFleetHealth(
-  totalVehicles: number,
-  maintenanceDue: number,
-  outVehicles = 0
-) {
+function calcFleetHealth(totalVehicles: number, maintenanceDue: number, outVehicles = 0) {
   if (!totalVehicles) return 100;
   const bad = maintenanceDue + outVehicles;
   const ratio = bad / totalVehicles;
@@ -138,15 +134,11 @@ function SessionCard({
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="text-xs font-bold text-slate-500">Assigned Vehicles</div>
-                <div className="mt-1 text-2xl font-extrabold text-slate-900">
-                  {vehiclesCount}
-                </div>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900">{vehiclesCount}</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="text-xs font-bold text-slate-500">Fleet Health</div>
-                <div className="mt-1 text-2xl font-extrabold text-slate-900">
-                  {fleetHealth}%
-                </div>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900">{fleetHealth}%</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="text-xs font-bold text-slate-500">Access</div>
@@ -194,7 +186,15 @@ interface DashboardStats {
   fleetHealth: number;
 }
 
-/* -------------------------------- page --------------------------------- */
+type QuickAction = {
+  title: string;
+  description: string;
+  icon: any;
+  color: string;
+  hoverColor: string;
+  action: () => void;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -203,6 +203,9 @@ export default function DashboardPage() {
   const isAdmin = role === "ROLE_ADMIN";
   const isOwner = role === "ROLE_OWNER";
   const isDriver = role === "ROLE_DRIVER";
+
+  const ownerActive = isOwner && isSubscriptionActive(user ?? undefined);
+  const ownerExpired = isOwner && isSubscriptionExpired(user ?? undefined);
 
   const [stats, setStats] = useState<DashboardStats>({
     totalDrivers: 0,
@@ -215,6 +218,7 @@ export default function DashboardPage() {
   });
 
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [recentDrivers, setRecentDrivers] = useState<Driver[]>([]);
   const [recentVehicles, setRecentVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -222,6 +226,23 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     setIsRefreshing(true);
     try {
+      // ✅ OWNER expiré => dashboard lite
+      if (isOwner && !ownerActive) {
+        setStats({
+          totalDrivers: 0,
+          totalVehicles: 0,
+          availableVehicles: 0,
+          activeDrivers: 0,
+          vehiclesNeedingMaintenance: 0,
+          totalMileage: 0,
+          fleetHealth: 0,
+        });
+        setAdminStats(null);
+        setRecentDrivers([]);
+        setRecentVehicles([]);
+        return;
+      }
+
       const now = new Date();
       const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -237,23 +258,17 @@ export default function DashboardPage() {
           activeDrivers: a.activeDrivers,
           vehiclesNeedingMaintenance: a.vehiclesNeedingMaintenance,
           totalMileage: a.totalMileage,
-          fleetHealth: calcFleetHealth(
-            a.vehiclesCount,
-            a.vehiclesNeedingMaintenance,
-            a.outVehicles
-          ),
+          fleetHealth: calcFleetHealth(a.vehiclesCount, a.vehiclesNeedingMaintenance, a.outVehicles),
         });
 
+        setRecentDrivers([]);
         setRecentVehicles([]);
         return;
       }
 
-      // ✅ DRIVER: my profile + my vehicles (but UI focuses on session)
+      // ✅ DRIVER: my profile + my vehicles
       if (isDriver) {
-        const [meDriver, myVehicles] = await Promise.all([
-          driverService.me(),
-          vehicleService.getMine(),
-        ]);
+        const [, myVehicles] = await Promise.all([driverService.me(), vehicleService.getMine()]);
 
         const vehiclesNeedingMaintenance = (myVehicles as any[]).filter((v: any) => {
           if (!v.nextMaintenanceDate) return false;
@@ -268,18 +283,16 @@ export default function DashboardPage() {
         setStats({
           totalDrivers: 1,
           totalVehicles: myVehicles.length,
-          availableVehicles: (myVehicles as any[]).filter(
-            (v: any) => v.status === "AVAILABLE"
-          ).length,
+          availableVehicles: (myVehicles as any[]).filter((v: any) => v.status === "AVAILABLE").length,
           activeDrivers: 1,
           vehiclesNeedingMaintenance,
           totalMileage,
           fleetHealth: 100,
         });
 
-        // optional: keep a small list if you want (not shown by default below)
+        setAdminStats(null);
+        setRecentDrivers([]);
         setRecentVehicles((myVehicles as any[]).slice(0, 5));
-        void meDriver; // just to avoid unused if your TS complains (remove if you use it elsewhere)
         return;
       }
 
@@ -298,30 +311,29 @@ export default function DashboardPage() {
         );
 
         const fleetHealth = vehicles.length
-          ? Math.max(
-              0,
-              Math.min(100, 100 - (vehiclesNeedingMaintenance / vehicles.length) * 30)
-            )
+          ? Math.max(0, Math.min(100, 100 - (vehiclesNeedingMaintenance / vehicles.length) * 30))
           : 100;
 
         setStats({
           totalDrivers: 0,
           totalVehicles: vehicles.length,
-          availableVehicles: (vehicles as any[]).filter(
-            (v: any) => v.status === "AVAILABLE"
-          ).length,
+          availableVehicles: (vehicles as any[]).filter((v: any) => v.status === "AVAILABLE").length,
           activeDrivers: 0,
           vehiclesNeedingMaintenance,
           totalMileage,
           fleetHealth: Math.round(fleetHealth),
         });
 
+        setAdminStats(null);
+        setRecentDrivers([]);
         setRecentVehicles((vehicles as any[]).slice(0, 8));
         return;
       }
 
       // fallback
       setStats((p) => ({ ...p, fleetHealth: 100 }));
+      setAdminStats(null);
+      setRecentDrivers([]);
       setRecentVehicles([]);
     } catch (err) {
       console.error(err);
@@ -333,12 +345,12 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    setLoading(true);
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
-  const quickActions = useMemo(() => {
-    // ✅ DRIVER: My Session instead of My Vehicles
+  const quickActions: QuickAction[] = useMemo(() => {
     if (isDriver) {
       return [
         {
@@ -350,31 +362,51 @@ export default function DashboardPage() {
           action: () => router.push("/profile"),
         },
         {
-          title: "My Profile",
-          description: "Personal info & security",
-          icon: Users,
-          color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-          hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-          action: () => router.push("/profile"),
+          title: "My Vehicles",
+          description: "View assigned vehicles",
+          icon: Car,
+          color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
+          hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
+          action: () => router.push("/my-vehicles"),
         },
       ];
     }
 
-    // ✅ ADMIN (READ ONLY)
     if (isAdmin) {
       return [
         {
-          title: "Analytics",
-          description: "Platform KPIs & charts",
+          title: "Reports",
+          description: "View analytics and KPIs",
           icon: BarChart3,
           color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
           hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
-          action: () => router.push("/admin/owners"),
+          action: () => router.push("/reports"),
         },
       ];
     }
 
-    // ✅ OWNER
+    if (isOwner && !ownerActive) {
+      return [
+        {
+          title: "Activate Subscription",
+          description: "Follow payment steps to unlock features",
+          icon: BarChart3,
+          color: "bg-gradient-to-r from-red-500 via-rose-500 to-red-600",
+          hoverColor: "hover:shadow-lg hover:shadow-red-500/25",
+          action: () => router.push("/owner/billing"),
+        },
+        {
+          title: "Billing",
+          description: "Offline payment instructions",
+          icon: Settings,
+          color: "bg-gradient-to-r from-slate-800 via-slate-900 to-black",
+          hoverColor: "hover:shadow-lg hover:shadow-black/25",
+          action: () => router.push("/owner/billing"),
+        },
+      ];
+    }
+
+    // ✅ OWNER (active)
     return [
       {
         title: "Dispatch Vehicle",
@@ -409,7 +441,7 @@ export default function DashboardPage() {
         action: () => router.push("/analytics"),
       },
     ];
-  }, [isDriver, isAdmin, router]);
+  }, [isDriver, isAdmin, isOwner, ownerActive, router]);
 
   // ✅ Admin charts data
   const adminPieData = useMemo(() => {
@@ -446,13 +478,15 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            {isDriver ? "Driver Dashboard" : isAdmin ? "Admin Dashboard" : "Owner Dashboard"}
+            {isDriver ? "Driver Dashboard" : isAdmin ? "Admin Dashboard" : ownerExpired ? "Dashboard (Limited)" : "Owner Dashboard"}
           </h1>
           <p className="mt-1 text-slate-600">
             {isDriver
               ? "Your session overview and assigned vehicles summary"
               : isAdmin
               ? "Platform analytics (read-only)"
+              : ownerExpired
+              ? "Your trial ended. Activate subscription to unlock features."
               : "Fleet overview and operations"}
           </p>
         </div>
@@ -466,7 +500,9 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* quick actions */}
+      {/* Subscription banner (optional) */}
+      
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {quickActions.map((qa) => {
           const Icon = qa.icon;
@@ -490,7 +526,7 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* ✅ DRIVER: My Session section (replaces vehicles focus) */}
+      {/* ✅ DRIVER: My Session section */}
       {isDriver && (
         <SessionCard
           userEmail={user?.email || "—"}
@@ -513,9 +549,7 @@ export default function DashboardPage() {
           <div className="text-sm font-semibold text-slate-600">
             {isDriver ? "Assigned Vehicles" : "Vehicles"}
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {stats.totalVehicles}
-          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.totalVehicles}</div>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -534,10 +568,10 @@ export default function DashboardPage() {
           <div className="mt-2 text-3xl font-extrabold text-slate-900">
             {isAdmin ? stats.totalDrivers : stats.vehiclesNeedingMaintenance}
           </div>
-          {isAdmin && <div className="mt-1 text-xs font-semibold text-slate-500">Total drivers</div>}
-          {isOwner && (
+          {isOwner && !isAdmin && (
             <div className="mt-1 text-xs font-semibold text-slate-500">Next 7 days</div>
           )}
+          {isAdmin && <div className="mt-1 text-xs font-semibold text-slate-500">Total drivers</div>}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -545,9 +579,7 @@ export default function DashboardPage() {
             <div className="text-sm font-semibold text-slate-600">Fleet Health</div>
             <Shield className="h-5 w-5 text-slate-400" />
           </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {stats.fleetHealth}%
-          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.fleetHealth}%</div>
           <div className="mt-3 h-2 w-full rounded bg-slate-100">
             <div className="h-2 rounded bg-slate-900" style={{ width: `${stats.fleetHealth}%` }} />
           </div>
@@ -555,7 +587,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ✅ OWNER alert card */}
-      {isOwner && stats.vehiclesNeedingMaintenance > 0 && (
+      {isOwner && ownerActive && stats.vehiclesNeedingMaintenance > 0 && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-lg">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -623,8 +655,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ✅ Owner: better vehicles list (Driver list hidden by design, Admin hidden) */}
-      {isOwner && (
+      {/* ✅ OWNER vehicles list */}
+      {isOwner && ownerActive && (
         <div className="rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
           <div className="p-6 border-b border-slate-200 bg-slate-50">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -665,9 +697,7 @@ export default function DashboardPage() {
 
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-extrabold text-slate-900">
-                              {v.registrationNumber || "—"}
-                            </div>
+                            <div className="font-extrabold text-slate-900">{v.registrationNumber || "—"}</div>
                             <StatusPill status={v.status} />
                             {dueSoon ? <Badge label="Maintenance soon" tone="warn" /> : null}
                           </div>
@@ -678,13 +708,10 @@ export default function DashboardPage() {
 
                           {v.nextMaintenanceDate ? (
                             <div className="mt-1 text-xs font-semibold text-slate-500">
-                              Next maintenance:{" "}
-                              {new Date(v.nextMaintenanceDate).toLocaleDateString()}
+                              Next maintenance: {new Date(v.nextMaintenanceDate).toLocaleDateString()}
                             </div>
                           ) : (
-                            <div className="mt-1 text-xs font-semibold text-slate-500">
-                              Next maintenance: —
-                            </div>
+                            <div className="mt-1 text-xs font-semibold text-slate-500">Next maintenance: —</div>
                           )}
                         </div>
                       </div>

@@ -87,6 +87,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByRole_Name(String roleName);
 
     Optional<User> findFirstByRole_Name(String roleName);
+    Optional<User> findByEmailIgnoreCase(String email);
 
 
 }

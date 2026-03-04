@@ -1,6 +1,10 @@
 package com.example.fleet_backend.security;
 
 public class SubscriptionExpiredException extends RuntimeException {
+    public SubscriptionExpiredException() {
+        super("Subscription expired");
+    }
+
     public SubscriptionExpiredException(String message) {
         super(message);
     }

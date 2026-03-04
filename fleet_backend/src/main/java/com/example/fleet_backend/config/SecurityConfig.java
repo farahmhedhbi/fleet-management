@@ -109,20 +109,17 @@ public class SecurityConfig {
                                 "ROLE_ADMIN"
                         )
 
-                        // ==========================
-                        // 🚘 VEHICLES WRITE
-                        // ==========================
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/vehicles/**")
-                        .hasAuthority("ROLE_OWNER")
+                                // ==========================
+                                // 🚘 VEHICLES WRITE
+                                // ==========================
+                                .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
+                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
 
-                        .requestMatchers(HttpMethod.PUT,
-                                "/api/vehicles/**")
-                        .hasAuthority("ROLE_OWNER")
+                                .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
+                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
 
-                        .requestMatchers(HttpMethod.DELETE,
-                                "/api/vehicles/**")
-                        .hasAuthority("ROLE_OWNER")
+                                .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
+                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
 
                         // ==========================
                         // 👑 ADMIN ZONE

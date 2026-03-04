@@ -9,10 +9,18 @@ export type ActivateSubscriptionRequest = {
 };
 
 export const adminSubscriptionService = {
-  activate(ownerId: number, req: ActivateSubscriptionRequest) {
-    return api.post(`/api/admin/users/${ownerId}/activate-subscription`, req);
+  activateByEmail(ownerEmail: string, req: ActivateSubscriptionRequest) {
+    const email = ownerEmail.trim().toLowerCase();
+    return api.post(
+      `/api/admin/owners/by-email/${encodeURIComponent(email)}/activate-subscription`,
+      req
+    );
   },
-  payments(ownerId: number) {
-    return api.get(`/api/admin/users/${ownerId}/payments`);
+
+  paymentsByEmail(ownerEmail: string) {
+    const email = ownerEmail.trim().toLowerCase();
+    return api.get(
+      `/api/admin/owners/by-email/${encodeURIComponent(email)}/payments`
+    );
   },
 };

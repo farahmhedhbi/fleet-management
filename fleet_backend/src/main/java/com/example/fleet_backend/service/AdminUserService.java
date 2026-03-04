@@ -74,7 +74,10 @@ public class AdminUserService {
                 : userRepository.findAllByEnabled(enabled);
 
         // ✅ Mapper Entity -> DTO pour éviter d'exposer l'entité directement
-        return users.stream().map(this::toDto).toList();
+        return users.stream()
+                .filter(u -> u.getRole() == null || !"ROLE_ADMIN".equals(u.getRole().getName()))
+                .map(this::toDto)
+                .toList();
     }
 
     /**

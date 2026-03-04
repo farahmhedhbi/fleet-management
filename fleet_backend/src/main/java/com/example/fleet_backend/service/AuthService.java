@@ -18,7 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Service
 public class AuthService {
@@ -87,14 +89,21 @@ public class AuthService {
                 .map(a -> a.getAuthority())
                 .orElse(null);
 
+        Instant trialStart = user.getTrialStartAt() == null ? null : user.getTrialStartAt().toInstant(ZoneOffset.UTC);
+        Instant trialEnd = user.getTrialEndAt() == null ? null : user.getTrialEndAt().toInstant(ZoneOffset.UTC);
+        Instant paidUntil = user.getPaidUntil() == null ? null : user.getPaidUntil().toInstant(ZoneOffset.UTC);
+
         return new AuthResponse(
-                jwt,
-                "Bearer",
+                jwt, "Bearer",
                 userDetails.getId(),
                 userDetails.getEmail(),
                 userDetails.getFirstName(),
                 userDetails.getLastName(),
-                role
+                role,
+                user.getSubscriptionStatus() == null ? null : user.getSubscriptionStatus().name(),
+                trialStart,
+                trialEnd,
+                paidUntil
         );
     }
 
