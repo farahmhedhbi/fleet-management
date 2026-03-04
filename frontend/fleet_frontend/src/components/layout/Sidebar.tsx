@@ -51,9 +51,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Missions", href: "/missions", icon: FileText, show: isOwner  },
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
 
-    // ✅ DRIVER only
-    { name: "My Vehicles", href: "/my-vehicles", icon: Car, show: isDriver },
-    { name: "Profile", href: "/profile", icon: Users, show: isDriver },
+    
 
     // ✅ OWNER/ADMIN
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwner  },
@@ -67,7 +65,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Comptes actifs", href: "/admin/active-accounts", icon: Users, show: isAdmin },
-    { name: "Rôles & Permissions", href: "/admin/roles", icon: Shield, show: isAdmin },
+   
 
 
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwner || isAdmin },

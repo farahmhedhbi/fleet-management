@@ -38,4 +38,5 @@ export const missionService = {
   async remove(id: number): Promise<void> {
     await api.delete(`/api/missions/${id}`);
   },
+  
 };

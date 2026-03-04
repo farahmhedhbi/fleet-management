@@ -5,23 +5,185 @@ import { useRouter } from "next/navigation";
 import {
   Car,
   Users,
-  CheckCircle,
-  Wrench,
-  Shield,
-  BatteryCharging,
   Route,
   BarChart3,
   Settings,
   RefreshCcw,
+  Shield,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
 import { vehicleService } from "@/lib/services/vehicleService";
 import { driverService } from "@/lib/services/driverService";
-import { toastError } from "@/components/ui/Toast"; // si tu l'as, sinon remplace par console.error
+import {
+  adminStatsService,
+  type AdminStats,
+} from "@/lib/services/adminStatsService";
+import { toastError } from "@/components/ui/Toast";
+
 import type { Vehicle } from "@/types/vehicle";
 import type { Driver } from "@/types/driver";
 
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+/* -------------------------------- utils -------------------------------- */
+function cn(...classes: (string | false | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function calcFleetHealth(
+  totalVehicles: number,
+  maintenanceDue: number,
+  outVehicles = 0
+) {
+  if (!totalVehicles) return 100;
+  const bad = maintenanceDue + outVehicles;
+  const ratio = bad / totalVehicles;
+  return Math.max(0, Math.min(100, Math.round(100 - ratio * 60)));
+}
+
+function Badge({
+  label,
+  tone = "ok",
+}: {
+  label: string;
+  tone?: "ok" | "warn" | "danger";
+}) {
+  const cls =
+    tone === "ok"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : tone === "warn"
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-rose-50 text-rose-700 border-rose-200";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
+        cls
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const s = String(status || "").toUpperCase();
+  const cls =
+    s === "AVAILABLE"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : s === "IN_USE" || s === "RESERVED"
+      ? "bg-blue-50 text-blue-700 border-blue-200"
+      : s === "UNDER_MAINTENANCE"
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-rose-50 text-rose-700 border-rose-200";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
+        cls
+      )}
+    >
+      {s.replaceAll("_", " ")}
+    </span>
+  );
+}
+
+function SessionCard({
+  userEmail,
+  role,
+  vehiclesCount,
+  fleetHealth,
+  onLogout,
+  onRefresh,
+  refreshing,
+}: {
+  userEmail: string;
+  role: string;
+  vehiclesCount: number;
+  fleetHealth: number;
+  onLogout: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const healthTone = fleetHealth >= 80 ? "ok" : fleetHealth >= 55 ? "warn" : "danger";
+  const healthLabel = fleetHealth >= 80 ? "Good" : fleetHealth >= 55 ? "Watch" : "Critical";
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+      <div className="p-6 bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-extrabold text-slate-900">My Session</h2>
+              <Badge label={role.replace("ROLE_", "")} tone="ok" />
+              <Badge label={healthLabel} tone={healthTone} />
+            </div>
+
+            <p className="mt-1 text-sm font-semibold text-slate-600">
+              Signed in as <span className="text-slate-900">{userEmail}</span>
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-bold text-slate-500">Assigned Vehicles</div>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900">
+                  {vehiclesCount}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-bold text-slate-500">Fleet Health</div>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900">
+                  {fleetHealth}%
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-bold text-slate-500">Access</div>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900">Driver</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefresh}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
+            >
+              <RefreshCcw className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              Refresh
+            </button>
+
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-900 px-4 py-2 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 transition-all"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 pt-0">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+          Tip: keep your profile updated, and check maintenance alerts to avoid unexpected stops.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- types -------------------------------- */
 interface DashboardStats {
   totalDrivers: number;
   totalVehicles: number;
@@ -32,6 +194,7 @@ interface DashboardStats {
   fleetHealth: number;
 }
 
+/* -------------------------------- page --------------------------------- */
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -48,83 +211,118 @@ export default function DashboardPage() {
     activeDrivers: 0,
     vehiclesNeedingMaintenance: 0,
     totalMileage: 0,
-    fleetHealth: 85,
+    fleetHealth: 100,
   });
-  const [recentDrivers, setRecentDrivers] = useState<Driver[]>([]);
+
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [recentVehicles, setRecentVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const loadDashboardData = async () => {
     setIsRefreshing(true);
-
     try {
       const now = new Date();
       const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      // ✅ DRIVER : only my profile + my vehicles
+      // ✅ ADMIN: analytics only (NO lists)
+      if (isAdmin) {
+        const a = await adminStatsService.get();
+        setAdminStats(a);
+
+        setStats({
+          totalDrivers: a.driversCount,
+          totalVehicles: a.vehiclesCount,
+          availableVehicles: a.availableVehicles,
+          activeDrivers: a.activeDrivers,
+          vehiclesNeedingMaintenance: a.vehiclesNeedingMaintenance,
+          totalMileage: a.totalMileage,
+          fleetHealth: calcFleetHealth(
+            a.vehiclesCount,
+            a.vehiclesNeedingMaintenance,
+            a.outVehicles
+          ),
+        });
+
+        setRecentVehicles([]);
+        return;
+      }
+
+      // ✅ DRIVER: my profile + my vehicles (but UI focuses on session)
       if (isDriver) {
-  const [meDriver, myVehicles] = await Promise.all([
-    driverService.me(),
-    vehicleService.getMine(), // ✅ maintenant -> GET /api/vehicles
-  ]);
+        const [meDriver, myVehicles] = await Promise.all([
+          driverService.me(),
+          vehicleService.getMine(),
+        ]);
 
         const vehiclesNeedingMaintenance = (myVehicles as any[]).filter((v: any) => {
           if (!v.nextMaintenanceDate) return false;
           return new Date(v.nextMaintenanceDate) <= nextWeek;
         }).length;
 
-        const totalMileage = (myVehicles as any[]).reduce((sum, v: any) => sum + (v.mileage || 0), 0);
+        const totalMileage = (myVehicles as any[]).reduce(
+          (sum, v: any) => sum + (v.mileage || 0),
+          0
+        );
 
         setStats({
           totalDrivers: 1,
           totalVehicles: myVehicles.length,
-          availableVehicles: (myVehicles as any[]).filter((v: any) => v.status === "AVAILABLE").length,
+          availableVehicles: (myVehicles as any[]).filter(
+            (v: any) => v.status === "AVAILABLE"
+          ).length,
           activeDrivers: 1,
           vehiclesNeedingMaintenance,
           totalMileage,
           fleetHealth: 100,
         });
 
-        setRecentDrivers([meDriver as any]);
+        // optional: keep a small list if you want (not shown by default below)
         setRecentVehicles((myVehicles as any[]).slice(0, 5));
+        void meDriver; // just to avoid unused if your TS complains (remove if you use it elsewhere)
         return;
       }
 
-      // ✅ OWNER : vehicles only (drivers forbidden chez toi)
-      const vehiclesPromise = (isAdmin || isOwner) ? vehicleService.getAll() : Promise.resolve([]);
-      const driversPromise = isAdmin ? driverService.getAll() : Promise.resolve([]);
+      // ✅ OWNER: vehicles only
+      if (isOwner) {
+        const vehicles = await vehicleService.getAll(); // backend must return only owner’s vehicles
 
-      const [drivers, vehicles] = await Promise.all([driversPromise, vehiclesPromise]);
+        const vehiclesNeedingMaintenance = (vehicles as any[]).filter((v: any) => {
+          if (!v.nextMaintenanceDate) return false;
+          return new Date(v.nextMaintenanceDate) <= nextWeek;
+        }).length;
 
-      const vehiclesNeedingMaintenance = (vehicles as any[]).filter((v: any) => {
-        if (!v.nextMaintenanceDate) return false;
-        return new Date(v.nextMaintenanceDate) <= nextWeek;
-      }).length;
+        const totalMileage = (vehicles as any[]).reduce(
+          (sum, v: any) => sum + (v.mileage || 0),
+          0
+        );
 
-      const totalMileage = (vehicles as any[]).reduce((sum, v: any) => sum + (v.mileage || 0), 0);
+        const fleetHealth = vehicles.length
+          ? Math.max(
+              0,
+              Math.min(100, 100 - (vehiclesNeedingMaintenance / vehicles.length) * 30)
+            )
+          : 100;
 
-      const fleetHealth = (vehicles as any[]).length > 0
-        ? Math.max(0, Math.min(100, 100 - (vehiclesNeedingMaintenance / (vehicles as any[]).length) * 30))
-        : 100;
+        setStats({
+          totalDrivers: 0,
+          totalVehicles: vehicles.length,
+          availableVehicles: (vehicles as any[]).filter(
+            (v: any) => v.status === "AVAILABLE"
+          ).length,
+          activeDrivers: 0,
+          vehiclesNeedingMaintenance,
+          totalMileage,
+          fleetHealth: Math.round(fleetHealth),
+        });
 
-      setStats({
-        totalDrivers: (drivers as any[]).length,
-        totalVehicles: (vehicles as any[]).length,
-        availableVehicles: (vehicles as any[]).filter((v: any) => v.status === "AVAILABLE").length,
-        activeDrivers: (drivers as any[]).filter((d: any) => d.status === "ACTIVE").length,
-        vehiclesNeedingMaintenance,
-        totalMileage,
-        fleetHealth: Math.round(fleetHealth),
-      });
+        setRecentVehicles((vehicles as any[]).slice(0, 8));
+        return;
+      }
 
-      setRecentDrivers((drivers as any[]).slice(0, 5));
-      setRecentVehicles((vehicles as any[]).slice(0, 5));
+      // fallback
+      setStats((p) => ({ ...p, fleetHealth: 100 }));
+      setRecentVehicles([]);
     } catch (err) {
       console.error(err);
       toastError?.("Failed to load dashboard data");
@@ -134,80 +332,103 @@ export default function DashboardPage() {
     }
   };
 
+  useEffect(() => {
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   const quickActions = useMemo(() => {
-  // ✅ DRIVER
-  if (isDriver) {
+    // ✅ DRIVER: My Session instead of My Vehicles
+    if (isDriver) {
+      return [
+        {
+          title: "My Session",
+          description: "Status, access & account actions",
+          icon: Shield,
+          color: "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
+          hoverColor: "hover:shadow-lg hover:shadow-slate-900/20",
+          action: () => router.push("/profile"),
+        },
+        {
+          title: "My Profile",
+          description: "Personal info & security",
+          icon: Users,
+          color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
+          hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+          action: () => router.push("/profile"),
+        },
+      ];
+    }
+
+    // ✅ ADMIN (READ ONLY)
+    if (isAdmin) {
+      return [
+        {
+          title: "Analytics",
+          description: "Platform KPIs & charts",
+          icon: BarChart3,
+          color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
+          hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
+          action: () => router.push("/admin/owners"),
+        },
+      ];
+    }
+
+    // ✅ OWNER
     return [
       {
-        title: "My Vehicles",
-        description: "View assigned vehicles",
+        title: "Dispatch Vehicle",
+        description: "Assign mission to driver",
+        icon: Route,
+        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
+        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+        action: () => router.push("/missions"),
+      },
+      {
+        title: "Add Vehicle",
+        description: "Register new fleet vehicle",
         icon: Car,
         color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
         hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-        action: () => router.push("/my-vehicles"),
+        action: () => router.push("/vehicles/create"),
       },
       {
-        title: "My Profile",
-        description: "View my information",
-        icon: Users,
-        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-        action: () => router.push("/profile"),
+        title: "Schedule Maintenance",
+        description: "Plan vehicle service",
+        icon: Settings,
+        color: "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600",
+        hoverColor: "hover:shadow-lg hover:shadow-amber-500/25",
+        action: () => router.push("/maintenance"),
       },
-    ];
-  }
-
-  // ✅ ADMIN (READ ONLY)
-  if (isAdmin) {
-    return [
-      
       {
-        title: "Reports",
-        description: "View analytics and KPIs",
+        title: "Fleet Analytics",
+        description: "Reports and KPIs",
         icon: BarChart3,
         color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
         hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
-        action: () => router.push("/reports"),
+        action: () => router.push("/analytics"),
       },
     ];
-  }
+  }, [isDriver, isAdmin, router]);
 
-  // ✅ OWNER (full)
-  return [
-    {
-      title: "Dispatch Vehicle",
-      description: "Assign trip to driver",
-      icon: Route,
-      color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-      hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
-      action: () => router.push("/dispatch"),
-    },
-    {
-      title: "Add Vehicle",
-      description: "Register new fleet vehicle",
-      icon: Car,
-      color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
-      hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-      action: () => router.push("/vehicles/create"),
-    },
-    {
-      title: "Schedule Maintenance",
-      description: "Plan vehicle service",
-      icon: Settings,
-      color: "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600",
-      hoverColor: "hover:shadow-lg hover:shadow-amber-500/25",
-      action: () => router.push("/maintenance"),
-    },
-    {
-      title: "Fleet Analytics",
-      description: "View performance reports",
-      icon: BarChart3,
-      color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
-      hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
-      action: () => router.push("/analytics"),
-    },
-  ];
-}, [isDriver, isAdmin, router]);
+  // ✅ Admin charts data
+  const adminPieData = useMemo(() => {
+    if (!adminStats) return [];
+    return [
+      { name: "Available", value: adminStats.availableVehicles },
+      { name: "In Service", value: adminStats.inServiceVehicles },
+      { name: "Out/Broken", value: adminStats.outVehicles },
+    ];
+  }, [adminStats]);
+
+  const adminBarData = useMemo(() => {
+    if (!adminStats) return [];
+    return [
+      { name: "Maintenance due (7d)", value: adminStats.vehiclesNeedingMaintenance },
+      { name: "Out/Broken", value: adminStats.outVehicles },
+    ];
+  }, [adminStats]);
+
   if (loading) {
     return (
       <div className="p-8">
@@ -221,13 +442,18 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8 space-y-8">
+      {/* header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            {isDriver ? "Driver Dashboard" : "Fleet Dashboard"}
+            {isDriver ? "Driver Dashboard" : isAdmin ? "Admin Dashboard" : "Owner Dashboard"}
           </h1>
           <p className="mt-1 text-slate-600">
-            {isDriver ? "Your assigned vehicles and status overview" : "Fleet overview and operations"}
+            {isDriver
+              ? "Your session overview and assigned vehicles summary"
+              : isAdmin
+              ? "Platform analytics (read-only)"
+              : "Fleet overview and operations"}
           </p>
         </div>
 
@@ -248,7 +474,11 @@ export default function DashboardPage() {
             <button
               key={qa.title}
               onClick={qa.action}
-              className={`rounded-2xl p-5 text-left text-white shadow-lg transition-all ${qa.color} ${qa.hoverColor}`}
+              className={cn(
+                "rounded-2xl p-5 text-left text-white shadow-lg transition-all",
+                qa.color,
+                qa.hoverColor
+              )}
             >
               <div className="flex items-center justify-between">
                 <div className="text-lg font-bold">{qa.title}</div>
@@ -260,53 +490,225 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* simple stats row (same feeling design) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">{isDriver ? "My Vehicles" : "Fleet Size"}</div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.totalVehicles}</div>
-        </div>
+      {/* ✅ DRIVER: My Session section (replaces vehicles focus) */}
+      {isDriver && (
+        <SessionCard
+          userEmail={user?.email || "—"}
+          role={user?.role || "ROLE_DRIVER"}
+          vehiclesCount={stats.totalVehicles}
+          fleetHealth={stats.fleetHealth}
+          onRefresh={loadDashboardData}
+          refreshing={isRefreshing}
+          onLogout={() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            window.location.href = "/login";
+          }}
+        />
+      )}
 
+      {/* stats row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">{isDriver ? "My Status" : "Active Drivers"}</div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.activeDrivers}</div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">Maintenance Due</div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.vehiclesNeedingMaintenance}</div>
-        </div>
-      </div>
-
-      {/* recent vehicles list placeholder */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-        <div className="p-5 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center justify-between">
-            <div className="font-bold text-slate-900">Recent Vehicles</div>
-            
+          <div className="text-sm font-semibold text-slate-600">
+            {isDriver ? "Assigned Vehicles" : "Vehicles"}
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">
+            {stats.totalVehicles}
           </div>
         </div>
-        <div className="p-5">
-          {recentVehicles.length === 0 ? (
-            <div className="text-slate-600">No vehicles found.</div>
-          ) : (
-            <div className="space-y-3">
-              {recentVehicles.map((v: any) => (
-                <div
-                  key={v.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-all"
-                >
-                  <div>
-                    <div className="font-bold text-slate-900">{v.registrationNumber || "—"}</div>
-                    <div className="text-sm text-slate-600">{v.brand} {v.model} • {v.status}</div>
-                  </div>
-                  <div className="text-sm font-semibold text-slate-700">{v.mileage ?? 0} km</div>
-                </div>
-              ))}
-            </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+          <div className="text-sm font-semibold text-slate-600">
+            {isAdmin ? "Owners" : isDriver ? "My Status" : "Available Vehicles"}
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">
+            {isAdmin ? (adminStats?.ownersCount ?? 0) : isDriver ? 1 : stats.availableVehicles}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+          <div className="text-sm font-semibold text-slate-600">
+            {isAdmin ? "Drivers" : "Maintenance Due"}
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">
+            {isAdmin ? stats.totalDrivers : stats.vehiclesNeedingMaintenance}
+          </div>
+          {isAdmin && <div className="mt-1 text-xs font-semibold text-slate-500">Total drivers</div>}
+          {isOwner && (
+            <div className="mt-1 text-xs font-semibold text-slate-500">Next 7 days</div>
           )}
         </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-slate-600">Fleet Health</div>
+            <Shield className="h-5 w-5 text-slate-400" />
+          </div>
+          <div className="mt-2 text-3xl font-extrabold text-slate-900">
+            {stats.fleetHealth}%
+          </div>
+          <div className="mt-3 h-2 w-full rounded bg-slate-100">
+            <div className="h-2 rounded bg-slate-900" style={{ width: `${stats.fleetHealth}%` }} />
+          </div>
+        </div>
       </div>
+
+      {/* ✅ OWNER alert card */}
+      {isOwner && stats.vehiclesNeedingMaintenance > 0 && (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-extrabold text-amber-800">Maintenance Alert</div>
+              <div className="mt-1 text-sm font-semibold text-amber-800/80">
+                {stats.vehiclesNeedingMaintenance} vehicle(s) need maintenance in the next 7 days.
+              </div>
+            </div>
+            <button
+              onClick={() => router.push("/maintenance")}
+              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 transition-all"
+            >
+              Open Maintenance
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ ADMIN charts only */}
+      {isAdmin && adminStats && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Vehicle Status</div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  Distribution across the platform
+                </div>
+              </div>
+              <Badge label={`Total: ${adminStats.vehiclesCount}`} tone="ok" />
+            </div>
+
+            <div className="mt-4 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={adminPieData} dataKey="value" nameKey="name" outerRadius={110} />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Alerts</div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  Maintenance & critical vehicles
+                </div>
+              </div>
+              <Badge label={`Out: ${adminStats.outVehicles}`} tone={adminStats.outVehicles ? "warn" : "ok"} />
+            </div>
+
+            <div className="mt-4 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={adminBarData}>
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Owner: better vehicles list (Driver list hidden by design, Admin hidden) */}
+      {isOwner && (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <div className="p-6 border-b border-slate-200 bg-slate-50">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div>
+                <div className="text-lg font-extrabold text-slate-900">Fleet Vehicles</div>
+                <div className="mt-1 text-sm font-semibold text-slate-600">
+                  Latest vehicles in your fleet (quick view).
+                </div>
+              </div>
+              <button
+                onClick={() => router.push("/vehicles")}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all"
+              >
+                View all
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {recentVehicles.length === 0 ? (
+              <div className="text-slate-600">No vehicles found.</div>
+            ) : (
+              <div className="space-y-3">
+                {recentVehicles.map((v: any) => {
+                  const dueSoon =
+                    v.nextMaintenanceDate &&
+                    new Date(v.nextMaintenanceDate) <= new Date(Date.now() + 7 * 86400000);
+
+                  return (
+                    <div
+                      key={v.id}
+                      className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                          <Car className="h-5 w-5 text-slate-600" />
+                        </div>
+
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-extrabold text-slate-900">
+                              {v.registrationNumber || "—"}
+                            </div>
+                            <StatusPill status={v.status} />
+                            {dueSoon ? <Badge label="Maintenance soon" tone="warn" /> : null}
+                          </div>
+
+                          <div className="mt-1 text-sm font-semibold text-slate-600">
+                            {v.brand} {v.model} • Year {v.year ?? "—"}
+                          </div>
+
+                          {v.nextMaintenanceDate ? (
+                            <div className="mt-1 text-xs font-semibold text-slate-500">
+                              Next maintenance:{" "}
+                              {new Date(v.nextMaintenanceDate).toLocaleDateString()}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-xs font-semibold text-slate-500">
+                              Next maintenance: —
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between md:justify-end gap-4">
+                        <div className="text-sm font-extrabold text-slate-900">
+                          {(v.mileage ?? 0).toLocaleString()} km
+                        </div>
+
+                        <button
+                          onClick={() => router.push(`/vehicles/${v.id}`)}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all"
+                        >
+                          View
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
