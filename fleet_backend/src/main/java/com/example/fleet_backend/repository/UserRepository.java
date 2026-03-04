@@ -88,4 +88,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findFirstByRole_Name(String roleName);
 
+
 }
