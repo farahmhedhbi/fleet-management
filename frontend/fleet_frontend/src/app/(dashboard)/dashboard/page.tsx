@@ -101,7 +101,6 @@ function SessionCard({
   role,
   vehiclesCount,
   fleetHealth,
-  onLogout,
   onRefresh,
   refreshing,
 }: {
@@ -109,7 +108,6 @@ function SessionCard({
   role: string;
   vehiclesCount: number;
   fleetHealth: number;
-  onLogout: () => void;
   onRefresh: () => void;
   refreshing: boolean;
 }) {
@@ -156,12 +154,7 @@ function SessionCard({
               Refresh
             </button>
 
-            <button
-              onClick={onLogout}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-900 px-4 py-2 text-sm font-extrabold text-white shadow-sm hover:bg-slate-800 transition-all"
-            >
-              Logout
-            </button>
+            
           </div>
         </div>
       </div>
@@ -359,16 +352,9 @@ export default function DashboardPage() {
           icon: Shield,
           color: "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
           hoverColor: "hover:shadow-lg hover:shadow-slate-900/20",
-          action: () => router.push("/profile"),
+          action: () => router.push("/my-missions"),
         },
-        {
-          title: "My Vehicles",
-          description: "View assigned vehicles",
-          icon: Car,
-          color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
-          hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-          action: () => router.push("/my-vehicles"),
-        },
+        
       ];
     }
 
@@ -535,11 +521,7 @@ export default function DashboardPage() {
           fleetHealth={stats.fleetHealth}
           onRefresh={loadDashboardData}
           refreshing={isRefreshing}
-          onLogout={() => {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            window.location.href = "/login";
-          }}
+          
         />
       )}
 

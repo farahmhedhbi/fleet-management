@@ -278,15 +278,7 @@ export default function DriversPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 text-slate-800" ref={containerRef}>
-      {/* Floating Action Buttons */}
-      <div className="fixed top-6 right-6 z-50 flex gap-3">
-        <button className="bg-white p-3 rounded-xl shadow-lg border border-slate-200 hover:shadow-xl hover:-translate-y-0.5 transition-all">
-          <Bell className="h-5 w-5 text-blue-500" />
-        </button>
-        <button className="bg-white p-3 rounded-xl shadow-lg border border-slate-200 hover:shadow-xl hover:-translate-y-0.5 transition-all">
-          <Settings className="h-5 w-5 text-slate-600" />
-        </button>
-      </div>
+      
 
       {/* Header */}
       <div className="relative pt-16 pb-12 overflow-hidden">

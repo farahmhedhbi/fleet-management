@@ -168,12 +168,12 @@ export default function AdminOwnersPage() {
 
   return (
     <ProtectedRoute requiredRoles={["ROLE_ADMIN"]}>
-      <AdminOnly>
+      <AdminOnly >
         <AdminShell
           title="Platform Analytics"
           subtitle="Admin sees only global statistics (no owner vehicle details)."
         >
-          <div className="space-y-6">
+          <div className="space-y-6 ">
             {/* Header card */}
             <div className="rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
               <div className="p-6 bg-gradient-to-r from-slate-50 to-white">

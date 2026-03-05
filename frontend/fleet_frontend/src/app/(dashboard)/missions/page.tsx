@@ -308,7 +308,8 @@ export default function MissionsPage() {
 
   return (
     <ProtectedRoute requiredRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
-      <div className="p-6 md:p-10 space-y-6">
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        
         {/* header */}
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>
