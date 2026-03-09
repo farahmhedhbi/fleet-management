@@ -19,28 +19,24 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    // ✅ OWNER + DRIVER
     @GetMapping
     @PreAuthorize("hasAnyRole('OWNER','DRIVER')")
     public List<NotificationDTO> my(Authentication auth) {
         return notificationService.myNotifications(auth);
     }
 
-    // ✅ OWNER + DRIVER
     @GetMapping("/unread-count")
     @PreAuthorize("hasAnyRole('OWNER','DRIVER')")
     public long unreadCount(Authentication auth) {
         return notificationService.myUnreadCount(auth);
     }
 
-    // ✅ OWNER + DRIVER
     @PutMapping("/{id}/read")
     @PreAuthorize("hasAnyRole('OWNER','DRIVER')")
     public void markRead(@PathVariable Long id, Authentication auth) {
         notificationService.markRead(id, auth);
     }
 
-    // ✅ OWNER + DRIVER
     @PutMapping("/read-all")
     @PreAuthorize("hasAnyRole('OWNER','DRIVER')")
     public void markAllRead(Authentication auth) {

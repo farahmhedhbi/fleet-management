@@ -33,7 +33,7 @@ public class MissionController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public MissionDTO updateStatus(
             @PathVariable Long id,
             @RequestParam Mission.MissionStatus status,
@@ -47,6 +47,7 @@ public class MissionController {
     public void delete(@PathVariable Long id, Authentication auth) {
         missionService.delete(id, auth);
     }
+
     @PutMapping("/{id}/start")
     @PreAuthorize("hasRole('DRIVER')")
     public MissionDTO start(@PathVariable Long id, Authentication auth) {
