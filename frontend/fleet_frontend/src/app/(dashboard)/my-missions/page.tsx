@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
 import type { Mission, MissionStatus } from "@/types/mission";
-import { Calendar, Car, RefreshCcw, Search, Play, Flag } from "lucide-react";
+import { Calendar, Car, RefreshCcw, Search, Play, Flag, Clock } from "lucide-react";
 import { toast } from "react-toastify";
 
 function cn(...classes: (string | false | undefined)[]) {
@@ -26,17 +26,25 @@ function statusLabel(s: MissionStatus) {
   return "Canceled";
 }
 
+function formatDateTime(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
 export default function MyMissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   const load = async () => {
     setRefreshing(true);
     try {
-      const ms = await missionService.getAll(); // ✅ filtered by backend for DRIVER
+      const ms = await missionService.getAll();
       setMissions(ms);
     } catch (e: any) {
       console.error(e);
@@ -52,19 +60,79 @@ export default function MyMissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return missions;
+
     return missions.filter((m) => {
-      const t = `${m.title ?? ""} ${m.description ?? ""} ${m.vehicleRegistrationNumber ?? ""} ${m.status ?? ""}`.toLowerCase();
+      const t =
+        `${m.title ?? ""} ${m.description ?? ""} ${m.vehicleRegistrationNumber ?? ""} ${m.status ?? ""}`.toLowerCase();
       return t.includes(query);
     });
   }, [missions, q]);
 
-  const start = async (id: number) => {
-    setActingId(id);
+  const canStartMission = (m: Mission) => {
+    if (m.status !== "PLANNED") return false;
+
+    const startTime = new Date(m.startDate).getTime();
+    if (Number.isNaN(startTime)) return false;
+
+    return now >= startTime;
+  };
+
+  const canFinishMission = (m: Mission) => {
+    if (m.status !== "IN_PROGRESS") return false;
+
+    const endTime = new Date(m.endDate).getTime();
+    if (Number.isNaN(endTime)) return false;
+
+    return now >= endTime;
+  };
+
+  const getStartBlockedMessage = (m: Mission) => {
+    if (m.status !== "PLANNED") return null;
+
+    const startTime = new Date(m.startDate).getTime();
+    if (Number.isNaN(startTime)) return "Invalid mission start date.";
+
+    if (now < startTime) {
+      return `You can start this mission only at ${formatDateTime(m.startDate)}.`;
+    }
+
+    return null;
+  };
+
+  const getFinishBlockedMessage = (m: Mission) => {
+    if (m.status !== "IN_PROGRESS") return null;
+
+    const endTime = new Date(m.endDate).getTime();
+    if (Number.isNaN(endTime)) return "Invalid mission end date.";
+
+    if (now < endTime) {
+      return `You can finish this mission only at ${formatDateTime(m.endDate)}.`;
+    }
+
+    return null;
+  };
+
+  const start = async (m: Mission) => {
+    if (!canStartMission(m)) {
+      const msg = getStartBlockedMessage(m) || "You cannot start this mission yet.";
+      toast.warning(msg);
+      return;
+    }
+
+    setActingId(m.id);
     try {
-      await missionService.start(id);
+      await missionService.start(m.id);
       toast.success("Mission started ✅ (Owner notified)");
       await load();
     } catch (e: any) {
@@ -74,10 +142,16 @@ export default function MyMissionsPage() {
     }
   };
 
-  const finish = async (id: number) => {
-    setActingId(id);
+  const finish = async (m: Mission) => {
+    if (!canFinishMission(m)) {
+      const msg = getFinishBlockedMessage(m) || "You cannot finish this mission yet.";
+      toast.warning(msg);
+      return;
+    }
+
+    setActingId(m.id);
     try {
-      await missionService.finish(id);
+      await missionService.finish(m.id);
       toast.success("Mission finished ✅ (Owner notified)");
       await load();
     } catch (e: any) {
@@ -139,6 +213,10 @@ export default function MyMissionsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filtered.map((m) => {
               const busy = actingId === m.id;
+              const canStart = canStartMission(m);
+              const canFinish = canFinishMission(m);
+              const startBlockedMessage = getStartBlockedMessage(m);
+              const finishBlockedMessage = getFinishBlockedMessage(m);
 
               return (
                 <div
@@ -152,8 +230,7 @@ export default function MyMissionsPage() {
                         <div className="mt-1 text-xs text-white/80 flex items-center gap-2">
                           <Calendar className="h-3.5 w-3.5" />
                           <span className="truncate">
-                            {new Date(m.startDate).toLocaleString()} →{" "}
-                            {new Date(m.endDate).toLocaleString()}
+                            {formatDateTime(m.startDate)} → {formatDateTime(m.endDate)}
                           </span>
                         </div>
                       </div>
@@ -180,6 +257,19 @@ export default function MyMissionsPage() {
                       </div>
                     </div>
 
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                        <Clock className="h-4 w-4" />
+                        Mission Schedule
+                      </div>
+                      <div className="mt-1 text-sm text-slate-900">
+                        Start: <span className="font-semibold">{formatDateTime(m.startDate)}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-slate-900">
+                        End: <span className="font-semibold">{formatDateTime(m.endDate)}</span>
+                      </div>
+                    </div>
+
                     {m.description && (
                       <div className="text-sm text-slate-700">
                         <span className="font-bold text-slate-900">Notes: </span>
@@ -187,13 +277,25 @@ export default function MyMissionsPage() {
                       </div>
                     )}
 
+                    {startBlockedMessage && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                        {startBlockedMessage}
+                      </div>
+                    )}
+
+                    {finishBlockedMessage && (
+                      <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">
+                        {finishBlockedMessage}
+                      </div>
+                    )}
+
                     <div className="pt-2 flex gap-2">
                       <button
-                        onClick={() => start(m.id)}
-                        disabled={busy || m.status !== "PLANNED"}
+                        onClick={() => start(m)}
+                        disabled={busy || !canStart}
                         className={cn(
                           "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold text-white transition-all",
-                          busy || m.status !== "PLANNED"
+                          busy || !canStart
                             ? "bg-slate-300 cursor-not-allowed"
                             : "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-lg"
                         )}
@@ -203,11 +305,11 @@ export default function MyMissionsPage() {
                       </button>
 
                       <button
-                        onClick={() => finish(m.id)}
-                        disabled={busy || m.status !== "IN_PROGRESS"}
+                        onClick={() => finish(m)}
+                        disabled={busy || !canFinish}
                         className={cn(
                           "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold text-white transition-all",
-                          busy || m.status !== "IN_PROGRESS"
+                          busy || !canFinish
                             ? "bg-slate-300 cursor-not-allowed"
                             : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-lg"
                         )}
