@@ -3,6 +3,7 @@ package com.example.fleet_backend.service;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -158,5 +159,51 @@ public class EmailService {
         } catch (MessagingException e) {
             throw new RuntimeException("Erreur lors de l'envoi de l'email d'activation", e);
         }
+    }
+
+    public void sendOwnerInvitationEmail(String to, String firstName, String email, String tempPassword) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Invitation à votre compte Fleet Management");
+        message.setText("""
+                Bonjour %s,
+
+                Votre compte OWNER a été créé par l’administrateur.
+
+                Email : %s
+                Mot de passe temporaire : %s
+
+                À votre première connexion, vous devrez obligatoirement changer votre mot de passe.
+
+                Cordialement,
+                Équipe Fleet Management
+                """.formatted(safe(firstName), email, tempPassword));
+
+        mailSender.send(message);
+    }
+
+    public void sendDriverCredentialsEmail(String to, String firstName, String email, String tempPassword) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Votre compte conducteur Fleet Management");
+        message.setText("""
+                Bonjour %s,
+
+                Votre compte DRIVER a été créé par votre propriétaire de flotte.
+
+                Email : %s
+                Mot de passe temporaire : %s
+
+                À votre première connexion, vous devrez obligatoirement changer votre mot de passe.
+
+                Cordialement,
+                Équipe Fleet Management
+                """.formatted(safe(firstName), email, tempPassword));
+
+        mailSender.send(message);
+    }
+
+    private String safe(String value) {
+        return value == null || value.isBlank() ? "utilisateur" : value.trim();
     }
 }

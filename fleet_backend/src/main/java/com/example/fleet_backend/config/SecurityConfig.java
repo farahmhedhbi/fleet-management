@@ -2,6 +2,7 @@ package com.example.fleet_backend.config;
 
 import com.example.fleet_backend.security.AuthEntryPointJwt;
 import com.example.fleet_backend.security.AuthTokenFilter;
+import com.example.fleet_backend.security.MustChangePasswordFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -34,12 +35,14 @@ public class SecurityConfig {
 
     private final AuthTokenFilter authTokenFilter;
     private final AuthEntryPointJwt unauthorizedHandler;
+    private final MustChangePasswordFilter mustChangePasswordFilter;
 
     // Injection des composants sécurité
     public SecurityConfig(AuthTokenFilter authTokenFilter,
-                          AuthEntryPointJwt unauthorizedHandler) {
+                          AuthEntryPointJwt unauthorizedHandler , MustChangePasswordFilter mustChangePasswordFilter) {
         this.authTokenFilter = authTokenFilter;
         this.unauthorizedHandler = unauthorizedHandler;
+        this.mustChangePasswordFilter = mustChangePasswordFilter;
     }
 
     /**
@@ -83,13 +86,6 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // ==========================
-                        // 🚗 DRIVER
-                        // ==========================
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/drivers/me")
-                        .hasAuthority("ROLE_DRIVER")
-
-                        // ==========================
                         // 🚙 VEHICLES READ
                         // ==========================
                         .requestMatchers(HttpMethod.GET,
@@ -100,15 +96,15 @@ public class SecurityConfig {
                                 "ROLE_ADMIN"
                         )
 
-                        // ==========================
-                        // 👤 DRIVERS MANAGEMENT
-                        // ==========================
-                        .requestMatchers("/api/drivers/**")
-                        .hasAnyAuthority(
-                                "ROLE_OWNER",
-                                "ROLE_ADMIN"
-                        )
 
+
+                        // DRIVER : son propre profil
+                        .requestMatchers(HttpMethod.GET, "/api/drivers/me")
+                        .hasAuthority("ROLE_DRIVER")
+
+                        // OWNER : gestion de ses drivers
+                        .requestMatchers("/api/drivers/**")
+                        .hasAuthority("ROLE_OWNER")
                                 // ==========================
                                 // 🚘 VEHICLES WRITE
                                 // ==========================
@@ -132,6 +128,7 @@ public class SecurityConfig {
                         // 🔒 Tout le reste sécurisé
                         // ==========================
                         .anyRequest().authenticated()
+
                 );
 
         // ✅ Ajout du filtre JWT avant filtre username/password
@@ -139,6 +136,8 @@ public class SecurityConfig {
                 authTokenFilter,
                 UsernamePasswordAuthenticationFilter.class
         );
+
+        http.addFilterAfter(mustChangePasswordFilter, AuthTokenFilter.class);
 
         return http.build();
     }

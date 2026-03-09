@@ -169,7 +169,40 @@ public class User {
     @Column(name = "subscription_status", length = 20, nullable = false)
     private SubscriptionStatus subscriptionStatus = SubscriptionStatus.TRIAL;
 
+    /**
+     * ✅ Numéro de téléphone
+     * Utilisé pour contact + envoi SMS
+     */
+    @Column(name = "phone", unique = true)
+    private String phone;
+
+    /**
+     * ✅ Force le changement du mot de passe à la première connexion
+     *
+     * true  -> l'utilisateur doit changer son mot de passe
+     * false -> accès normal
+     */
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword = false;
+
     // getters/setters
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
+    }
+
     public LocalDateTime getTrialStartAt() { return trialStartAt; }
     public void setTrialStartAt(LocalDateTime trialStartAt) { this.trialStartAt = trialStartAt; }
 

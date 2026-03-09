@@ -2,7 +2,10 @@ package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.*;
 import com.example.fleet_backend.repository.VehicleRepository;
+import com.example.fleet_backend.service.AdminInvitationService;
 import com.example.fleet_backend.service.AdminService;
+import com.example.fleet_backend.service.DriverService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -34,12 +37,16 @@ public class AdminController {
 
     private final AdminService adminService;
     private final VehicleRepository vehicleRepository;
+    private final AdminInvitationService adminInvitationService;
+    private final DriverService driverService;
 
     // Injection par constructeur (bonne pratique)
     public AdminController(AdminService adminService,
-                           VehicleRepository vehicleRepository) {
+                           VehicleRepository vehicleRepository, AdminInvitationService adminInvitationService, DriverService driverService) {
         this.adminService = adminService;
         this.vehicleRepository = vehicleRepository;
+        this.adminInvitationService = adminInvitationService;
+        this.driverService = driverService;
     }
 
     // =====================================================
@@ -48,9 +55,9 @@ public class AdminController {
 
     /**
      * ✅ Liste des propriétaires (ROLE_OWNER)
-     *
+     * <p>
      * GET /api/admin/owners
-     *
+     * <p>
      * Utilisé pour :
      * - Dashboard Admin
      * - Gestion flotte par owner
@@ -62,9 +69,9 @@ public class AdminController {
 
     /**
      * ✅ Liste des véhicules d’un owner spécifique
-     *
+     * <p>
      * GET /api/admin/owners/{ownerId}/vehicles
-     *
+     * <p>
      * Permet à l’ADMIN de visualiser
      * toute la flotte d’un propriétaire.
      */
@@ -84,9 +91,9 @@ public class AdminController {
 
     /**
      * ✅ Détails d’un utilisateur
-     *
+     * <p>
      * GET /api/admin/users/{id}
-     *
+     * <p>
      * Retourne informations complètes
      * (sans mot de passe).
      */
@@ -97,16 +104,16 @@ public class AdminController {
 
     /**
      * ✅ Mise à jour utilisateur
-     *
+     * <p>
      * PUT /api/admin/users/{id}
-     *
+     * <p>
      * Peut modifier :
      * - Nom
      * - Email
      * - Rôle
      * - Mot de passe
      * - LicenseNumber (si DRIVER)
-     *
+     * <p>
      * La logique métier est gérée dans AdminService.
      */
     @PutMapping("/users/{id}")
@@ -118,23 +125,32 @@ public class AdminController {
 
     /**
      * ✅ Invitation utilisateur
-     *
+     * <p>
      * POST /api/admin/users/invite
-     *
+     * <p>
      * Processus :
      * 1️⃣ Création user (enabled = false)
      * 2️⃣ Génération mot de passe temporaire
      * 3️⃣ Création token activation
      * 4️⃣ Envoi email activation
-     *
+     * <p>
      * Sécurisé pour ADMIN uniquement.
      */
-    @PostMapping("/users/invite")
-    public UserDTO invite(
-            @RequestBody AdminInviteUserRequest req) {
-
-        return adminService.inviteUser(req);
+    @PostMapping("/owners/invite")
+    public UserDTO inviteOwner(@Valid @RequestBody AdminInviteOwnerRequest req) {
+        return adminInvitationService.inviteOwner(req);
     }
+
+    /**
+     * ADMIN : voir le nombre des drivers d'un owner
+     */
+    @GetMapping("/owners/{ownerId}/drivers/count")
+    public OwnerDriverCountDTO countDriversByOwner(@PathVariable Long ownerId) {
+        long count = driverService.countDriversByOwner(ownerId);
+        return new OwnerDriverCountDTO(ownerId, count);
+    }
+
+
 
 
 }

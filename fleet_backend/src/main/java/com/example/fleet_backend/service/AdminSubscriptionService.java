@@ -77,7 +77,7 @@ public class AdminSubscriptionService {
         PaymentResponse r = new PaymentResponse();
         r.id = p.getId();
         r.method = p.getMethod().name();
-        r.amount = (p.getAmount() == null) ? null : p.getAmount().intValue();
+        r.amount = p.getAmount();
         r.months = p.getMonths();
         r.reference = p.getReference();
         r.note = p.getNote();

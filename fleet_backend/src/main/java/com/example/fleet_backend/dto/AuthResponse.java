@@ -17,9 +17,11 @@ public class AuthResponse {
     public Instant trialEndAt;
     public Instant paidUntil;
 
+    public boolean mustChangePassword;
+
     public AuthResponse(String token, String type, Long id, String email,
                         String firstName, String lastName, String role,
-                        String subscriptionStatus, Instant trialStartAt, Instant trialEndAt, Instant paidUntil) {
+                        String subscriptionStatus, Instant trialStartAt, Instant trialEndAt, Instant paidUntil , boolean mustChangePassword) {
         this.token = token;
         this.type = type;
         this.id = id;
@@ -31,6 +33,7 @@ public class AuthResponse {
         this.trialStartAt = trialStartAt;
         this.trialEndAt = trialEndAt;
         this.paidUntil = paidUntil;
+        this.mustChangePassword = mustChangePassword;
     }
 
     public String getToken() {
@@ -119,5 +122,12 @@ public class AuthResponse {
 
     public void setPaidUntil(Instant paidUntil) {
         this.paidUntil = paidUntil;
+    }
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
     }
 }

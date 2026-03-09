@@ -1,7 +1,9 @@
 package com.example.fleet_backend.controller;
 
+import com.example.fleet_backend.dto.CreateDriverByOwnerRequest;
 import com.example.fleet_backend.dto.DriverDTO;
 import com.example.fleet_backend.service.DriverService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -32,12 +34,7 @@ public class DriverController {
     }
 
     /**
-     * ✅ DRIVER uniquement : récupérer son propre profil
-     *
-     * GET /api/drivers/me
-     *
-     * Authentication permet d'identifier l'utilisateur connecté
-     * via JWT (email extrait du token).
+     * DRIVER connecté : voir son propre profil
      */
     @GetMapping("/me")
     @PreAuthorize("hasRole('DRIVER')")
@@ -46,71 +43,54 @@ public class DriverController {
     }
 
     /**
-     * ✅ OWNER ou ADMIN : liste complète des drivers
-     *
-     * GET /api/drivers
-     *
-     * OWNER peut voir les drivers (ex: pour assignation véhicule).
-     * ADMIN peut tout voir.
+     * OWNER connecté : voir seulement ses propres drivers
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public List<DriverDTO> list() {
-        return driverService.getAllDrivers();
+    @PreAuthorize("hasRole('OWNER')")
+    public List<DriverDTO> list(Authentication auth) {
+        return driverService.getMyDrivers(auth);
     }
 
     /**
-     * ✅ OWNER ou ADMIN : récupérer un driver par ID
-     *
-     * GET /api/drivers/{id}
+     * OWNER connecté : voir les détails d’un de ses drivers
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public DriverDTO get(@PathVariable Long id) {
-        return driverService.getDriverById(id);
+    @PreAuthorize("hasRole('OWNER')")
+    public DriverDTO get(@PathVariable Long id, Authentication auth) {
+        return driverService.getMyDriverById(id, auth);
     }
 
     /**
-     * ✅ ADMIN uniquement : créer un driver
-     *
-     * POST /api/drivers
-     *
-     * Vérifications faites dans le service :
-     * - Email unique
-     * - LicenseNumber unique
+     * OWNER connecté : créer un driver
+     * - mot de passe généré
+     * - email envoyé
+     * - mustChangePassword = true
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public DriverDTO create(@RequestBody DriverDTO dto) {
-        return driverService.createDriver(dto);
+    @PreAuthorize("hasRole('OWNER')")
+    public DriverDTO create(@Valid @RequestBody CreateDriverByOwnerRequest request,
+                            Authentication auth) {
+        return driverService.createDriverByOwner(request, auth);
     }
 
     /**
-     * ✅ OWNER ou ADMIN : modifier un driver
-     *
-     * PUT /api/drivers/{id}
-     *
-     * Le service gère :
-     * - Validation email unique
-     * - Mise à jour des champs
+     * OWNER connecté : modifier un de ses drivers
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
-    public DriverDTO update(@PathVariable Long id, @RequestBody DriverDTO dto) {
-        return driverService.updateDriver(id, dto);
+    @PreAuthorize("hasRole('OWNER')")
+    public DriverDTO update(@PathVariable Long id,
+                            @RequestBody DriverDTO dto,
+                            Authentication auth) {
+        return driverService.updateMyDriver(id, dto, auth);
     }
 
     /**
-     * ✅ ADMIN uniquement : supprimer un driver
-     *
-     * DELETE /api/drivers/{id}
-     *
-     * Retourne 204 No Content si suppression réussie.
+     * OWNER connecté : supprimer un de ses drivers
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> delete(@PathVariable Long id) {
-        driverService.deleteDriver(id);
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
+        driverService.deleteMyDriver(id, auth);
         return ResponseEntity.noContent().build();
     }
 }

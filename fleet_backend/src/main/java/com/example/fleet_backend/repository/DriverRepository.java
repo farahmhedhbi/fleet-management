@@ -1,6 +1,7 @@
 package com.example.fleet_backend.repository;
 
 import com.example.fleet_backend.model.Driver;
+import com.example.fleet_backend.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -26,4 +27,11 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     // ✅ FIX: enum (pas String)
     long countByStatus(Driver.DriverStatus status);
+    List<Driver> findAllByOwner(User owner);
+
+    Optional<Driver> findByIdAndOwner(Long id, User owner);
+
+    boolean existsByIdAndOwner(Long id, User owner);
+
+    long countByOwnerId(Long ownerId);
 }

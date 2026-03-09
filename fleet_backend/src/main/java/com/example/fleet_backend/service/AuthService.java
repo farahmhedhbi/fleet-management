@@ -103,7 +103,8 @@ public class AuthService {
                 user.getSubscriptionStatus() == null ? null : user.getSubscriptionStatus().name(),
                 trialStart,
                 trialEnd,
-                paidUntil
+                paidUntil,
+                user.isMustChangePassword()
         );
     }
 

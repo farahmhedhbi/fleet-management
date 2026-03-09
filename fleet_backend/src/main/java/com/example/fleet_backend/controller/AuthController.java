@@ -157,6 +157,7 @@ public class AuthController {
         body.put("trialStartAt", u.getTrialStartAt());
         body.put("trialEndAt", u.getTrialEndAt());
         body.put("paidUntil", u.getPaidUntil());
+        body.put("mustChangePassword", u.isMustChangePassword());
 
         return ResponseEntity.ok(body);
     }
