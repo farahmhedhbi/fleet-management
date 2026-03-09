@@ -11,46 +11,29 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 
-/**
- *  Classe principale Spring Boot.
- * - Lance l'application
- * - Contient un "seeding" (initData) pour créer roles + users par défaut au démarrage
- */
 @SpringBootApplication
+@EnableScheduling
 public class FleetBackendApplication {
 
 	public static void main(String[] args) {
-		//  Démarre Spring Boot (scan composants, config, serveur embedded, etc.)
 		SpringApplication.run(FleetBackendApplication.class, args);
 	}
 
-	/**
-	 * CommandLineRunner s'exécute automatiquement juste après le démarrage de Spring.
-	 * Utile pour:
-	 * - insérer des données initiales (roles, admin, users de test)
-	 * - éviter d'avoir une base vide au premier lancement
-	 *
-	 *  Bonnes pratiques:
-	 * - Toujours vérifier si la donnée existe déjà avant de créer (sinon duplication)
-	 * - En prod, on évite souvent ce seed (ou on le contrôle par profile)
-	 */
 	@Bean
-	public CommandLineRunner initData(RoleRepository roleRepository,
-									  UserRepository userRepository,
-									  DriverRepository driverRepository,   // AJOUT: repo driver pour créer "driver profile"
-									  PasswordEncoder passwordEncoder) {
+	public static CommandLineRunner initData(
+			RoleRepository roleRepository,
+			UserRepository userRepository,
+			DriverRepository driverRepository,
+			PasswordEncoder passwordEncoder
+	) {
 		return args -> {
 			System.out.println("=== Initialisation des données ===");
 
-			// =========================================================
-			// 1) Création des rôles (ROLE_ADMIN, ROLE_OWNER, ROLE_DRIVER, ...)
-			// =========================================================
-			//  On prépare la liste des rôles attendus par l'application.
-			// Cela évite les erreurs "role not found" au moment d'inscrire / authentifier un user.
 			List<ERole> roles = List.of(
 					ERole.ROLE_ADMIN,
 					ERole.ROLE_OWNER,
@@ -58,7 +41,6 @@ public class FleetBackendApplication {
 					ERole.ROLE_API_CLIENT
 			);
 
-			// Insert "idempotent": si le rôle existe déjà, on ne le recrée pas.
 			for (ERole roleName : roles) {
 				if (roleRepository.findByName(roleName).isEmpty()) {
 					roleRepository.save(new Role(roleName));
@@ -68,19 +50,16 @@ public class FleetBackendApplication {
 				}
 			}
 
-			// =========================================================
-			// 2) Création user ADMIN par défaut
-			// =========================================================
-			// =========================================================
-// 2) Création user ADMIN par défaut (ADMIN UNIQUE)
-// =========================================================
 			long adminCount = userRepository.countByRole_Name("ROLE_ADMIN");
 
 			if (adminCount == 0) {
 				Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
 						.orElseThrow(() -> new RuntimeException("Admin role not found"));
 
-				User admin = new User("Admin", "User", "admin@fleet.com",
+				User admin = new User(
+						"Admin",
+						"User",
+						"admin@fleet.com",
 						passwordEncoder.encode("admin123"),
 						adminRole
 				);
@@ -92,21 +71,16 @@ public class FleetBackendApplication {
 				System.out.println("✅ Admin unique déjà existant (ok).");
 			} else {
 				System.out.println("⚠️ ATTENTION: Plusieurs admins détectés (" + adminCount + ").");
-				System.out.println("⚠️ Tu dois supprimer/désactiver les admins en trop.");
 			}
 
-			// =========================================================
-			// 3) Création user DRIVER + profil Driver (table drivers)
-			// =========================================================
-			// Chez toi: Driver = 2 parties:
-			// - User (authentification / sécurité)
-			// - Driver (profil métier: licenseNumber, etc.)
 			if (userRepository.findByEmail("driver@fleet.com").isEmpty()) {
-
 				Role driverRole = roleRepository.findByName(ERole.ROLE_DRIVER)
 						.orElseThrow(() -> new RuntimeException("Driver role not found"));
 
-				User driverUser = new User("John", "Driver", "driver@fleet.com",
+				User driverUser = new User(
+						"John",
+						"Driver",
+						"driver@fleet.com",
 						passwordEncoder.encode("driver123"),
 						driverRole
 				);
@@ -115,15 +89,9 @@ public class FleetBackendApplication {
 				System.out.println("Driver user créé: driver@fleet.com / driver123");
 			}
 
-			//  IMPORTANT:
-			// Même si le user existe déjà, on vérifie séparément le "Driver profile".
-			// Car User et Driver sont 2 tables différentes.
 			if (!driverRepository.existsByEmail("driver@fleet.com")) {
-
-				// ️ licenseNumber doit être UNIQUE (si tu as une contrainte unique en DB)
 				String defaultLicense = "TN-DR-0001";
 
-				//  Si déjà pris, on génère une valeur unique (fallback)
 				if (driverRepository.existsByLicenseNumber(defaultLicense)) {
 					defaultLicense = "TN-DR-" + System.currentTimeMillis();
 				}
@@ -138,16 +106,14 @@ public class FleetBackendApplication {
 				System.out.println("Driver profile créé: driver@fleet.com / license=" + defaultLicense);
 			}
 
-			// =========================================================
-			// 4) Création user OWNER par défaut
-			// =========================================================
-			//  Objectif: avoir un owner prêt pour tester la gestion des véhicules / maintenance.
 			if (userRepository.findByEmail("owner@fleet.com").isEmpty()) {
-
 				Role ownerRole = roleRepository.findByName(ERole.ROLE_OWNER)
 						.orElseThrow(() -> new RuntimeException("Owner role not found"));
 
-				User owner = new User("Jane", "Owner", "owner@fleet.com",
+				User owner = new User(
+						"Jane",
+						"Owner",
+						"owner@fleet.com",
 						passwordEncoder.encode("owner123"),
 						ownerRole
 				);

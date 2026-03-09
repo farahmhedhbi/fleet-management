@@ -7,15 +7,18 @@ import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.NotificationRepository;
 import com.example.fleet_backend.repository.UserRepository;
 import com.example.fleet_backend.security.AuthUtil;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class NotificationService {
+
+    public static final String DRIVER_LATE_ALERT_TITLE = "Retard de mission";
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -26,58 +29,61 @@ public class NotificationService {
         this.userRepository = userRepository;
     }
 
-    /**
-     * ✅ Crée une notification pour un utilisateur (recipient).
-     * (Tu peux laisser sans filtre de rôle, car le listing est par recipient_id)
-     */
-    public void createForUser(Long recipientId, String title, String message, Long missionId) {
-        User u = userRepository.findById(recipientId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + recipientId));
+    public void createForUser(Long userId, String title, String message, Long missionId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
-        Notification n = new Notification();
-        n.setRecipient(u);
-        n.setTitle(title);
-        n.setMessage(message);
-        n.setMissionId(missionId);
+        Notification notification = new Notification();
+        notification.setRecipient(user);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setMissionId(missionId);
+        notification.setRead(false);
 
-        notificationRepository.save(n);
+        notificationRepository.save(notification);
     }
 
-    // ✅ OWNER/DRIVER: list my notifications
     public List<NotificationDTO> myNotifications(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
-        return notificationRepository.findTop30ByRecipientIdOrderByCreatedAtDesc(userId)
+        return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId)
                 .stream()
                 .map(NotificationDTO::new)
                 .collect(Collectors.toList());
     }
 
-    // ✅ OWNER/DRIVER: unread count
     public long myUnreadCount(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
         return notificationRepository.countByRecipientIdAndReadFalse(userId);
     }
 
-    // ✅ OWNER/DRIVER: mark single as read
     public void markRead(Long notificationId, Authentication auth) {
         Long userId = AuthUtil.userId(auth);
 
-        Notification n = notificationRepository.findById(notificationId)
+        Notification notification = notificationRepository.findByIdAndRecipientId(notificationId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
 
-        if (n.getRecipient() == null || !n.getRecipient().getId().equals(userId)) {
-            throw new AccessDeniedException("Not your notification");
-        }
-
-        n.setRead(true);
-        notificationRepository.save(n);
+        notification.setRead(true);
+        notificationRepository.save(notification);
     }
 
-    // ✅ OWNER/DRIVER: mark all as read (top 30)
     public void markAllRead(Authentication auth) {
         Long userId = AuthUtil.userId(auth);
-        List<Notification> list = notificationRepository.findTop30ByRecipientIdOrderByCreatedAtDesc(userId);
-        list.forEach(n -> n.setRead(true));
-        notificationRepository.saveAll(list);
+
+        List<Notification> notifications = notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId);
+        for (Notification notification : notifications) {
+            if (!notification.isRead()) {
+                notification.setRead(true);
+            }
+        }
+
+        notificationRepository.saveAll(notifications);
+    }
+
+    public boolean existsNotification(Long recipientId, Long missionId, String title) {
+        return notificationRepository.existsByRecipientIdAndMissionIdAndTitle(recipientId, missionId, title);
+    }
+
+    public void clearNotificationByTitle(Long recipientId, Long missionId, String title) {
+        notificationRepository.deleteByRecipientIdAndMissionIdAndTitle(recipientId, missionId, title);
     }
 }
