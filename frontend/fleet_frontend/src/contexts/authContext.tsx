@@ -4,9 +4,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/services/authService";
-import { api } from "@/lib/api";
 import { setAuthCookies, clearAuthCookies } from "@/lib/utils/cookies";
-import type { LoginRequest, RegisterRequest, AuthResponse, UserSession } from "@/types/auth";
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  UserSession,
+} from "@/types/auth";
 
 export type Role = UserSession["role"];
 
@@ -15,17 +19,43 @@ type AuthContextType = {
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
+  mustChangePassword: boolean;
 
-  login: (payload: LoginRequest) => Promise<{ success: boolean; message?: string }>;
-  register: (payload: RegisterRequest) => Promise<{ success: boolean; message?: string }>;
+  login: (
+    payload: LoginRequest
+  ) => Promise<{ success: boolean; message?: string; mustChangePassword?: boolean }>;
+
+  register: (
+    payload: RegisterRequest
+  ) => Promise<{ success: boolean; message?: string; mustChangePassword?: boolean }>;
+
   logout: (redirectTo?: string) => void;
 
-  hasAnyRole: (...roles: Role[]) => boolean;
+  changePassword: (
+    oldPassword: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message?: string }>;
 
+  hasAnyRole: (...roles: Role[]) => boolean;
   refreshMe: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function mapAuthResponseToSession(data: AuthResponse): UserSession {
+  return {
+    id: data.id,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    role: data.role,
+    subscriptionStatus: data.subscriptionStatus,
+    trialStartAt: data.trialStartAt ?? null,
+    trialEndAt: data.trialEndAt ?? null,
+    paidUntil: data.paidUntil ?? null,
+    mustChangePassword: data.mustChangePassword ?? false,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -34,15 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Load session from localStorage
   useEffect(() => {
     try {
       const t = localStorage.getItem("token");
       const u = localStorage.getItem("user");
+
       setToken(t);
       setUser(u ? (JSON.parse(u) as UserSession) : null);
-    } catch (e) {
-      console.error("Failed to parse session:", e);
+    } catch (error) {
+      console.error("Session restore failed:", error);
       setToken(null);
       setUser(null);
     } finally {
@@ -51,18 +81,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = (redirectTo: string = "/login") => {
-    try {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      clearAuthCookies();
-    } finally {
-      setToken(null);
-      setUser(null);
-      router.push(redirectTo);
-    }
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    clearAuthCookies();
+
+    setToken(null);
+    setUser(null);
+    router.push(redirectTo);
   };
 
-  // ✅ refresh subscription + user data from backend
   const refreshMe = async () => {
     const t = localStorage.getItem("token");
     if (!t) {
@@ -72,23 +99,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await api.get("/api/auth/me", {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-
-      const data = res.data;
-
+      const data = await authService.me();
       const session: UserSession = {
         id: data.id,
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         role: data.role,
-
         subscriptionStatus: data.subscriptionStatus,
         trialStartAt: data.trialStartAt ?? null,
         trialEndAt: data.trialEndAt ?? null,
         paidUntil: data.paidUntil ?? null,
+        mustChangePassword: data.mustChangePassword ?? false,
       };
 
       localStorage.setItem("user", JSON.stringify(session));
@@ -96,29 +118,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setToken(t);
       setUser(session);
-    } catch (e: any) {
-      const status = e?.response?.status;
-      if (status === 401 || status === 403) logout("/login");
-      else console.error("refreshMe failed:", e);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) {
+        logout("/login");
+      } else {
+        console.error("refreshMe failed:", error);
+      }
     }
   };
 
   const login = async (payload: LoginRequest) => {
     try {
-      const data: AuthResponse = await authService.login(payload);
-
-      const session: UserSession = {
-        id: data.id,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        role: data.role,
-
-        subscriptionStatus: data.subscriptionStatus,
-        trialStartAt: data.trialStartAt ?? null,
-        trialEndAt: data.trialEndAt ?? null,
-        paidUntil: data.paidUntil ?? null,
-      };
+      const data = await authService.login(payload);
+      const session = mapAuthResponseToSession(data);
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(session));
@@ -127,35 +140,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(data.token);
       setUser(session);
 
-      // ✅ load real status from /me (important for accurate dates)
       await refreshMe();
 
-      router.push("/dashboard");
-      return { success: true };
-    } catch (e: any) {
+      if (session.mustChangePassword) {
+        router.push("/change-password");
+      } else {
+        router.push("/dashboard");
+      }
+
+      return { success: true, mustChangePassword: session.mustChangePassword };
+    } catch (error: any) {
       return {
         success: false,
-        message: e?.response?.data?.message || "Login failed",
+        message: error?.response?.data?.message || "Login failed",
       };
     }
   };
 
   const register = async (payload: RegisterRequest) => {
     try {
-      const data: AuthResponse = await authService.register(payload);
-
-      const session: UserSession = {
-        id: data.id,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        role: data.role,
-
-        subscriptionStatus: data.subscriptionStatus,
-        trialStartAt: data.trialStartAt ?? null,
-        trialEndAt: data.trialEndAt ?? null,
-        paidUntil: data.paidUntil ?? null,
-      };
+      const data = await authService.register(payload);
+      const session = mapAuthResponseToSession(data);
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(session));
@@ -165,12 +170,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session);
 
       await refreshMe();
-      router.push("/dashboard");
-      return { success: true };
-    } catch (e: any) {
+
+      if (session.mustChangePassword) {
+        router.push("/change-password");
+      } else {
+        router.push("/dashboard");
+      }
+
+      return { success: true, mustChangePassword: session.mustChangePassword };
+    } catch (error: any) {
       return {
         success: false,
-        message: e?.response?.data?.message || "Registration failed",
+        message: error?.response?.data?.message || "Registration failed",
+      };
+    }
+  };
+
+  const changePassword = async (oldPassword: string, newPassword: string) => {
+    try {
+      const res = await authService.changePassword(oldPassword, newPassword);
+      await refreshMe();
+      return { success: true, message: res.message };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error?.response?.data?.message || "Password change failed",
       };
     }
   };
@@ -186,9 +210,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       loading,
       isAuthenticated: !!token && !!user,
+      mustChangePassword: !!user?.mustChangePassword,
       login,
       register,
       logout,
+      changePassword,
       hasAnyRole,
       refreshMe,
     }),
@@ -200,6 +226,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return ctx;
 }

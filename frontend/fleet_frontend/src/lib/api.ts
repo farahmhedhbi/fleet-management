@@ -1,5 +1,6 @@
 // src/lib/api.ts
 import axios, { AxiosError } from "axios";
+import { clearAuthCookies } from "@/lib/utils/cookies";
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -8,24 +9,16 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-// ✅ Attach token (sauf forgot/reset)
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const isPublicAuthEndpoint =
+      config.url?.includes("/api/auth/login") ||
+      config.url?.includes("/api/auth/register") ||
       config.url?.includes("/api/auth/forgot-password") ||
       config.url?.includes("/api/auth/reset-password");
 
     if (!isPublicAuthEndpoint) {
       const token = localStorage.getItem("token");
-
-      // ✅ DEBUG (tu peux garder)
-      if (config.url?.includes("/api/admin")) {
-        console.log("[API DEBUG] admin call:", config.method, config.url, {
-          hasToken: !!token,
-          tokenPreview: token ? token.slice(0, 20) + "..." : null,
-        });
-      }
-
       if (token) {
         config.headers = config.headers ?? {};
         config.headers.Authorization = `Bearer ${token}`;
@@ -35,31 +28,36 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ✅ Handle errors
 api.interceptors.response.use(
   (res) => res,
-  (error: AxiosError) => {
+  (error: AxiosError<any>) => {
     const status = error.response?.status;
+    const data = error.response?.data;
 
-    if (status === 401 && typeof window !== "undefined") {
+    if (typeof window !== "undefined") {
       const path = window.location.pathname;
 
-      // ✅ ne pas forcer redirect sur forgot/reset
-      if (path.startsWith("/forgot-password") || path.startsWith("/reset-password")) {
+      if (status === 403 && data?.mustChangePassword) {
+        if (!path.startsWith("/change-password")) {
+          window.location.href = "/change-password";
+        }
         return Promise.reject(error);
       }
 
-      // ✅ IMPORTANT: sur /admin, NE PAS rediriger (sinon tu caches la vraie erreur)
-      if (path.startsWith("/admin")) {
-        console.error("[API] 401 on admin page:", error.response?.data);
-        return Promise.reject(error);
-      }
+      if (status === 401) {
+        const isAuthRecoveryPage =
+          path.startsWith("/forgot-password") ||
+          path.startsWith("/reset-password");
 
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+        if (!isAuthRecoveryPage) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          clearAuthCookies();
 
-      if (!path.startsWith("/login")) {
-        window.location.href = "/login";
+          if (!path.startsWith("/login")) {
+            window.location.href = "/login";
+          }
+        }
       }
     }
 

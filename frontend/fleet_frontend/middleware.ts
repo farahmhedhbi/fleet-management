@@ -14,35 +14,44 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const role = request.cookies.get("role")?.value;
 
-  // ✅ Public routes
   const publicRoutes = ["/", "/login", "/register", "/forgot-password", "/reset-password"];
-  const isPublicRoute = publicRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const isPublicRoute = publicRoutes.some(
+    (r) => pathname === r || pathname.startsWith(r + "/")
+  );
 
-  // ✅ Protected (tu peux ajouter/enlever selon ton app)
-  const protectedRoutes = ["/dashboard", "/drivers", "/vehicles", "/reports", "/settings"];
-  const isProtectedRoute = protectedRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const protectedRoutes = [
+    "/dashboard",
+    "/drivers",
+    "/vehicles",
+    "/reports",
+    "/settings",
+    "/missions",
+    "/my-missions",
+    "/owner",
+    "/change-password",
+    "/owner/billing",
+    "/admin/payments",
+  ];
 
-  // ✅ Admin-only
-  const adminOnlyRoutes = ["/settings"]; // + "/admin" si tu as
+  const isProtectedRoute = protectedRoutes.some(
+    (r) => pathname === r || pathname.startsWith(r + "/")
+  );
 
-  // ✅ Owner OR Admin
-  const ownerOrAdminRoutes = ["/drivers", "/vehicles", "/reports"];
+  const adminOnlyRoutes = ["/settings" ,  "/admin/payments"];
+  const ownerOrAdminRoutes = ["/drivers", "/vehicles", "/reports", "/missions"];
+  const ownerOnlyRoutes = ["/owner"];
 
-  // Redirect unauthenticated users
   if (!token && isProtectedRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If authenticated and trying to access login/register => dashboard
   if (token && isPublicRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Role checks
   if (token && isProtectedRoute) {
-    // token existe mais role manquant -> force re-login
     if (!role) {
       const res = NextResponse.redirect(new URL("/login", request.url));
       res.cookies.delete("token");
@@ -51,7 +60,9 @@ export function middleware(request: NextRequest) {
     }
 
     if (adminOnlyRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
-      if (role !== ROLES.ADMIN) return NextResponse.redirect(new URL("/dashboard", request.url));
+      if (role !== ROLES.ADMIN) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
     }
 
     if (ownerOrAdminRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
@@ -60,10 +71,11 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Exemple : driver-only page
-    // if (pathname.startsWith("/driver-area") && role !== ROLES.DRIVER) {
-    //   return NextResponse.redirect(new URL("/dashboard", request.url));
-    // }
+    if (ownerOnlyRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
+      if (role !== ROLES.OWNER) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    }
   }
 
   return NextResponse.next();

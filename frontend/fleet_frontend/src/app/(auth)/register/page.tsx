@@ -1,36 +1,39 @@
+// src/app/register/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import {
-  UserPlus,
+  ArrowRight,
+  BadgeCheck,
+  Building2,
   Eye,
   EyeOff,
-  Mail,
   Lock,
+  Mail,
   Phone,
-  User,
-  BadgeCheck,
-  ArrowRight,
-  Car,
   ShieldCheck,
   Sparkles,
+  User,
+  UserPlus,
 } from "lucide-react";
-
-import { RegisterRequest } from "@/types/auth";
 import { useAuth } from "@/contexts/authContext";
 
-/* ----------------------------- utils ----------------------------- */
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Pill({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
-      <span className="text-slate-900">{icon}</span>
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
+      <span className="text-slate-600">{icon}</span>
       <span>{label}</span>
     </div>
   );
@@ -39,150 +42,128 @@ function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
 function InputShell({
   label,
   required,
-  children,
   hint,
+  children,
 }: {
   label: string;
   required?: boolean;
-  children: React.ReactNode;
   hint?: string;
+  children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-semibold text-slate-700">
-        {label} {required ? <span className="text-rose-600">*</span> : null}
-      </label>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <label className="text-sm font-bold text-slate-800">
+          {label} {required && <span className="text-rose-500">*</span>}
+        </label>
+        {hint ? <span className="text-xs font-medium text-slate-500">{hint}</span> : null}
+      </div>
       {children}
-      {hint ? (
-        <p className="mt-2 text-xs font-semibold text-slate-500">{hint}</p>
-      ) : null}
     </div>
   );
 }
 
-/* ============================= Page ============================= */
-/**
- * ✅ Correction demandée:
- * - Interdire la création du compte ADMIN sur la page register (car backend a un seul admin)
- * - Retirer ROLE_ADMIN du select
- * - Bloquer aussi au submit (sécurité UX)
- * - Envoyer un payload propre (licenseNumber uniquement pour DRIVER)
- */
 export default function RegisterPage() {
-  const router = useRouter();
   const { register } = useAuth();
 
-  const [formData, setFormData] = useState<RegisterRequest>({
+  const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
     phone: "",
-    role: "ROLE_DRIVER",
-    licenseNumber: "",
+    role: "ROLE_OWNER" as const,
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Ici: pas d'admin dans la liste
-  const roles = useMemo(
-    () => [
-      {
-        value: "ROLE_DRIVER" as const,
-        label: "Driver",
-        desc: "Accès missions & suivi",
-        badge: "bg-sky-50 border-sky-200 text-sky-700",
-      },
-      {
-        value: "ROLE_OWNER" as const,
-        label: "Owner",
-        desc: "Vue flotte & reporting",
-        badge: "bg-emerald-50 border-emerald-200 text-emerald-700",
-      },
-    ],
+  const ownerBadge = useMemo(
+    () => ({
+      label: "Owner",
+      desc: "Gestion flotte, conducteurs, véhicules et reporting",
+      badge: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    }),
     []
   );
 
-  // ✅ si jamais l’ancien state contient ROLE_ADMIN (cache / auto fill / etc.)
-  useEffect(() => {
-    if ((formData as any).role === "ROLE_ADMIN") {
-      setFormData((p) => ({ ...p, role: "ROLE_OWNER" as any }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => {
-      const next: any = { ...prev, [name]: value };
-
-      // ✅ si on change role -> reset licenseNumber si pas driver
-      if (name === "role" && value !== "ROLE_DRIVER") {
-        next.licenseNumber = "";
-      }
-
-      return next;
-    });
+  const onChange = (key: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const validate = () => {
+    if (
+      !formData.firstName.trim() ||
+      !formData.lastName.trim() ||
+      !formData.email.trim() ||
+      !formData.password.trim()
+    ) {
+      toast.error("Veuillez remplir tous les champs obligatoires.");
+      return false;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      toast.error("Veuillez saisir une adresse email valide.");
+      return false;
+    }
+
+    if (formData.password.trim().length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caractères.");
+      return false;
+    }
+
+    if (formData.phone.trim() && !/^[+]?[0-9\s\-()]{6,20}$/.test(formData.phone.trim())) {
+      toast.error("Veuillez saisir un numéro de téléphone valide.");
+      return false;
+    }
+
+    if (!accepted) {
+      toast.error("Veuillez accepter les conditions d’utilisation.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    // ✅ blocage UX si quelqu’un force ADMIN via devtools
-    if ((formData as any).role === "ROLE_ADMIN") {
-      toast.error("Création d'un compte Admin désactivée (compte unique).");
-      return;
-    }
-
-    // validations
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-
-    if (formData.role === "ROLE_DRIVER") {
-      if (!formData.licenseNumber || !formData.licenseNumber.trim()) {
-        toast.error("License Number obligatoire pour Driver");
-        return;
-      }
-    }
-
-    // ✅ payload propre: envoyer licenseNumber seulement si DRIVER
-    const payload: RegisterRequest =
-      formData.role === "ROLE_DRIVER"
-        ? { ...formData, licenseNumber: formData.licenseNumber?.trim() }
-        : ({ ...formData, licenseNumber: undefined } as any);
+    if (!validate()) return;
 
     setLoading(true);
+
     try {
-      const result = await register(payload);
-      if (result?.success) {
-        toast.success("Registration successful!");
-        router.push("/dashboard");
-      } else {
-        toast.error(result?.message || "Registration failed");
+      const result = await register({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        role: "ROLE_OWNER",
+      });
+
+      if (!result.success) {
+        toast.error(result.message || "Échec de l'inscription");
+        return;
       }
-    } catch (err: any) {
-      toast.error(err?.message || "An error occurred during registration");
+
+      toast.success("Compte créé avec succès.");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Une erreur est survenue pendant l'inscription."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedRole = roles.find((r) => r.value === formData.role);
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_700px_at_20%_10%,rgba(56,189,248,0.18),transparent_60%),radial-gradient(900px_650px_at_85%_85%,rgba(16,185,129,0.14),transparent_60%),linear-gradient(to_bottom,#f8fafc,white,#f8fafc)]">
-      {/* Subtle grid */}
       <div className="pointer-events-none absolute inset-0 opacity-[0.16] [background-image:linear-gradient(to_right,rgba(15,23,42,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:64px_64px]" />
-      {/* Glows */}
+
       <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-gradient-to-br from-sky-300/30 via-white to-emerald-300/25 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-gradient-to-br from-emerald-300/25 to-sky-300/20 blur-3xl" />
 
@@ -191,52 +172,63 @@ export default function RegisterPage() {
         <div className="order-2 lg:order-1">
           <Link href="/" className="inline-flex items-center gap-3">
             <div className="relative grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg">
-              <Car className="h-5 w-5" />
+              <Building2 className="h-5 w-5" />
               <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
             </div>
+
             <div className="leading-tight">
-              <p className="text-lg font-extrabold tracking-tight text-slate-900">FleetIQ</p>
-              <p className="text-sm font-semibold text-slate-600">Automobile • IA • GPS</p>
+              <p className="text-lg font-extrabold tracking-tight text-slate-900">
+                Fleet Management
+              </p>
+              <p className="text-sm font-semibold text-slate-600">
+                Gestion intelligente de flotte
+              </p>
             </div>
           </Link>
 
           <h1 className="mt-8 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
             Créez votre compte{" "}
             <span className="bg-gradient-to-r from-sky-600 via-indigo-600 to-emerald-600 bg-clip-text text-transparent">
-              FleetIQ
+              Owner
             </span>
           </h1>
 
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
-            Accédez au suivi, aux missions, aux alertes et au pilotage KPI. Une expérience moderne orientée flotte.
+            Inscription publique réservée aux propriétaires de flotte. Gérez vos
+            conducteurs, vos véhicules et votre activité depuis une interface claire
+            et moderne.
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
             <Pill icon={<ShieldCheck className="h-4 w-4" />} label="Sécurité & rôles" />
-            <Pill icon={<Sparkles className="h-4 w-4" />} label="Expérience premium" />
+            <Pill icon={<Sparkles className="h-4 w-4" />} label="Expérience moderne" />
             <Pill icon={<BadgeCheck className="h-4 w-4" />} label="Onboarding rapide" />
           </div>
 
           <div className="mt-10 rounded-[28px] border border-slate-200 bg-white/70 p-5 shadow-sm backdrop-blur">
-            <p className="text-sm font-extrabold text-slate-900">Rôle sélectionné</p>
-            <p className="mt-2 text-sm text-slate-600">Choisissez un rôle adapté à l’utilisation.</p>
+            <p className="text-sm font-extrabold text-slate-900">Type de compte</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Cette page permet uniquement la création d’un compte owner.
+            </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-extrabold",
-                  selectedRole?.badge
+                  ownerBadge.badge
                 )}
               >
                 <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                {selectedRole?.label}
+                {ownerBadge.label}
               </span>
-              <span className="text-sm font-semibold text-slate-700">{selectedRole?.desc}</span>
+              <span className="text-sm font-semibold text-slate-700">
+                {ownerBadge.desc}
+              </span>
             </div>
 
-            {/* ✅ info claire */}
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-              Note : la création d’un compte <b>Admin</b> est désactivée (compte unique géré côté backend).
+              Note : la création d’un compte <b>Admin</b> est désactivée.
+              Le backend gère un <b>compte admin unique</b>.
             </div>
           </div>
         </div>
@@ -250,8 +242,12 @@ export default function RegisterPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-600">Inscription</p>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">Créer un compte</h2>
-                  <p className="mt-2 text-sm text-slate-600">Remplissez les informations ci-dessous.</p>
+                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+                    Créer un compte owner
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Remplissez les informations ci-dessous.
+                  </p>
                 </div>
 
                 <div className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
@@ -259,16 +255,15 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+              <form onSubmit={onSubmit} className="mt-7 space-y-5">
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <InputShell label="First Name" required>
+                  <InputShell label="Prénom" required>
                     <div className="relative">
                       <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
-                        name="firstName"
                         value={formData.firstName}
-                        onChange={handleChange}
+                        onChange={(e) => onChange("firstName", e.target.value)}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                         placeholder="Votre prénom"
                         required
@@ -276,14 +271,13 @@ export default function RegisterPage() {
                     </div>
                   </InputShell>
 
-                  <InputShell label="Last Name" required>
+                  <InputShell label="Nom" required>
                     <div className="relative">
                       <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
-                        name="lastName"
                         value={formData.lastName}
-                        onChange={handleChange}
+                        onChange={(e) => onChange("lastName", e.target.value)}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                         placeholder="Votre nom"
                         required
@@ -297,9 +291,8 @@ export default function RegisterPage() {
                     <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       type="email"
-                      name="email"
                       value={formData.email}
-                      onChange={handleChange}
+                      onChange={(e) => onChange("email", e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                       placeholder="ex: name@company.com"
                       autoComplete="email"
@@ -308,14 +301,13 @@ export default function RegisterPage() {
                   </div>
                 </InputShell>
 
-                <InputShell label="Password" required hint="Minimum 6 characters">
+                <InputShell label="Mot de passe" required hint="Minimum 6 caractères">
                   <div className="relative">
                     <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       type={showPassword ? "text" : "password"}
-                      name="password"
                       value={formData.password}
-                      onChange={handleChange}
+                      onChange={(e) => onChange("password", e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 pr-12 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                       placeholder="Votre mot de passe"
                       minLength={6}
@@ -326,21 +318,20 @@ export default function RegisterPage() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     >
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
                 </InputShell>
 
-                <InputShell label="Phone">
+                <InputShell label="Téléphone">
                   <div className="relative">
                     <Phone className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
                       type="tel"
-                      name="phone"
                       value={formData.phone}
-                      onChange={handleChange}
+                      onChange={(e) => onChange("phone", e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
                       placeholder="+216 xx xxx xxx"
                       autoComplete="tel"
@@ -348,45 +339,29 @@ export default function RegisterPage() {
                   </div>
                 </InputShell>
 
-                {formData.role === "ROLE_DRIVER" && (
-                  <InputShell label="License Number" required hint="Obligatoire pour Driver">
-                    <div className="relative">
-                      <Car className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        name="licenseNumber"
-                        value={formData.licenseNumber ?? ""}
-                        onChange={handleChange}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
-                        placeholder="Ex: TN-123456"
-                        required
-                      />
+                <div>
+                  <div className="mb-2 text-sm font-bold text-slate-800">Rôle</div>
+                  <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <BadgeCheck className="h-5 w-5 text-emerald-700" />
+                      <div>
+                        <p className="text-sm font-extrabold text-emerald-800">ROLE_OWNER</p>
+                        <p className="text-xs font-medium text-emerald-700">
+                          Compte défini automatiquement
+                        </p>
+                      </div>
                     </div>
-                  </InputShell>
-                )}
-
-                <InputShell label="Role" required>
-                  <div className="relative">
-                    <BadgeCheck className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <select
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
-                    >
-                      <option value="ROLE_DRIVER">Driver</option>
-                      <option value="ROLE_OWNER">Owner</option>
-                      {/* ❌ Admin supprimé */}
-                    </select>
-                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                      ▼
+                    <span className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-extrabold text-emerald-700">
+                      Owner
                     </span>
                   </div>
-                </InputShell>
+                </div>
 
                 <label className="inline-flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
                   <input
                     type="checkbox"
+                    checked={accepted}
+                    onChange={(e) => setAccepted(e.target.checked)}
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
                     required
                   />
@@ -408,7 +383,7 @@ export default function RegisterPage() {
                   disabled={loading}
                   className="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-slate-900 px-6 py-4 text-base font-extrabold text-white shadow-[0_14px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(15,23,42,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-r from-emerald-500 to-sky-500" />
+                  <span className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-sky-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                   <span className="relative">
                     {loading ? (
                       <span className="flex items-center justify-center gap-3">
@@ -417,7 +392,8 @@ export default function RegisterPage() {
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        Créer un compte <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                        Créer mon compte
+                        <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
                       </span>
                     )}
                   </span>
@@ -435,7 +411,7 @@ export default function RegisterPage() {
 
               <div className="mt-7 border-t border-slate-200 pt-6">
                 <p className="text-center text-xs text-slate-500">
-                  © {new Date().getFullYear()} FleetIQ • Automobile & Fleet Intelligence
+                  © {new Date().getFullYear()} Fleet Management
                 </p>
               </div>
             </div>

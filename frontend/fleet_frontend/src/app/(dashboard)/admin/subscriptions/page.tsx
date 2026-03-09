@@ -128,9 +128,7 @@ export default function AdminSubscriptionsPage() {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               Admin — Abonnements
             </h1>
-            <p className="mt-1 text-slate-600 text-[15px]">
-              Active un abonnement OWNER après paiement hors ligne (cash, virement, chèque).
-            </p>
+            
           </div>
 
           <button
@@ -404,12 +402,7 @@ export default function AdminSubscriptionsPage() {
             </div>
 
             {/* Help */}
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
-              <div className="font-extrabold">Conseil</div>
-              <div className="mt-1 text-sm">
-                Après activation, demande à l’OWNER de cliquer sur <b>Refresh status</b> dans <b>/owner/billing</b> ou de se reconnecter.
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>

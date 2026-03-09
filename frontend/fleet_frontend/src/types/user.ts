@@ -1,3 +1,4 @@
+// src/types/user.ts
 export type RoleName =
   | "ROLE_ADMIN"
   | "ROLE_OWNER"
@@ -9,9 +10,8 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: RoleName; // backend: "ROLE_OWNER" etc
+  role: RoleName;
   createdAt?: string;
-   // optionnel: si tu veux l’afficher / le modifier (si backend le renvoie)
   licenseNumber?: string | null;
   enabled?: boolean;
   lastLoginAt?: string | null;
@@ -31,15 +31,12 @@ export type UpdateUserDTO = {
   email?: string;
   role?: RoleName;
   password?: string;
-
-  // ✅ IMPORTANT: envoyé si role=ROLE_DRIVER
   licenseNumber?: string;
 };
 
-export type InviteUserDTO = {
+export type InviteOwnerDTO = {
   firstName: string;
   lastName: string;
   email: string;
-  role: RoleName;
-  licenseNumber?: string; // obligatoire si ROLE_DRIVER
+  role?: "ROLE_OWNER";
 };

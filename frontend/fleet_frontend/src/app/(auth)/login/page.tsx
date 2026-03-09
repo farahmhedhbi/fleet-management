@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import {
@@ -43,13 +42,30 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
-  const router = useRouter();
 
   const testAccounts = useMemo(
     () => [
-      { role: "Admin", email: "admin@fleet.com", pass: "admin123", color: "text-sky-700", chip: "bg-sky-50 border-sky-200" },
-      { role: "Owner", email: "owner@fleet.com", pass: "owner123", color: "text-emerald-700", chip: "bg-emerald-50 border-emerald-200" },
-      { role: "Driver", email: "driver@fleet.com", pass: "driver123", color: "text-violet-700", chip: "bg-violet-50 border-violet-200" },
+      {
+        role: "Admin",
+        email: "admin@fleet.com",
+        pass: "admin123",
+        color: "text-sky-700",
+        chip: "bg-sky-50 border-sky-200",
+      },
+      {
+        role: "Owner",
+        email: "owner@fleet.com",
+        pass: "owner123",
+        color: "text-emerald-700",
+        chip: "bg-emerald-50 border-emerald-200",
+      },
+      {
+        role: "Driver",
+        email: "driver@fleet.com",
+        pass: "driver123",
+        color: "text-violet-700",
+        chip: "bg-violet-50 border-violet-200",
+      },
     ],
     []
   );
@@ -66,8 +82,11 @@ export default function LoginPage() {
     try {
       const result = await login({ email, password });
       if (result.success) {
-        toast.success("Login successful!");
-        router.push("/dashboard");
+        if (result.mustChangePassword) {
+          toast.info("Vous devez changer votre mot de passe avant de continuer.");
+        } else {
+          toast.success("Login successful!");
+        }
       } else {
         toast.error(result.message || "Invalid credentials");
       }
@@ -81,15 +100,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_700px_at_20%_10%,rgba(56,189,248,0.18),transparent_60%),radial-gradient(900px_650px_at_85%_85%,rgba(16,185,129,0.14),transparent_60%),linear-gradient(to_bottom,#f8fafc,white,#f8fafc)]">
-      {/* Subtle grid */}
       <div className="pointer-events-none absolute inset-0 opacity-[0.16] [background-image:linear-gradient(to_right,rgba(15,23,42,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:64px_64px]" />
-
-      {/* Glow blobs */}
       <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-gradient-to-br from-sky-300/30 via-white to-emerald-300/25 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-gradient-to-br from-emerald-300/25 to-sky-300/20 blur-3xl" />
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-16">
-        {/* LEFT: Brand / Benefits */}
         <div className="order-2 lg:order-1">
           <Link href="/" className="inline-flex items-center gap-3">
             <div className="relative grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg">
@@ -156,7 +171,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* RIGHT: Card */}
         <div className="order-1 lg:order-2">
           <div className="relative mx-auto w-full max-w-md">
             <div className="absolute -inset-6 -z-10 rounded-[40px] bg-gradient-to-br from-sky-200/40 via-white to-emerald-200/40 blur-2xl" />
@@ -179,7 +193,6 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-                {/* Email */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Email
@@ -198,7 +211,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label className="block text-sm font-semibold text-slate-700">
@@ -234,7 +246,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="submit"
                   disabled={loading}
@@ -280,7 +291,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Tiny footer */}
             <div className="mt-4 text-center text-xs font-semibold text-slate-500">
               © {new Date().getFullYear()} FleetIQ • Automobile & Fleet Intelligence
             </div>

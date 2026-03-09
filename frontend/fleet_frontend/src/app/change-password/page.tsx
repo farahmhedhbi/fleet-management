@@ -1,35 +1,13 @@
+// src/app/change-password/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "react-toastify";
-import { authService } from "@/lib/services/authService";
 import { useAuth } from "@/contexts/authContext";
-import {
-  Lock,
-  KeyRound,
-  ShieldCheck,
-  Sparkles,
-  MapPin,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  LayoutDashboard,
-} from "lucide-react";
-
-function StatPill({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
-      <span className="text-slate-900">{icon}</span>
-      <span>{label}</span>
-    </div>
-  );
-}
+import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
-  const { logout } = useAuth();
+  const { changePassword, logout, refreshMe } = useAuth();
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -48,235 +26,147 @@ export default function ChangePasswordPage() {
     setMsg(null);
     setError(null);
 
-    if (!oldPassword || !newPassword) {
+    if (!oldPassword || !newPassword || !confirm) {
       setError("Tous les champs sont obligatoires.");
       return;
     }
-    if (newPassword.length < 6) {
-      setError("Mot de passe trop court (min 6).");
+
+    if (newPassword.length < 8) {
+      setError("Le nouveau mot de passe doit contenir au moins 8 caractères.");
       return;
     }
+
     if (newPassword !== confirm) {
-      setError("Confirmation incorrecte.");
+      setError("La confirmation du mot de passe est incorrecte.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await authService.changePassword(oldPassword, newPassword);
-      const m = res?.message ?? "Mot de passe changé.";
-      setMsg(m);
-      toast.success(m);
+      const result = await changePassword(oldPassword, newPassword);
+
+      if (!result.success) {
+        const message = result.message || "Erreur lors du changement du mot de passe.";
+        setError(message);
+        toast.error(message);
+        return;
+      }
+
+      const successMessage = result.message || "Mot de passe changé avec succès.";
+      setMsg(successMessage);
+      toast.success(successMessage);
+
+      await refreshMe();
 
       setTimeout(() => {
-        logout(); // sécurité: demande re-login
+        logout("/login");
       }, 1200);
     } catch (e: any) {
-      const m = e?.response?.data?.message || "Erreur: ancien mot de passe incorrect.";
-      setError(m);
-      toast.error(m);
+      const message =
+        e?.response?.data?.message || "Erreur lors du changement du mot de passe.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_700px_at_20%_10%,rgba(56,189,248,0.18),transparent_60%),radial-gradient(900px_650px_at_85%_85%,rgba(16,185,129,0.14),transparent_60%),linear-gradient(to_bottom,#f8fafc,white,#f8fafc)]">
-      {/* Grid */}
-      <div className="pointer-events-none absolute inset-0 opacity-[0.16] [background-image:linear-gradient(to_right,rgba(15,23,42,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.07)_1px,transparent_1px)] [background-size:64px_64px]" />
-      {/* Glows */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-gradient-to-br from-sky-300/30 via-white to-emerald-300/25 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 right-[-120px] h-[520px] w-[520px] rounded-full bg-gradient-to-br from-emerald-300/25 to-sky-300/20 blur-3xl" />
-
-      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-16">
-        {/* LEFT */}
-        <div className="order-2 lg:order-1">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <div className="relative grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg">
-              <span className="text-lg">🚘</span>
-              <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
-            </div>
-            <div className="leading-tight">
-              <p className="text-lg font-extrabold tracking-tight text-slate-900">FleetIQ</p>
-              <p className="text-sm font-semibold text-slate-600">Gestion de flottes • IA • GPS</p>
-            </div>
-          </Link>
-
-          <h1 className="mt-8 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-            Renforcez la{" "}
-            <span className="bg-gradient-to-r from-sky-600 via-indigo-600 to-emerald-600 bg-clip-text text-transparent">
-              sécurité
-            </span>
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-100">
+            <ShieldCheck className="h-7 w-7 text-sky-700" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-900">
+            Changement obligatoire du mot de passe
           </h1>
-
-          <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
-            Pour votre sécurité, on vous déconnecte après le changement pour forcer une reconnexion.
+          <p className="mt-2 text-sm text-slate-600">
+            Pour sécuriser votre compte, vous devez définir un nouveau mot de passe avant de continuer.
           </p>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <StatPill icon={<ShieldCheck className="h-4 w-4" />} label="Protection compte" />
-            <StatPill icon={<MapPin className="h-4 w-4" />} label="Accès cockpit" />
-            <StatPill icon={<Sparkles className="h-4 w-4" />} label="UX moderne" />
-          </div>
-
-          <div className="mt-10 rounded-[28px] border border-slate-200 bg-white/70 p-5 shadow-sm backdrop-blur">
-            <p className="text-sm font-extrabold text-slate-900">Recommandation</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Utilisez un mot de passe avec <span className="font-extrabold">8+ caractères</span> si possible.
-            </p>
-          </div>
         </div>
 
-        {/* RIGHT */}
-        <div className="order-1 lg:order-2">
-          <div className="relative mx-auto w-full max-w-md">
-            <div className="absolute -inset-6 -z-10 rounded-[40px] bg-gradient-to-br from-sky-200/40 via-white to-emerald-200/40 blur-2xl" />
+        <form onSubmit={onSubmit} className="space-y-4">
+          <PasswordField
+            label="Mot de passe actuel"
+            value={oldPassword}
+            setValue={setOldPassword}
+            show={showOld}
+            setShow={setShowOld}
+          />
 
-            <div className="rounded-[32px] border border-slate-200 bg-white/85 p-7 shadow-xl backdrop-blur sm:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-600">Compte</p>
-                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-                    Changer mot de passe
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Entrez l’ancien mot de passe puis le nouveau.
-                  </p>
-                </div>
+          <PasswordField
+            label="Nouveau mot de passe"
+            value={newPassword}
+            setValue={setNewPassword}
+            show={showNew}
+            setShow={setShowNew}
+          />
 
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
-                  <KeyRound className="h-5 w-5" />
-                </div>
-              </div>
+          <PasswordField
+            label="Confirmer le nouveau mot de passe"
+            value={confirm}
+            setValue={setConfirm}
+            show={showConfirm}
+            setShow={setShowConfirm}
+          />
 
-              <form onSubmit={onSubmit} className="mt-7 space-y-5">
-                {/* Old */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Ancien mot de passe
-                  </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type={showOld ? "text" : "password"}
-                      value={oldPassword}
-                      onChange={(e) => setOldPassword(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 pr-12 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
-                      autoComplete="current-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowOld((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={showOld ? "Hide password" : "Show password"}
-                    >
-                      {showOld ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* New */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Nouveau mot de passe
-                  </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type={showNew ? "text" : "password"}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 pr-12 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
-                      autoComplete="new-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNew((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={showNew ? "Hide password" : "Show password"}
-                    >
-                      {showNew ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Confirmer
-                  </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type={showConfirm ? "text" : "password"}
-                      value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 pr-12 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
-                      autoComplete="new-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirm((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={showConfirm ? "Hide password" : "Show password"}
-                    >
-                      {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                {msg && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm font-semibold text-emerald-800">
-                    {msg}
-                  </div>
-                )}
-                {error && (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-sm font-semibold text-rose-700">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-slate-900 px-6 py-4 text-base font-extrabold text-white shadow-[0_14px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(15,23,42,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-r from-emerald-500 to-sky-500" />
-                  <span className="relative">
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-3">
-                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        ...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        Changer <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
-                      </span>
-                    )}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => router.push("/dashboard")}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-extrabold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  Retour dashboard
-                </button>
-              </form>
-
-              <div className="mt-7 border-t border-slate-200 pt-6">
-                <p className="text-center text-xs font-semibold text-slate-500">
-                  © {new Date().getFullYear()} FleetIQ • Automobile & Fleet Intelligence
-                </p>
-              </div>
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
             </div>
-          </div>
-        </div>
+          )}
+
+          {msg && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {msg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Mise à jour..." : "Changer le mot de passe"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  setValue,
+  show,
+  setShow,
+}: {
+  label: string;
+  value: string;
+  setValue: (v: string) => void;
+  show: boolean;
+  setShow: (v: boolean) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-semibold text-slate-700">{label}</label>
+      <div className="relative">
+        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 py-3 pl-10 pr-11 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+        />
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+        >
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
       </div>
     </div>
   );

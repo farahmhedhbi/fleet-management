@@ -1,8 +1,13 @@
 // src/types/auth.ts
 import type { SubscriptionInfo } from "@/types/subscription";
-export type RoleName = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER" | "ROLE_API_CLIENT";
 
-export type RegisterRole = "ROLE_OWNER" | "ROLE_DRIVER"; // ✅ ADMIN interdit à l'inscription
+export type RoleName =
+  | "ROLE_ADMIN"
+  | "ROLE_OWNER"
+  | "ROLE_DRIVER"
+  | "ROLE_API_CLIENT";
+
+export type RegisterRole = "ROLE_OWNER";
 
 export interface LoginRequest {
   email: string;
@@ -15,30 +20,40 @@ export interface RegisterRequest {
   email: string;
   password: string;
   phone?: string;
-
-  // ✅ uniquement DRIVER/OWNER
-  role: RegisterRole;
-
-  // ✅ obligatoire si DRIVER
+  role: RegisterRole; // ✅ public register = OWNER only
   licenseNumber?: string;
 }
 
 export interface AuthResponse {
   token: string;
-  type?: string; // backend peut renvoyer "Bearer"
+  type?: string;
   id: number;
   email: string;
   firstName: string;
   lastName: string;
-
-  // ✅ peut être ADMIN après login
   role: "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 
-   // ✅ optionnel si backend renvoie déjà
   subscriptionStatus?: SubscriptionInfo["subscriptionStatus"];
   trialStartAt?: string | null;
   trialEndAt?: string | null;
   paidUntil?: string | null;
+
+  mustChangePassword: boolean;
+}
+
+export interface MeResponse {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
+
+  subscriptionStatus?: SubscriptionInfo["subscriptionStatus"];
+  trialStartAt?: string | null;
+  trialEndAt?: string | null;
+  paidUntil?: string | null;
+
+  mustChangePassword: boolean;
 }
 
 export type UserSession = {
@@ -52,4 +67,19 @@ export type UserSession = {
   trialStartAt?: string | null;
   trialEndAt?: string | null;
   paidUntil?: string | null;
+
+  mustChangePassword: boolean;
 };
+
+export interface ChangePasswordResponse {
+  message: string;
+}
+
+export interface CreateDriverByOwnerRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  licenseNumber: string;
+  licenseExpiry?: string | null; // yyyy-MM-dd ou ISO
+}

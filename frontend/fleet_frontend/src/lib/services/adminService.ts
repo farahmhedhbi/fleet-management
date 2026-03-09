@@ -1,9 +1,14 @@
+// src/lib/services/adminService.ts
 import { api } from "@/lib/api";
-import type { User, CreateUserDTO, UpdateUserDTO, InviteUserDTO } from "@/types/user";
+import type { User, UpdateUserDTO, InviteOwnerDTO } from "@/types/user";
 import type { Vehicle } from "@/types/vehicle";
 
+export type OwnerDriverCountDTO = {
+  ownerId: number;
+  driversCount: number;
+};
+
 export const adminService = {
-  // ===== Owners =====
   async listOwners(): Promise<User[]> {
     const res = await api.get<User[]>("/api/admin/owners");
     return res.data;
@@ -14,7 +19,13 @@ export const adminService = {
     return res.data;
   },
 
-  // ===== Users =====
+  async countDriversByOwner(ownerId: number): Promise<OwnerDriverCountDTO> {
+    const res = await api.get<OwnerDriverCountDTO>(
+      `/api/admin/owners/${ownerId}/drivers/count`
+    );
+    return res.data;
+  },
+
   async listUsers(): Promise<User[]> {
     const res = await api.get<User[]>("/api/admin/users");
     return res.data;
@@ -25,25 +36,23 @@ export const adminService = {
     return res.data;
   },
 
-  async createUser(payload: CreateUserDTO): Promise<User> {
-    const res = await api.post<User>("/api/admin/users", payload);
-    return res.data;
-  },
-
   async updateUser(id: number, payload: UpdateUserDTO): Promise<User> {
     const res = await api.put<User>(`/api/admin/users/${id}`, payload);
-    console.log("PUT /api/admin/users/" + id, payload);
     return res.data;
-    
   },
 
   async deleteUser(id: number): Promise<void> {
     await api.delete(`/api/admin/users/${id}`);
   },
 
-  // ✅ NEW: Invite user (flow pro)
-  async inviteUser(payload: InviteUserDTO): Promise<User> {
-    const res = await api.post<User>("/api/admin/users/invite", payload);
+  // ✅ Admin invite OWNER only
+  async inviteOwner(payload: InviteOwnerDTO): Promise<User> {
+    const body = {
+      ...payload,
+      role: "ROLE_OWNER",
+    };
+
+    const res = await api.post<User>("/api/admin/users/invite", body);
     return res.data;
   },
 };

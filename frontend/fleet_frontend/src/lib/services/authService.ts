@@ -1,6 +1,12 @@
 // src/lib/services/authService.ts
 import { api } from "@/lib/api";
-import type { LoginRequest, RegisterRequest, AuthResponse } from "@/types/auth";
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  MeResponse,
+  ChangePasswordResponse,
+} from "@/types/auth";
 
 export const authService = {
   async login(payload: LoginRequest): Promise<AuthResponse> {
@@ -13,8 +19,8 @@ export const authService = {
     return res.data;
   },
 
-  async me() {
-    const res = await api.get("/api/auth/me");
+  async me(): Promise<MeResponse> {
+    const res = await api.get<MeResponse>("/api/auth/me");
     return res.data;
   },
 
@@ -28,8 +34,14 @@ export const authService = {
     return res.data;
   },
 
-  async changePassword(oldPassword: string, newPassword: string) {
-    const res = await api.post("/api/auth/change-password", { oldPassword, newPassword });
+  async changePassword(
+    oldPassword: string,
+    newPassword: string
+  ): Promise<ChangePasswordResponse> {
+    const res = await api.post<ChangePasswordResponse>("/api/auth/change-password", {
+      oldPassword,
+      newPassword,
+    });
     return res.data;
   },
 };

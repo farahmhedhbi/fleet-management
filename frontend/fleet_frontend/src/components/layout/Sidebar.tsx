@@ -17,6 +17,7 @@ import {
   Shield,
   CreditCard,
   ClipboardList,
+  UserCircle2,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
@@ -54,35 +55,30 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   }, [isOwner, user]);
 
   const items: NavItem[] = [
-    { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
-
-    
+  { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
 
     // DRIVER
+    { name: "My Profile", href: "/my-profile", icon: UserCircle2, show: isDriver },
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
-    
 
-
-    // OWNER premium
+    // OWNER
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwnerActive },
     { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
-    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive || isAdmin },
+    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
 
-    // Billing toujours visible pour OWNER
+    // OWNER billing
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
-    // Admin
+    // ADMIN
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
-    { name: "Comptes actifs", href: "/admin/active-accounts", icon: Users, show: isAdmin },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard, show: isAdmin },
-
+    { name: "Payments", href: "/admin/payments", icon: CreditCard, show: isAdmin },
 
     // commun
     { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
     { name: "Documents", href: "/documents", icon: FileText, show: true },
-
     { name: "Settings", href: "/settings", icon: Settings, show: isAdmin },
   ];
 

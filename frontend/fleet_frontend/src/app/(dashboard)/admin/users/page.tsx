@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminOnly } from "@/components/layout/AdminOnly";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { adminService } from "@/lib/services/adminService";
-import type { User, RoleName, InviteUserDTO, UpdateUserDTO } from "@/types/user";
+import type { User, RoleName, InviteOwnerDTO, UpdateUserDTO } from "@/types/user";
 import {
   Plus,
   RefreshCcw,
@@ -27,15 +27,7 @@ function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-/**
- * ✅ Invite: ADMIN peut inviter فقط OWNER
- * ✅ List users: ne pas afficher les comptes ADMIN (liste + stats + recherche)
- * ✅ Bloquer edit/delete si ADMIN arrive quand même depuis l'API
- *
- * ⚠️ Frontend masking seulement.
- * ➜ recommandé: filtrer aussi côté backend.
- */
-const ROLES_EDIT: RoleName[] = ["ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER", "ROLE_API_CLIENT"];
+const ROLES_EDIT: RoleName[] = ["ROLE_OWNER", "ROLE_DRIVER", "ROLE_API_CLIENT"];
 
 function isAdminRole(role?: string) {
   const r = String(role || "").toUpperCase();
@@ -57,31 +49,22 @@ export default function AdminUsersPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [q, setQ] = useState("");
 
-  // modal state
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"invite" | "edit">("invite");
   const [editing, setEditing] = useState<User | null>(null);
 
-  // form
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
 
-  // role used mainly for EDIT; for INVITE we force ROLE_OWNER
   const [role, setRole] = useState<RoleName>("ROLE_OWNER");
   const [licenseNumber, setLicenseNumber] = useState("");
-
-  // edit-only
   const [newPassword, setNewPassword] = useState("");
 
   const isInvite = mode === "invite";
   const effectiveRole: RoleName = isInvite ? "ROLE_OWNER" : role;
   const isDriver = effectiveRole === "ROLE_DRIVER";
 
-  /**
-   * ✅ Visible users = all users except ADMIN
-   * (applied to list + stats + search)
-   */
   const visibleUsers = useMemo(() => {
     return (users || []).filter((u) => !isAdminRole(u.role));
   }, [users]);
@@ -90,15 +73,22 @@ export default function AdminUsersPage() {
     const s = q.trim().toLowerCase();
     if (!s) return visibleUsers;
     return visibleUsers.filter((u) =>
-      `${u.firstName} ${u.lastName} ${u.email} ${u.role}`.toLowerCase().includes(s)
+      `${u.firstName} ${u.lastName} ${u.email} ${u.role}`
+        .toLowerCase()
+        .includes(s)
     );
   }, [visibleUsers, q]);
 
   const stats = useMemo(() => {
     const total = visibleUsers.length;
-    const admin = 0; // ✅ admin hidden
-    const owner = visibleUsers.filter((u) => String(u.role).includes("OWNER")).length;
-    const driver = visibleUsers.filter((u) => String(u.role).includes("DRIVER")).length;
+    const admin = 0;
+    const owner = visibleUsers.filter((u) =>
+      String(u.role).includes("OWNER")
+    ).length;
+    const driver = visibleUsers.filter((u) =>
+      String(u.role).includes("DRIVER")
+    ).length;
+
     return { total, admin, owner, driver };
   }, [visibleUsers]);
 
@@ -107,10 +97,13 @@ export default function AdminUsersPage() {
     setLoading(true);
     try {
       const data = await adminService.listUsers();
-      // ✅ keep raw list; filtering is done via visibleUsers memo
       setUsers(data || []);
     } catch (e: any) {
-      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur chargement users");
+      toastError(
+        e?.response?.data?.error ||
+          e?.response?.data?.message ||
+          "Erreur chargement users"
+      );
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -134,12 +127,11 @@ export default function AdminUsersPage() {
   function openInvite() {
     resetForm();
     setMode("invite");
-    setRole("ROLE_OWNER"); // ✅ forcé
+    setRole("ROLE_OWNER");
     setOpen(true);
   }
 
   function openEdit(u: User) {
-    // ✅ extra safety: don't allow editing admin
     if (isAdminRole(u.role)) {
       toastError("Modification des comptes ADMIN interdite.");
       return;
@@ -158,40 +150,38 @@ export default function AdminUsersPage() {
 
   async function submit() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      toastError("firstName / lastName / email are required");
+      toastError("Le prénom, le nom et l’email sont obligatoires.");
       return;
     }
 
-    // ✅ licenseNumber seulement en EDIT quand role = DRIVER
     if (!isInvite && isDriver && !licenseNumber.trim()) {
-      toastError("licenseNumber is required for ROLE_DRIVER");
+      toastError("Le numéro de permis est obligatoire pour un conducteur.");
       return;
     }
 
     try {
       if (mode === "invite") {
-        // ✅ INVITE: only OWNER
-        const payload: InviteUserDTO = {
+        const payload: InviteOwnerDTO = {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           role: "ROLE_OWNER",
         };
 
-        const invited = await adminService.inviteUser(payload);
+        const invited = await adminService.inviteOwner(payload);
 
-        // ✅ even if API returns admin by mistake, never show
         if (!isAdminRole(invited?.role)) {
           setUsers((prev) => [invited, ...(prev || [])]);
         }
 
-        toastSuccess("Invitation envoyée ✅ L’utilisateur doit activer son compte par email.");
+        toastSuccess(
+          "Invitation envoyée. L’owner recevra un email avec un mot de passe temporaire et devra le changer à la première connexion."
+        );
         setOpen(false);
         return;
       }
 
       if (mode === "edit" && editing) {
-        // ✅ optional: prevent setting admin role from UI
         if (isAdminRole(effectiveRole)) {
           toastError("Impossible de définir ROLE_ADMIN depuis cette page.");
           return;
@@ -200,7 +190,7 @@ export default function AdminUsersPage() {
         const payload: UpdateUserDTO = {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           role: effectiveRole,
           ...(newPassword.trim() ? { password: newPassword.trim() } : {}),
           ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
@@ -208,7 +198,6 @@ export default function AdminUsersPage() {
 
         const updated = await adminService.updateUser(editing.id, payload);
 
-        // ✅ if updated becomes admin, remove it from UI
         if (isAdminRole(updated?.role)) {
           setUsers((prev) => (prev || []).filter((x) => x.id !== editing.id));
         } else {
@@ -217,47 +206,53 @@ export default function AdminUsersPage() {
           );
         }
 
-        toastSuccess("User updated");
+        toastSuccess("Utilisateur mis à jour avec succès.");
         setOpen(false);
       }
     } catch (e: any) {
-      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur save user");
+      toastError(
+        e?.response?.data?.error ||
+          e?.response?.data?.message ||
+          "Erreur save user"
+      );
     }
   }
 
   async function remove(u: User) {
-    // ✅ extra safety
     if (isAdminRole(u.role)) {
       toastError("Suppression des comptes ADMIN interdite.");
       return;
     }
 
-    const ok = confirm(`Delete user ${u.firstName} ${u.lastName} (${u.email}) ?`);
+    const ok = confirm(`Supprimer ${u.firstName} ${u.lastName} (${u.email}) ?`);
     if (!ok) return;
 
     try {
       await adminService.deleteUser(u.id);
       setUsers((prev) => (prev || []).filter((x) => x.id !== u.id));
-      toastSuccess("User deleted");
+      toastSuccess("Utilisateur supprimé.");
     } catch (e: any) {
-      toastError(e?.response?.data?.error || e?.response?.data?.message || "Erreur delete user");
+      toastError(
+        e?.response?.data?.error ||
+          e?.response?.data?.message ||
+          "Erreur delete user"
+      );
     }
   }
 
   return (
     <ProtectedRoute requiredRoles={["ROLE_ADMIN"]}>
       <AdminOnly>
-        <AdminShell title="Users Management" subtitle="Invite, update and delete platform users.">
+        <AdminShell
+          title="Users Management"
+          subtitle="Invite, update and delete platform users."
+        >
           <div className="space-y-6">
-            {/* Header */}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
                   Users Management
                 </h1>
-                <p className="mt-1 text-slate-600">
-                  Flow pro: Admin invite (OWNER فقط) → email token → user définit son mot de passe.
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -271,7 +266,7 @@ export default function AdminUsersPage() {
 
                 <button
                   onClick={openInvite}
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25"
+                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25"
                 >
                   <Plus className="h-4 w-4" />
                   Invite Owner
@@ -279,14 +274,15 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-600">Total</div>
                   <Users className="h-5 w-5 text-slate-400" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.total}</div>
+                <div className="mt-2 text-3xl font-extrabold text-slate-900">
+                  {stats.total}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -294,7 +290,9 @@ export default function AdminUsersPage() {
                   <div className="text-sm font-semibold text-slate-600">Admins</div>
                   <Shield className="h-5 w-5 text-purple-500" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.admin}</div>
+                <div className="mt-2 text-3xl font-extrabold text-slate-900">
+                  {stats.admin}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -302,7 +300,9 @@ export default function AdminUsersPage() {
                   <div className="text-sm font-semibold text-slate-600">Owners</div>
                   <UserCog className="h-5 w-5 text-emerald-600" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.owner}</div>
+                <div className="mt-2 text-3xl font-extrabold text-slate-900">
+                  {stats.owner}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -310,14 +310,14 @@ export default function AdminUsersPage() {
                   <div className="text-sm font-semibold text-slate-600">Drivers</div>
                   <BadgeCheck className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">{stats.driver}</div>
+                <div className="mt-2 text-3xl font-extrabold text-slate-900">
+                  {stats.driver}
+                </div>
               </div>
             </div>
 
-            {/* Card */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-              {/* Search toolbar */}
-              <div className="p-5 border-b border-slate-200 bg-slate-50">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+              <div className="border-b border-slate-200 bg-slate-50 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-bold text-slate-900">All Users</div>
 
@@ -327,21 +327,20 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <div className="relative mt-4">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="Search by name/email/role..."
-                    className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-200"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-200"
                   />
                 </div>
               </div>
 
-              {/* list */}
               <div className="p-5">
                 {loading ? (
-                  <div className="animate-pulse space-y-3">
+                  <div className="space-y-3 animate-pulse">
                     <div className="h-14 rounded-2xl bg-slate-200" />
                     <div className="h-14 rounded-2xl bg-slate-200" />
                     <div className="h-14 rounded-2xl bg-slate-200" />
@@ -353,7 +352,7 @@ export default function AdminUsersPage() {
                     {filtered.map((u) => (
                       <div
                         key={u.id}
-                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 hover:shadow-md transition-all"
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:shadow-md md:flex-row md:items-center md:justify-between"
                       >
                         <div className="flex items-start gap-3">
                           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
@@ -400,7 +399,7 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEdit(u)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
                           >
                             <Pencil className="h-4 w-4" />
                             Edit
@@ -408,7 +407,7 @@ export default function AdminUsersPage() {
 
                           <button
                             onClick={() => remove(u)}
-                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold text-white shadow-lg transition-all bg-gradient-to-r from-rose-500 via-red-600 to-rose-700 hover:shadow-red-500/25"
+                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 via-red-600 to-rose-700 px-3 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-red-500/25"
                           >
                             <Trash2 className="h-4 w-4" />
                             Delete
@@ -421,11 +420,10 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            {/* Modal invite/edit */}
             {open && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-5">
                     <div className="flex items-start gap-3">
                       <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
                         {mode === "invite" ? (
@@ -441,12 +439,15 @@ export default function AdminUsersPage() {
                         </div>
                         <div className="text-xl font-extrabold text-slate-900">
                           {mode === "invite"
-                            ? "Invitation Owner (email activation)"
+                            ? "Invitation Owner"
                             : `${editing?.firstName} ${editing?.lastName}`}
                         </div>
                         {mode === "invite" && (
                           <div className="mt-1 text-sm font-semibold text-slate-600">
-                            Rôle: <span className="font-extrabold text-emerald-700">ROLE_OWNER</span>
+                            Rôle :{" "}
+                            <span className="font-extrabold text-emerald-700">
+                              ROLE_OWNER
+                            </span>
                           </div>
                         )}
                       </div>
@@ -460,10 +461,12 @@ export default function AdminUsersPage() {
                     </button>
                   </div>
 
-                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-4 p-5">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div>
-                        <div className="text-sm font-semibold text-slate-700">First name</div>
+                        <div className="text-sm font-semibold text-slate-700">
+                          First name
+                        </div>
                         <input
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
@@ -472,7 +475,9 @@ export default function AdminUsersPage() {
                       </div>
 
                       <div>
-                        <div className="text-sm font-semibold text-slate-700">Last name</div>
+                        <div className="text-sm font-semibold text-slate-700">
+                          Last name
+                        </div>
                         <input
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
@@ -490,9 +495,8 @@ export default function AdminUsersPage() {
                       />
                     </div>
 
-                    {/* ✅ EDIT: role + licenseNumber */}
                     {!isInvite && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div>
                           <div className="text-sm font-semibold text-slate-700">Role</div>
                           <select
@@ -528,7 +532,6 @@ export default function AdminUsersPage() {
                       </div>
                     )}
 
-                    {/* optional password in edit */}
                     {mode === "edit" && (
                       <div>
                         <div className="text-sm font-semibold text-slate-700">
@@ -547,7 +550,7 @@ export default function AdminUsersPage() {
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button
                         onClick={() => setOpen(false)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                       >
                         <X className="h-4 w-4" />
                         Cancel
@@ -555,7 +558,7 @@ export default function AdminUsersPage() {
 
                       <button
                         onClick={submit}
-                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg bg-gradient-to-r from-slate-900 to-slate-800"
+                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg"
                       >
                         <Save className="h-4 w-4" />
                         {mode === "invite" ? "Send Invite" : "Save"}
