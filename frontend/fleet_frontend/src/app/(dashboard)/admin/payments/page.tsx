@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   RefreshCcw,
   FileCheck2,
@@ -18,6 +17,12 @@ import type { PaymentResponse } from "@/types/payment";
 
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function buildFileUrl(path?: string | null) {
+  if (!path) return "#";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return `http://localhost:8080${path}`;
 }
 
 function methodLabel(method?: string | null) {
@@ -318,13 +323,14 @@ function AdminPaymentsInner() {
                           <div className="truncate text-sm font-semibold text-slate-800">
                             {p.proofFileName || "Fichier owner"}
                           </div>
-                          <Link
-                            href={p.proofFileUrl}
+                          <a
+                            href={buildFileUrl(p.proofFileUrl)}
                             target="_blank"
+                            rel="noreferrer"
                             className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white"
                           >
                             Ouvrir
-                          </Link>
+                          </a>
                         </div>
                       ) : (
                         <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
