@@ -41,7 +41,7 @@ public class PaymentProofService {
             throw new IllegalArgumentException("Utilisateur non authentifié");
         }
 
-        return userRepository.findByEmailIgnoreCase(auth.getName())
+        return userRepository.findByEmailIgnoreCase(auth.getName().trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + auth.getName()));
     }
 
@@ -69,12 +69,9 @@ public class PaymentProofService {
         p.setNote(req.getNote());
         p.setPaidAt(LocalDateTime.now());
 
-        // Nouvelle logique
         if (p.getMethod() == Payment.Method.CASH) {
-            // cash: l'owner ne charge rien, l'admin devra obligatoirement envoyer un reçu/justification
             p.setStatus(Payment.Status.PENDING_ADMIN_CASH_PROOF);
         } else {
-            // virement / cheque: owner doit envoyer sa preuve
             p.setStatus(Payment.Status.PENDING_OWNER_PROOF);
         }
 
@@ -89,6 +86,10 @@ public class PaymentProofService {
             throw new IllegalArgumentException("Seul un OWNER peut envoyer une preuve");
         }
 
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Le fichier justificatif est obligatoire");
+        }
+
         Payment p = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + paymentId));
 
@@ -97,7 +98,7 @@ public class PaymentProofService {
         }
 
         if (p.getMethod() == Payment.Method.CASH) {
-            throw new IllegalArgumentException("Pour CASH, l'owner n'envoie pas de justificatif. C'est l'admin qui doit envoyer une attestation.");
+            throw new IllegalArgumentException("Pour CASH, l'owner n'envoie pas de justificatif.");
         }
 
         if (p.getStatus() != Payment.Status.PENDING_OWNER_PROOF && p.getStatus() != Payment.Status.REJECTED) {
@@ -106,7 +107,9 @@ public class PaymentProofService {
 
         String fileUrl = fileStorageService.savePaymentProof(file);
 
-        p.setProofFileName(file.getOriginalFilename());
+        String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+
+        p.setProofFileName(fileName);
         p.setProofFileUrl(fileUrl);
         p.setStatus(Payment.Status.PENDING_VERIFICATION);
 
@@ -155,7 +158,7 @@ public class PaymentProofService {
         }
 
         if (p.getStatus() == Payment.Status.REJECTED) {
-            throw new IllegalArgumentException("Ce paiement est refusé. Créez une nouvelle demande ou renvoyez une preuve selon votre logique métier.");
+            throw new IllegalArgumentException("Ce paiement est refusé.");
         }
 
         if (p.getMethod() == Payment.Method.CASH) {
@@ -173,7 +176,9 @@ public class PaymentProofService {
         }
 
         String adminFileUrl = fileStorageService.saveAdminPaymentProof(adminFile);
-        p.setAdminProofFileName(adminFile.getOriginalFilename());
+        String adminFileName = adminFileUrl.substring(adminFileUrl.lastIndexOf("/") + 1);
+
+        p.setAdminProofFileName(adminFileName);
         p.setAdminProofFileUrl(adminFileUrl);
 
         User owner = p.getUser();
@@ -202,7 +207,6 @@ public class PaymentProofService {
         userRepository.save(owner);
         paymentRepository.save(p);
 
-        // notification owner
         notificationService.createForUser(
                 owner.getId(),
                 "Paiement approuvé",
