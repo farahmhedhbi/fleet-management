@@ -29,6 +29,12 @@ public class MustChangePasswordFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
+        // ✅ Ne pas bloquer les fichiers uploadés
+        if (path.startsWith("/uploads/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         boolean allowed =
                 path.startsWith("/api/auth/login") ||
                         path.startsWith("/api/auth/me") ||

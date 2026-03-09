@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   CreditCard,
   Receipt,
   Upload,
   RefreshCcw,
-  FileText,
   CheckCircle2,
   AlertTriangle,
   Clock3,
@@ -18,15 +16,21 @@ import {
 
 import { useAuth } from "@/contexts/authContext";
 import { paymentService } from "@/lib/services/paymentService";
-import { isSubscriptionActive, isSubscriptionExpired, fmtDateTime } from "@/lib/subscription";
-import type {
-  PaymentMethod,
-  PaymentResponse,
-  PaymentStatus,
-} from "@/types/payment";
+import {
+  isSubscriptionActive,
+  isSubscriptionExpired,
+  fmtDateTime,
+} from "@/lib/subscription";
+import type { PaymentMethod, PaymentResponse } from "@/types/payment";
 
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function buildFileUrl(path?: string | null) {
+  if (!path) return "#";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return `http://localhost:8080${path}`;
 }
 
 function getStatusLabel(status?: string | null) {
@@ -81,7 +85,7 @@ function statusHelp(status?: string | null, method?: string | null) {
     return "Vous devez envoyer votre justificatif de virement ou de chèque.";
   }
   if (status === "PENDING_ADMIN_CASH_PROOF") {
-    return "Paiement cash déclaré. L’admin doit maintenant joindre une attestation de réception.";
+    return "Paiement cash déclaré. L’admin doit maintenant traiter le paiement.";
   }
   if (status === "PENDING_VERIFICATION") {
     return "Votre justificatif a été envoyé. L’admin doit vérifier puis activer le compte.";
@@ -92,7 +96,7 @@ function statusHelp(status?: string | null, method?: string | null) {
   if (status === "REJECTED") {
     return method === "CASH"
       ? "Paiement refusé. Vérifiez le commentaire admin."
-      : "Paiement refusé. Vous pouvez créer une nouvelle demande ou renvoyer une preuve selon votre logique backend.";
+      : "Paiement refusé. Vérifiez le commentaire admin ou créez une nouvelle demande.";
   }
   return "—";
 }
@@ -130,13 +134,17 @@ export default function OwnerBillingPage() {
     return amount > 0 && months > 0 && !!method;
   }, [amount, months, method]);
 
-  const latestPendingOwnerProof = useMemo(() => {
-    return payments.find(
+  const pendingOwnerProofPayments = useMemo(() => {
+    return payments.filter(
       (p) =>
         p.status === "PENDING_OWNER_PROOF" &&
         (p.method === "BANK_TRANSFER" || p.method === "CHEQUE")
     );
   }, [payments]);
+
+  const latestPendingOwnerProof = useMemo(() => {
+    return pendingOwnerProofPayments[0] ?? null;
+  }, [pendingOwnerProofPayments]);
 
   async function loadPayments() {
     try {
@@ -187,7 +195,7 @@ export default function OwnerBillingPage() {
         setStatus({
           type: "ok",
           message:
-            "Demande cash créée. Aucun fichier owner n’est requis. L’admin doit maintenant joindre une justification de réception.",
+            "Demande cash créée. Aucun fichier owner n’est requis. L’admin va traiter la demande.",
         });
       } else {
         setStatus({
@@ -293,7 +301,6 @@ export default function OwnerBillingPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* LEFT */}
           <div className="space-y-6 lg:col-span-2">
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-3">
@@ -373,8 +380,7 @@ export default function OwnerBillingPage() {
                     <div>
                       <div className="font-extrabold text-slate-900">Mode cash</div>
                       <div>
-                        Après création, vous n’envoyez aucun fichier. L’admin doit joindre une
-                        attestation de réception puis approuver le paiement.
+                        Après création, vous n’envoyez aucun fichier. L’admin traitera ensuite le paiement.
                       </div>
                     </div>
                   </div>
@@ -384,8 +390,7 @@ export default function OwnerBillingPage() {
                     <div>
                       <div className="font-extrabold text-slate-900">Mode virement</div>
                       <div>
-                        Après création, vous devez scanner et envoyer votre justificatif de
-                        virement.
+                        Après création, vous devez scanner et envoyer votre justificatif de virement.
                       </div>
                     </div>
                   </div>
@@ -395,8 +400,7 @@ export default function OwnerBillingPage() {
                     <div>
                       <div className="font-extrabold text-slate-900">Mode chèque</div>
                       <div>
-                        Après création, vous devez scanner et envoyer votre justificatif de
-                        chèque.
+                        Après création, vous devez scanner et envoyer votre justificatif de chèque.
                       </div>
                     </div>
                   </div>
@@ -409,7 +413,9 @@ export default function OwnerBillingPage() {
                   disabled={!canCreate || status.type === "loading"}
                   className={cn(
                     "inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-sm",
-                    canCreate ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-400 cursor-not-allowed"
+                    canCreate
+                      ? "bg-slate-900 hover:bg-slate-800"
+                      : "bg-slate-400 cursor-not-allowed"
                   )}
                 >
                   Créer la demande
@@ -430,11 +436,11 @@ export default function OwnerBillingPage() {
                 </div>
               </div>
 
-              {latestPendingOwnerProof ? (
+              {pendingOwnerProofPayments.length > 0 ? (
                 <>
                   <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    Paiement sélectionné automatiquement : #{latestPendingOwnerProof.id} —{" "}
-                    {methodLabel(latestPendingOwnerProof.method)} — {latestPendingOwnerProof.amount} DT
+                    Paiement sélectionné automatiquement : #{latestPendingOwnerProof?.id} —{" "}
+                    {methodLabel(latestPendingOwnerProof?.method)} — {latestPendingOwnerProof?.amount} DT
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
@@ -445,13 +451,11 @@ export default function OwnerBillingPage() {
                         onChange={(e) => setSelectedPaymentId(Number(e.target.value))}
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
                       >
-                        {payments
-                          .filter((p) => p.status === "PENDING_OWNER_PROOF")
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              #{p.id} — {methodLabel(p.method)} — {p.amount} DT
-                            </option>
-                          ))}
+                        {pendingOwnerProofPayments.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            #{p.id} — {methodLabel(p.method)} — {p.amount} DT
+                          </option>
+                        ))}
                       </select>
                     </label>
 
@@ -497,7 +501,6 @@ export default function OwnerBillingPage() {
             )}
           </div>
 
-          {/* RIGHT */}
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-extrabold text-slate-900">Résumé abonnement</h3>
@@ -592,13 +595,14 @@ export default function OwnerBillingPage() {
                                 <div className="truncate text-sm font-semibold text-slate-800">
                                   {p.proofFileName || "Fichier owner"}
                                 </div>
-                                <Link
-                                  href={p.proofFileUrl}
+                                <a
+                                  href={buildFileUrl(p.proofFileUrl)}
                                   target="_blank"
+                                  rel="noreferrer"
                                   className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white"
                                 >
                                   Ouvrir
-                                </Link>
+                                </a>
                               </div>
                             </div>
                           )}
@@ -612,13 +616,14 @@ export default function OwnerBillingPage() {
                                 <div className="truncate text-sm font-semibold text-emerald-900">
                                   {p.adminProofFileName || "Confirmation admin"}
                                 </div>
-                                <Link
-                                  href={p.adminProofFileUrl}
+                                <a
+                                  href={buildFileUrl(p.adminProofFileUrl)}
                                   target="_blank"
+                                  rel="noreferrer"
                                   className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white"
                                 >
                                   Ouvrir
-                                </Link>
+                                </a>
                               </div>
                             </div>
                           )}

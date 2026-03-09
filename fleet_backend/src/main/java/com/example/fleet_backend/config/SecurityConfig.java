@@ -18,7 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- *  SecurityConfig
+ * SecurityConfig
  *
  * Configuration centrale de Spring Security.
  *
@@ -30,73 +30,55 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * - Configuration endpoints protégés
  */
 @Configuration
-@EnableMethodSecurity(prePostEnabled = true) // Active @PreAuthorize
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final AuthTokenFilter authTokenFilter;
     private final AuthEntryPointJwt unauthorizedHandler;
     private final MustChangePasswordFilter mustChangePasswordFilter;
 
-    // Injection des composants sécurité
     public SecurityConfig(AuthTokenFilter authTokenFilter,
-                          AuthEntryPointJwt unauthorizedHandler , MustChangePasswordFilter mustChangePasswordFilter) {
+                          AuthEntryPointJwt unauthorizedHandler,
+                          MustChangePasswordFilter mustChangePasswordFilter) {
         this.authTokenFilter = authTokenFilter;
         this.unauthorizedHandler = unauthorizedHandler;
         this.mustChangePasswordFilter = mustChangePasswordFilter;
     }
 
-    /**
-     * Configuration principale du filtre de sécurité
-     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                // Autorise CORS
                 .cors(Customizer.withDefaults())
-
-                // Désactive CSRF (car API stateless JWT)
                 .csrf(csrf -> csrf.disable())
-
-                //  Pas de session serveur (JWT uniquement)
                 .sessionManagement(sm ->
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
-                //  Gestion des erreurs 401 personnalisée
                 .exceptionHandling(ex ->
                         ex.authenticationEntryPoint(unauthorizedHandler)
                 )
-
-                // ==============================
-                //  Configuration des accès
-                // ==============================
                 .authorizeHttpRequests(auth -> auth
 
-                        //  Preflight CORS (important pour frontend)
+                        // Preflight CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ==========================
                         // AUTH PUBLIC
-                        // ==========================
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
 
-                        // ==========================
-                        // 🚙 VEHICLES READ
-                        // ==========================
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/vehicles/**")
+                        // FICHIERS STATIQUES UPLOADÉS
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+
+                        // VEHICLES READ
+                        .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
                         .hasAnyAuthority(
                                 "ROLE_DRIVER",
                                 "ROLE_OWNER",
                                 "ROLE_ADMIN"
                         )
-
-
 
                         // DRIVER : son propre profil
                         .requestMatchers(HttpMethod.GET, "/api/drivers/me")
@@ -105,57 +87,46 @@ public class SecurityConfig {
                         // OWNER : gestion de ses drivers
                         .requestMatchers("/api/drivers/**")
                         .hasAuthority("ROLE_OWNER")
-                                // ==========================
-                                // 🚘 VEHICLES WRITE
-                                // ==========================
-                                .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
-                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
 
-                                .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
-                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
+                        // VEHICLES WRITE
+                        .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
 
-                                .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
-                                .hasAnyAuthority("ROLE_OWNER","ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
 
-                        // ==========================
-                        // 👑 ADMIN ZONE
-                        // ==========================
+                        .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+
+                        // ADMIN ZONE
                         .requestMatchers("/api/admin/**")
                         .hasAuthority("ROLE_ADMIN")
 
                         .requestMatchers("/api/auth/me").authenticated()
-                        // ==========================
-                        // 🔒 Tout le reste sécurisé
-                        // ==========================
-                        .anyRequest().authenticated()
 
+                        // Tout le reste sécurisé
+                        .anyRequest().authenticated()
                 );
 
-        // ✅ Ajout du filtre JWT avant filtre username/password
         http.addFilterBefore(
                 authTokenFilter,
                 UsernamePasswordAuthenticationFilter.class
         );
 
-        http.addFilterAfter(mustChangePasswordFilter, AuthTokenFilter.class);
+        http.addFilterAfter(
+                mustChangePasswordFilter,
+                AuthTokenFilter.class
+        );
 
         return http.build();
     }
 
-    /**
-     * ✅ AuthenticationManager
-     * Utilisé par AuthService pour login
-     */
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration cfg) throws Exception {
         return cfg.getAuthenticationManager();
     }
 
-    /**
-     * ✅ PasswordEncoder
-     * BCrypt recommandé en production.
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

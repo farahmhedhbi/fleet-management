@@ -32,7 +32,6 @@ public class PaymentController {
         return ResponseEntity.ok(paymentProofService.createPaymentRequest(auth, req));
     }
 
-    // owner envoie sa preuve uniquement pour BANK_TRANSFER / CHEQUE
     @PostMapping(value = "/{paymentId}/owner-proof", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<PaymentResponse> uploadOwnerProof(
