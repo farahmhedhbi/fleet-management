@@ -25,15 +25,18 @@ public class PaymentProofService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final NotificationService notificationService;
+    private final PaymentReceiptPdfService paymentReceiptPdfService;
 
     public PaymentProofService(PaymentRepository paymentRepository,
                                UserRepository userRepository,
                                FileStorageService fileStorageService,
-                               NotificationService notificationService) {
+                               NotificationService notificationService ,
+                               PaymentReceiptPdfService paymentReceiptPdfService)  {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.fileStorageService = fileStorageService;
         this.notificationService = notificationService;
+        this.paymentReceiptPdfService = paymentReceiptPdfService;
     }
 
     private User getCurrentUser(Authentication auth) {
@@ -155,17 +158,58 @@ public class PaymentProofService {
         }
 
         if (p.getStatus() == Payment.Status.REJECTED) {
-            throw new IllegalArgumentException("Ce paiement est refusé. Créez une nouvelle demande ou renvoyez une preuve selon votre logique métier.");
+            throw new IllegalArgumentException("Ce paiement est refusé");
         }
+
+        User owner = p.getUser();
 
         if (p.getMethod() == Payment.Method.CASH) {
             if (p.getStatus() != Payment.Status.PENDING_ADMIN_CASH_PROOF) {
                 throw new IllegalArgumentException("Statut invalide pour un paiement cash");
             }
-        } else {
-            if (p.getStatus() != Payment.Status.PENDING_VERIFICATION) {
-                throw new IllegalArgumentException("L'owner doit d'abord envoyer sa preuve pour virement/chèque");
+
+            String finalComment =
+                    (comment != null && !comment.isBlank())
+                            ? comment
+                            : "Paiement cash reçu et validé. Compte activé.";
+
+            if (adminFile != null && !adminFile.isEmpty()) {
+                String adminFileUrl = fileStorageService.saveAdminPaymentProof(adminFile);
+                p.setAdminProofFileName(adminFile.getOriginalFilename());
+                p.setAdminProofFileUrl(adminFileUrl);
+            } else {
+                PaymentReceiptPdfService.GeneratedReceipt generated =
+                        paymentReceiptPdfService.generateCashReceipt(p, p.getUser(), finalComment);
+
+                p.setAdminProofFileName(generated.fileName());
+                p.setAdminProofFileUrl(generated.fileUrl());
             }
+
+            activateOwnerSubscription(p.getUser(), p);
+
+            p.setStatus(Payment.Status.APPROVED);
+            p.setValidatedAt(java.time.LocalDateTime.now());
+            p.setValidatedBy(admin);
+            p.setAdminComment(finalComment);
+
+            userRepository.save(p.getUser());
+            paymentRepository.save(p);
+
+            notificationService.createForUser(
+                    p.getUser().getId(),
+                    "Paiement cash approuvé",
+                    "Votre paiement cash a été validé. Le justificatif PDF est disponible.",
+                    null
+            );
+
+            return toPaymentResponse(p);
+        }
+
+        // =========================
+        // CAS VIREMENT / CHEQUE
+        // =========================
+        if (p.getStatus() != Payment.Status.PENDING_VERIFICATION) {
+            throw new IllegalArgumentException("L'owner doit d'abord envoyer sa preuve pour virement/chèque");
         }
 
         if (adminFile == null || adminFile.isEmpty()) {
@@ -176,22 +220,10 @@ public class PaymentProofService {
         p.setAdminProofFileName(adminFile.getOriginalFilename());
         p.setAdminProofFileUrl(adminFileUrl);
 
-        User owner = p.getUser();
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime base = owner.getPaidUntil();
-
-        if (base == null || base.isBefore(now)) {
-            base = now;
-        }
-
-        LocalDateTime newPaidUntil = base.plusMonths(p.getMonths());
-
-        owner.setPaidUntil(newPaidUntil);
-        owner.setSubscriptionStatus(User.SubscriptionStatus.ACTIVE);
+        activateOwnerSubscription(owner, p);
 
         p.setStatus(Payment.Status.APPROVED);
-        p.setValidatedAt(now);
+        p.setValidatedAt(java.time.LocalDateTime.now());
         p.setValidatedBy(admin);
         p.setAdminComment(
                 comment != null && !comment.isBlank()
@@ -202,7 +234,6 @@ public class PaymentProofService {
         userRepository.save(owner);
         paymentRepository.save(p);
 
-        // notification owner
         notificationService.createForUser(
                 owner.getId(),
                 "Paiement approuvé",
@@ -212,7 +243,6 @@ public class PaymentProofService {
 
         return toPaymentResponse(p);
     }
-
     public PaymentResponse rejectPayment(Long paymentId, PaymentDecisionRequest req, Authentication auth) {
         User admin = getCurrentUser(auth);
 
@@ -275,5 +305,18 @@ public class PaymentProofService {
         r.validatedAt = p.getValidatedAt() == null ? null : p.getValidatedAt().toInstant(ZoneOffset.UTC);
 
         return r;
+    }
+    private void activateOwnerSubscription(User owner, Payment p) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime base = owner.getPaidUntil();
+
+        if (base == null || base.isBefore(now)) {
+            base = now;
+        }
+
+        java.time.LocalDateTime newPaidUntil = base.plusMonths(p.getMonths());
+
+        owner.setPaidUntil(newPaidUntil);
+        owner.setSubscriptionStatus(User.SubscriptionStatus.ACTIVE);
     }
 }
