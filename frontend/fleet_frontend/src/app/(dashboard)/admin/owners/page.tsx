@@ -6,10 +6,17 @@ import { AdminOnly } from "@/components/layout/AdminOnly";
 import { adminService } from "@/lib/services/adminService";
 import type { User } from "@/types/user";
 import { toast } from "react-toastify";
-import { RefreshCcw, Users, Mail, BarChart3 } from "lucide-react";
+import {
+  RefreshCcw,
+  Users,
+  Mail,
+  BarChart3,
+  Car,
+} from "lucide-react";
 
 type OwnerWithCount = User & {
   driversCount?: number;
+  vehiclesCount?: number;
 };
 
 export default function AdminOwnersPage() {
@@ -24,15 +31,21 @@ export default function AdminOwnersPage() {
       const withCounts = await Promise.all(
         (ownersData || []).map(async (owner) => {
           try {
-            const countRes = await adminService.countDriversByOwner(owner.id);
+            const [driversRes, vehiclesRes] = await Promise.all([
+              adminService.countDriversByOwner(owner.id),
+              adminService.countVehiclesByOwner(owner.id),
+            ]);
+
             return {
               ...owner,
-              driversCount: countRes.driversCount,
+              driversCount: driversRes.driversCount ?? 0,
+              vehiclesCount: vehiclesRes.vehiclesCount ?? 0,
             };
           } catch {
             return {
               ...owner,
               driversCount: 0,
+              vehiclesCount: 0,
             };
           }
         })
@@ -61,9 +74,11 @@ export default function AdminOwnersPage() {
                   <Users size={14} />
                   ADMIN
                 </div>
-                <h1 className="mt-3 text-3xl font-extrabold text-slate-900">Owners</h1>
+                <h1 className="mt-3 text-3xl font-extrabold text-slate-900">
+                  Owners
+                </h1>
                 <p className="mt-2 text-sm text-slate-600">
-                  L’admin ne gère plus directement les drivers. Il voit seulement le nombre de drivers par owner.
+                  L’admin voit le nombre de drivers et de véhicules par owner.
                 </p>
               </div>
 
@@ -96,13 +111,25 @@ export default function AdminOwnersPage() {
                       <span className="font-medium">{owner.email}</span>
                     </div>
 
-                    <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                      <div className="flex items-center gap-2 text-xs font-extrabold text-blue-700">
-                        <BarChart3 size={14} />
-                        DRIVERS COUNT
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                        <div className="flex items-center gap-2 text-xs font-extrabold text-blue-700">
+                          <BarChart3 size={14} />
+                          DRIVERS COUNT
+                        </div>
+                        <div className="mt-2 text-2xl font-extrabold text-slate-900">
+                          {owner.driversCount ?? 0}
+                        </div>
                       </div>
-                      <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                        {owner.driversCount ?? 0}
+
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-700">
+                          <Car size={14} />
+                          VEHICLES COUNT
+                        </div>
+                        <div className="mt-2 text-2xl font-extrabold text-slate-900">
+                          {owner.vehiclesCount ?? 0}
+                        </div>
                       </div>
                     </div>
                   </div>

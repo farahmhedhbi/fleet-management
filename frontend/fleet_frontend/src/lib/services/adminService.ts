@@ -1,4 +1,3 @@
-// src/lib/services/adminService.ts
 import { api } from "@/lib/api";
 import type { User, UpdateUserDTO, InviteOwnerDTO } from "@/types/user";
 import type { Vehicle } from "@/types/vehicle";
@@ -6,6 +5,11 @@ import type { Vehicle } from "@/types/vehicle";
 export type OwnerDriverCountDTO = {
   ownerId: number;
   driversCount: number;
+};
+
+export type OwnerVehicleCountDTO = {
+  ownerId: number;
+  vehiclesCount: number;
 };
 
 export const adminService = {
@@ -22,6 +26,13 @@ export const adminService = {
   async countDriversByOwner(ownerId: number): Promise<OwnerDriverCountDTO> {
     const res = await api.get<OwnerDriverCountDTO>(
       `/api/admin/owners/${ownerId}/drivers/count`
+    );
+    return res.data;
+  },
+
+  async countVehiclesByOwner(ownerId: number): Promise<OwnerVehicleCountDTO> {
+    const res = await api.get<OwnerVehicleCountDTO>(
+      `/api/admin/owners/${ownerId}/vehicles/count`
     );
     return res.data;
   },
@@ -45,14 +56,13 @@ export const adminService = {
     await api.delete(`/api/admin/users/${id}`);
   },
 
-  // ✅ Admin invite OWNER only
   async inviteOwner(payload: InviteOwnerDTO): Promise<User> {
     const body = {
       ...payload,
       role: "ROLE_OWNER",
     };
 
-    const res = await api.post<User>("/api/admin/users/invite", body);
+    const res = await api.post<User>("/api/admin/owners/invite", body);
     return res.data;
   },
 };

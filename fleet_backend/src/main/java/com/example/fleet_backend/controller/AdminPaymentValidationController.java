@@ -31,7 +31,7 @@ public class AdminPaymentValidationController {
     @PutMapping(value = "/{paymentId}/approve", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PaymentResponse> approve(
             @PathVariable Long paymentId,
-            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "comment", required = false) String comment,
             Authentication auth
     ) {
