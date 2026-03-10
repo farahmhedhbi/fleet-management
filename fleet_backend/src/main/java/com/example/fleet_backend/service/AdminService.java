@@ -19,47 +19,16 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * ✅ AdminService
- *
- * Service métier dédié aux actions d'administration sur les utilisateurs.
- *
- * Fonctionnalités principales:
- * 1) Lister les owners / lister tous les users
- * 2) CRUD utilisateur (create / read / update / delete)
- * 3) Invitation d’un utilisateur (inviteUser):
- *    - crée un compte désactivé (enabled=false)
- *    - génère un mot de passe temporaire (inutilisé)
- *    - envoie un email d’activation via PasswordResetService
- * 4) Gestion du profil Driver quand role = ROLE_DRIVER:
- *    - licenseNumber obligatoire
- *    - création ou mise à jour du Driver profile (table drivers)
- *
- * @Transactional:
- * - assure cohérence sur des opérations multi-étapes (user + driver + email token)
- * - rollback si une règle métier échoue (email existant, licenseNumber dupliqué, etc.)
- */
 @Service
 @Transactional
 public class AdminService {
 
-    /**
-     * ✅ Repositories / services utilisés:
-     * - UserRepository: gestion table users
-     * - RoleRepository: vérification existence du rôle
-     * - DriverRepository: création / MAJ profil driver
-     * - PasswordEncoder: encoder les mots de passe (temporaire ou défini)
-     * - PasswordResetService: envoi email activation via token
-     */
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final DriverRepository driverRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetService passwordResetService;
 
-    /**
-     * ✅ Injection par constructeur (bonne pratique)
-     */
     public AdminService(UserRepository userRepository,
                         RoleRepository roleRepository,
                         DriverRepository driverRepository,
@@ -73,27 +42,27 @@ public class AdminService {
     }
 
     /**
-     * ✅ Lister uniquement les "owners"
-     * (nécessite une méthode custom: userRepository.findAllOwners())
+     * Liste uniquement les owners
      */
     public List<UserDTO> listOwners() {
-        return userRepository.findAllOwners().stream()
+        return userRepository.findAllOwners()
+                .stream()
                 .map(UserDTO::new)
                 .collect(Collectors.toList());
     }
 
     /**
-     * ✅ Lister tous les utilisateurs
+     * Liste tous les utilisateurs
      */
     public List<UserDTO> listUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findAll()
+                .stream()
                 .map(UserDTO::new)
                 .collect(Collectors.toList());
     }
 
     /**
-     * ✅ Récupérer un utilisateur par ID
-     * @throws ResourceNotFoundException si introuvable
+     * Récupérer un utilisateur par ID
      */
     public UserDTO getUser(Long id) {
         User u = userRepository.findById(id)
@@ -102,201 +71,188 @@ public class AdminService {
     }
 
     /**
-     * ✅ Créer un utilisateur (avec mot de passe fourni)
-     *
-     * Règles:
-     * - email unique
-     * - rôle doit exister
-     * - password obligatoire
-     * - enabled=true (compte actif immédiatement)
-     * - si ROLE_DRIVER => profil Driver obligatoire (licenseNumber, selon ton design)
+     * Créer un utilisateur
      */
     public UserDTO createUser(CreateUserRequest req) {
 
-        // ✅ Vérifier unicité email
-        if (userRepository.existsByEmail(req.email)) {
+        if (req == null) {
+            throw new IllegalArgumentException("Request is required");
+        }
+
+        String email = req.email == null ? "" : req.email.trim().toLowerCase();
+
+        if (email.isEmpty()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email already exists");
         }
 
-        // ✅ Vérifier que le rôle existe
+        if (req.role == null) {
+            throw new IllegalArgumentException("Role is required");
+        }
+
         Role role = roleRepository.findByName(req.role)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found: " + req.role));
 
-        // Construire l'entité User
-        User u = new User();
-        u.setFirstName(req.firstName);
-        u.setLastName(req.lastName);
-        u.setEmail(req.email);
-        u.setRole(role);
-
-        // ✅ Password obligatoire
         if (req.password == null || req.password.isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
 
-        // ✅ Encoder password
+        User u = new User();
+        u.setFirstName(req.firstName);
+        u.setLastName(req.lastName);
+        u.setEmail(email);
+        u.setRole(role);
         u.setPassword(passwordEncoder.encode(req.password));
-
-        // ✅ Compte actif directement
         u.setEnabled(true);
 
         User saved = userRepository.save(u);
 
-        // ✅ Si ROLE_DRIVER => créer/MAJ driver profile
-        // Ici tu passes null, donc si ton CreateUserRequest contient licenseNumber,
-        // elle n'est pas utilisée dans ce createUser (choix actuel du code).
+        // Admin ne crée pas de driver
         maybeCreateOrUpdateDriverProfile(saved, null);
 
         return new UserDTO(saved);
     }
 
     /**
-     * ✅ Mettre à jour un utilisateur
-     *
-     * Points importants:
-     * - email: si changé => vérifier unicité
-     * - rôle: si changé => vérifier existence
-     * - password: si fourni => encoder puis sauvegarder
-     * - driver profile: si role=ROLE_DRIVER => licenseNumber obligatoire + update/create
+     * Mettre à jour un utilisateur
      */
     public UserDTO updateUser(Long id, UpdateUserRequest req) {
 
-        // 404 si user introuvable
         User u = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
 
-        // ✅ Mise à jour email avec contrôle d'unicité
-        if (req.email != null && !req.email.equals(u.getEmail())) {
-            if (userRepository.existsByEmail(req.email)) {
-                throw new IllegalArgumentException("Email already exists");
+        if (req.email != null) {
+            String newEmail = req.email.trim().toLowerCase();
+
+            if (!newEmail.equals(u.getEmail())) {
+                if (userRepository.existsByEmail(newEmail)) {
+                    throw new IllegalArgumentException("Email already exists");
+                }
+
+                u.setEmail(newEmail);
             }
-            u.setEmail(req.email);
         }
 
-        // ✅ Mise à jour nom/prénom si fournis
-        if (req.firstName != null) u.setFirstName(req.firstName);
-        if (req.lastName != null) u.setLastName(req.lastName);
+        if (req.firstName != null) {
+            u.setFirstName(req.firstName);
+        }
 
-        // ✅ Mise à jour rôle si fourni
+        if (req.lastName != null) {
+            u.setLastName(req.lastName);
+        }
+
         if (req.role != null) {
             Role role = roleRepository.findByName(req.role)
                     .orElseThrow(() -> new IllegalArgumentException("Role not found: " + req.role));
+
             u.setRole(role);
         }
 
-        // ✅ Mise à jour password si fourni (et non vide)
         if (req.password != null && !req.password.isBlank()) {
             u.setPassword(passwordEncoder.encode(req.password));
         }
 
-        // Sauvegarder user
         User saved = userRepository.save(u);
 
-        // ✅ IMPORTANT: prendre en compte req.licenseNumber pour DRIVER
-        maybeCreateOrUpdateDriverProfile(saved, req.licenseNumber);
+        maybeCreateOrUpdateDriverProfile(saved, null);
 
         return new UserDTO(saved);
     }
 
     /**
-     * ✅ Supprimer un utilisateur (delete simple)
-     *
-     * ⚠️ Ici: suppression directe sans supprimer tokens/driver/vehicles
-     * (différent de AdminUserService.delete qui nettoie les dépendances)
+     * Supprimer un utilisateur
      */
     public void deleteUser(Long id) {
+
         if (!userRepository.existsById(id)) {
             throw new ResourceNotFoundException("User not found: " + id);
         }
+
         userRepository.deleteById(id);
     }
 
     /**
-     * ✅ Inviter un utilisateur (création + email d'activation)
-     *
-     * Idée:
-     * - L'admin crée un compte sans mot de passe réel (temp aléatoire)
-     * - enabled=false (compte inactif)
-     * - Envoie un lien d'activation (token) par email
-     * - L'utilisateur active son compte et définit son mot de passe via le frontend
-     *
-     * Validation stricte des champs pour éviter un compte incomplet.
+     * Invitation d'un OWNER par admin
      */
     public UserDTO inviteUser(AdminInviteUserRequest req) {
 
-        // ✅ Validation request
-        if (req == null) throw new IllegalArgumentException("Request is required");
-        if (req.email == null || req.email.isBlank()) throw new IllegalArgumentException("Email is required");
-        if (req.firstName == null || req.firstName.isBlank()) throw new IllegalArgumentException("First name is required");
-        if (req.lastName == null || req.lastName.isBlank()) throw new IllegalArgumentException("Last name is required");
+        if (req == null) {
+            throw new IllegalArgumentException("Request is required");
+        }
 
-        // ✅ IMPORTANT: Admin peut inviter فقط OWNER
-        if (req.role != null && !req.role.isBlank() && !"ROLE_OWNER".equals(req.role.trim())) {
+        if (req.email == null || req.email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        if (req.firstName == null || req.firstName.isBlank()) {
+            throw new IllegalArgumentException("First name is required");
+        }
+
+        if (req.lastName == null || req.lastName.isBlank()) {
+            throw new IllegalArgumentException("Last name is required");
+        }
+
+        if (req.role != null && !req.role.equals("ROLE_OWNER")) {
             throw new IllegalArgumentException("Admin can invite only ROLE_OWNER");
         }
 
-        // ✅ Email unique
-        if (userRepository.existsByEmail(req.email.trim().toLowerCase())) {
+        String email = req.email.trim().toLowerCase();
+
+        if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email already exists");
         }
 
-        // ✅ Forcer le rôle OWNER même si le frontend envoie autre chose
         Role role = roleRepository.findByName("ROLE_OWNER")
                 .orElseThrow(() -> new IllegalArgumentException("Role not found: ROLE_OWNER"));
 
-        // Construire user
         User u = new User();
-        u.setFirstName(req.firstName.trim());
-        u.setLastName(req.lastName.trim());
-        u.setEmail(req.email.trim().toLowerCase());
+
+        u.setFirstName(req.firstName);
+        u.setLastName(req.lastName);
+        u.setEmail(email);
         u.setRole(role);
 
-        // ✅ Mot de passe temporaire
-        String temp = UUID.randomUUID() + "-" + UUID.randomUUID();
-        u.setPassword(passwordEncoder.encode(temp));
+        String tempPassword = UUID.randomUUID().toString();
 
-        // ✅ Compte inactif jusqu'à activation
+        u.setPassword(passwordEncoder.encode(tempPassword));
+
         u.setEnabled(false);
 
         User saved = userRepository.save(u);
 
-        // ❌ Pas de driver profile (puisque only OWNER)
-        // maybeCreateOrUpdateDriverProfile(saved, req.licenseNumber);
-
         passwordResetService.createActivationTokenAndSendEmail(saved.getEmail());
 
         return new UserDTO(saved);
-    }   /**
-     * ✅ Crée ou met à jour Driver profile si role=ROLE_DRIVER.
-     *
-     * Pourquoi cette méthode existe ?
-     * - Séparer la logique Driver (licenseNumber, profil drivers) du reste
-     * - Réutilisée dans createUser/updateUser/inviteUser
-     *
-     * Règles:
-     * - ROLE_DRIVER => licenseNumber obligatoire
-     * - licenseNumber unique (pas de duplication)
-     * - si driver existe déjà => update (nom/prénom/licence)
-     * - sinon => create
+    }
+
+    /**
+     * Gestion du profil driver si rôle = ROLE_DRIVER
      */
     private void maybeCreateOrUpdateDriverProfile(User user, String licenseNumber) {
-        if (user == null || user.getRole() == null) return;
 
-        // ✅ On ne s'occupe du profil Driver que si rôle = ROLE_DRIVER
+        if (user == null || user.getRole() == null) {
+            return;
+        }
+
         String roleName = user.getRole().getName();
-        if (!"ROLE_DRIVER".equals(roleName)) return;
 
-        // licenseNumber obligatoire
-        String lic = (licenseNumber == null) ? "" : licenseNumber.trim();
+        if (!"ROLE_DRIVER".equals(roleName)) {
+            return;
+        }
+
+        String lic = licenseNumber == null ? "" : licenseNumber.trim();
+
         if (lic.isEmpty()) {
             throw new IllegalArgumentException("licenseNumber is required for ROLE_DRIVER");
         }
 
-        // ✅ Si un driver profile existe déjà => update
         Driver existing = driverRepository.findByEmail(user.getEmail()).orElse(null);
+
         if (existing != null) {
 
-            // Éviter collision licenseNumber si modifié
             if (!lic.equals(existing.getLicenseNumber()) && driverRepository.existsByLicenseNumber(lic)) {
                 throw new IllegalArgumentException("licenseNumber already exists");
             }
@@ -306,17 +262,16 @@ public class AdminService {
             existing.setLicenseNumber(lic);
 
             driverRepository.save(existing);
+
             return;
         }
 
-        // ✅ Sinon: créer nouveau profil Driver
-
-        // Vérifier unicité licenseNumber
         if (driverRepository.existsByLicenseNumber(lic)) {
             throw new IllegalArgumentException("licenseNumber already exists");
         }
 
         Driver d = new Driver();
+
         d.setEmail(user.getEmail());
         d.setFirstName(user.getFirstName());
         d.setLastName(user.getLastName());

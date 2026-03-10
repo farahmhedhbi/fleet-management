@@ -13,17 +13,13 @@ import java.util.Optional;
 @Repository
 public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
-    // JpaRepository a déjà count(), mais ok si tu la laisses
     long count();
 
-    // ✅ FIX: enum
     long countByStatus(Vehicle.VehicleStatus status);
 
-    // ✅ FIX: status IN (enum list)
     @Query("SELECT COUNT(v) FROM Vehicle v WHERE v.status IN :statuses")
     long countByStatusIn(@Param("statuses") List<Vehicle.VehicleStatus> statuses);
 
-    // ✅ FIX: LocalDateTime (pas LocalDate)
     @Query("""
         SELECT COUNT(v) FROM Vehicle v
         WHERE v.nextMaintenanceDate IS NOT NULL
@@ -31,7 +27,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     """)
     long countMaintenanceDueBefore(@Param("limit") LocalDateTime limit);
 
-    // ✅ FIX: mileage = Double => SUM returns Double
     @Query("SELECT COALESCE(SUM(v.mileage),0) FROM Vehicle v")
     Double sumMileage();
 
@@ -46,6 +41,8 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     List<Vehicle> findByBrand(String brand);
 
     List<Vehicle> findByOwnerId(Long ownerId);
+
+    long countByOwnerId(Long ownerId);
 
     Optional<Vehicle> findByIdAndOwnerId(Long id, Long ownerId);
 
