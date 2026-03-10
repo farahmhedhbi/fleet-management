@@ -50,7 +50,7 @@ public class CsvImportController {
      * - nombre de lignes importées
      */
     @PostMapping("/csv")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<?> importCsv(@RequestParam("file") MultipartFile file) {
 
         // Le service gère :

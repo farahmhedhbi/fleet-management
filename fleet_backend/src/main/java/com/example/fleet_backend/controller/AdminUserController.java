@@ -35,25 +35,8 @@ public class AdminUserController {
         this.adminUserService = adminUserService;
     }
 
-    /**
-     * ===============================
-     * ✅ LIST USERS (avec filtre optionnel enabled)
-     *
-     * GET  /api/admin/users
-     * GET  /api/admin/users?enabled=true
-     * GET  /api/admin/users?enabled=false
-     *
-     * - Si enabled = null → retourne tous les users
-     * - Sinon → filtre par statut (actif / inactif)
-     *
-     * Retourne UserAdminDTO :
-     * - id
-     * - email
-     * - rôle
-     * - enabled
-     * - lastLoginAt
-     * ===============================
-     */
+
+
     @GetMapping
     public List<UserAdminDTO> list(
             @RequestParam(required = false) Boolean enabled

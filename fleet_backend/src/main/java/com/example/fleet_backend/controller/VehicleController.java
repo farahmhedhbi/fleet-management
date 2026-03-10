@@ -43,7 +43,7 @@ public class VehicleController {
      * Le filtrage réel est effectué dans le service.
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public List<VehicleDTO> list(Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehiclesForConnectedUser(auth);
@@ -55,7 +55,7 @@ public class VehicleController {
      * Le service vérifie si l'utilisateur a le droit d'y accéder.
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public VehicleDTO getById(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehicleByIdSecured(id, auth);
@@ -68,7 +68,7 @@ public class VehicleController {
      * L'owner sera automatiquement lié via Authentication.
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public VehicleDTO create(@RequestBody VehicleDTO dto, Authentication auth) {
 
         // Logs utiles pour debug JWT (à retirer en production)
@@ -86,7 +86,7 @@ public class VehicleController {
      * ADMIN peut modifier tous les véhicules.
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public VehicleDTO update(@PathVariable Long id,
                              @RequestBody VehicleDTO dto,
                              Authentication auth) {
@@ -108,7 +108,7 @@ public class VehicleController {
      * - ADMIN : peut supprimer tous
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         vehicleService.deleteVehicleSecured(id, auth);
@@ -116,7 +116,7 @@ public class VehicleController {
     }
 
     @PostMapping("/{id}/unassign-driver")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         Vehicle updated = vehicleService.unassignDriver(id);
@@ -129,7 +129,7 @@ public class VehicleController {
      * OWNER ou ADMIN uniquement.
      */
     @PostMapping("/{id}/remove-driver")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.removeDriverFromVehicleSecured(id, auth);

@@ -21,19 +21,19 @@ public class MissionController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('DRIVER','OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
     public List<MissionDTO> list(Authentication auth) {
         return missionService.list(auth);
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public MissionDTO create(@RequestBody MissionDTO dto, Authentication auth) {
         return missionService.create(dto, auth);
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public MissionDTO updateStatus(
             @PathVariable Long id,
             @RequestParam Mission.MissionStatus status,
@@ -43,7 +43,7 @@ public class MissionController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public void delete(@PathVariable Long id, Authentication auth) {
         missionService.delete(id, auth);
     }

@@ -51,7 +51,7 @@ public class ApiIngestionController {
      * Ingestion → RAW → Transformation ultérieure
      */
     @PostMapping("/data")
-    @PreAuthorize("hasAnyRole('API_CLIENT','ADMIN')")
+    @PreAuthorize("hasAnyRole('OWNER')")
     public ResponseEntity<?> receive(
             @Valid @RequestBody TripIngestRequest req) {
 

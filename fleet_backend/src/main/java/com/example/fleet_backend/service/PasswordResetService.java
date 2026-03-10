@@ -178,41 +178,6 @@ public class PasswordResetService {
         tokenRepository.deleteById(t.getId());
     }
 
-    /**
-     * ✅ Génère un token d'activation + envoie l'email
-     *
-     * Flow similaire au reset, mais:
-     * - expiration plus longue (24h)
-     * - lien vers page d'activation
-     *
-     * @param email email du user à activer
-     */
-    public void createActivationTokenAndSendEmail(String email) {
 
-        // 1) Vérifier user existe
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        // 2) Supprimer anciens tokens (évite multi-tokens actifs)
-        tokenRepository.deleteByUserId(user.getId());
-
-        // 3) Token unique
-        String token = UUID.randomUUID().toString();
-
-        PasswordResetToken t = new PasswordResetToken();
-        t.setToken(token);
-        t.setUser(user);
-
-        // ✅ Activation: expiration plus longue (24 heures)
-        t.setExpiresAt(Instant.now().plus(Duration.ofHours(24)));
-        t.setUsed(false);
-
-        tokenRepository.save(t);
-
-        // 4) Lien frontend: /activate-account?token=...
-        String link = activationUrl + "?token=" + token;
-
-        // 5) Envoi email d'activation
-        emailService.sendAccountActivationEmail(user.getEmail(), link);
-    }
 }

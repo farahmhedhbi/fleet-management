@@ -79,9 +79,6 @@ public class NotificationService {
         notificationRepository.saveAll(notifications);
     }
 
-    public boolean existsNotification(Long recipientId, Long missionId, String title) {
-        return notificationRepository.existsByRecipientIdAndMissionIdAndTitle(recipientId, missionId, title);
-    }
 
     public void clearNotificationByTitle(Long recipientId, Long missionId, String title) {
         notificationRepository.deleteByRecipientIdAndMissionIdAndTitle(recipientId, missionId, title);

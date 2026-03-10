@@ -90,12 +90,6 @@ public class DriverService {
         return new DriverDTO(driver);
     }
 
-    private User getAuthenticatedUser(Authentication auth) {
-        String email = auth.getName();
-
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
-    }
 
     /**
      * OWNER connecté courant

@@ -75,9 +75,7 @@ public class SecurityConfig {
                         // VEHICLES READ
                         .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
                         .hasAnyAuthority(
-                                "ROLE_DRIVER",
-                                "ROLE_OWNER",
-                                "ROLE_ADMIN"
+                                "ROLE_OWNER"
                         )
 
                         // DRIVER : son propre profil
@@ -90,13 +88,13 @@ public class SecurityConfig {
 
                         // VEHICLES WRITE
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
 
                         .requestMatchers(HttpMethod.PUT, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
 
                         .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
-                        .hasAnyAuthority("ROLE_OWNER", "ROLE_ADMIN")
+                        .hasAnyAuthority("ROLE_OWNER")
 
                         // ADMIN ZONE
                         .requestMatchers("/api/admin/**")
