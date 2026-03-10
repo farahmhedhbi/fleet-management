@@ -149,6 +149,12 @@ public class AdminController {
         long count = driverService.countDriversByOwner(ownerId);
         return new OwnerDriverCountDTO(ownerId, count);
     }
+    @GetMapping("/owners/{ownerId}/vehicles/count")
+    public OwnerVehicleCountDTO countVehiclesByOwner(@PathVariable Long ownerId) {
+        long count = vehicleRepository.countByOwnerId(ownerId);
+        return new OwnerVehicleCountDTO(ownerId, count);
+    }
+
 
 
 
