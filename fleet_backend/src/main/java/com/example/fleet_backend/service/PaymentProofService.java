@@ -187,7 +187,7 @@ public class PaymentProofService {
                 p.setAdminProofFileUrl(adminFileUrl);
             } else {
                 PaymentReceiptPdfService.GeneratedReceipt generated =
-                        paymentReceiptPdfService.generateCashReceipt(p, owner, finalComment);
+                        paymentReceiptPdfService.generateReceipt(p, owner, finalComment);
 
                 p.setAdminProofFileName(generated.fileName());
                 p.setAdminProofFileUrl(generated.fileUrl());
@@ -212,40 +212,47 @@ public class PaymentProofService {
             throw new IllegalArgumentException("L'owner doit d'abord envoyer sa preuve pour virement/chèque");
         }
 
-        if (adminFile == null || adminFile.isEmpty()) {
-            throw new IllegalArgumentException("L'admin doit obligatoirement envoyer un justificatif de confirmation");
-        }
-
-        String adminFileUrl = fileStorageService.saveAdminPaymentProof(adminFile);
-        String adminFileName = adminFileUrl.substring(adminFileUrl.lastIndexOf("/") + 1);
-
-        p.setAdminProofFileName(adminFileName);
-        p.setAdminProofFileUrl(adminFileUrl);
-
-        activateOwnerSubscription(owner, p);
+        String finalComment = (comment != null && !comment.isBlank())
+                ? comment
+                : "Paiement validé. Le montant a bien été reçu et le compte a été activé.";
 
         p.setStatus(Payment.Status.APPROVED);
         p.setValidatedAt(LocalDateTime.now());
         p.setValidatedBy(admin);
-        p.setAdminComment(
-                comment != null && !comment.isBlank()
-                        ? comment
-                        : "Paiement validé. Le montant a bien été reçu et le compte a été activé."
-        );
+        p.setAdminComment(finalComment);
+
+        if (adminFile != null && !adminFile.isEmpty()) {
+            String adminFileUrl = fileStorageService.saveAdminPaymentProof(adminFile);
+            String adminFileName = adminFileUrl.substring(adminFileUrl.lastIndexOf("/") + 1);
+
+            p.setAdminProofFileName(adminFileName);
+            p.setAdminProofFileUrl(adminFileUrl);
+        } else {
+            PaymentReceiptPdfService.GeneratedReceipt generated =
+                    paymentReceiptPdfService.generateReceipt(p, owner, finalComment);
+
+            p.setAdminProofFileName(generated.fileName());
+            p.setAdminProofFileUrl(generated.fileUrl());
+        }
+
+        activateOwnerSubscription(owner, p);
 
         userRepository.save(owner);
         paymentRepository.save(p);
 
+        String methodLabel = p.getMethod() == Payment.Method.BANK_TRANSFER
+                ? "virement"
+                : "chèque";
+
         notificationService.createForUser(
                 owner.getId(),
                 "Paiement approuvé",
-                "Votre paiement a été validé. Votre compte est activé. Un justificatif admin est disponible.",
+                "Votre paiement par " + methodLabel + " a été validé. Le justificatif PDF/admin est disponible.",
                 null
         );
 
         return toPaymentResponse(p);
     }
-
     public PaymentResponse rejectPayment(Long paymentId, PaymentDecisionRequest req, Authentication auth) {
         User admin = getCurrentUser(auth);
 

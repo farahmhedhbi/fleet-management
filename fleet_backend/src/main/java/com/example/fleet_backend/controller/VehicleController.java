@@ -11,112 +11,77 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * ✅ VehicleController
- *
- * Contrôleur REST pour la gestion des véhicules.
- * Toutes les routes sont protégées par Spring Security (JWT + rôles).
- *
- * Base URL : /api/vehicles
- */
 @RestController
 @RequestMapping("/api/vehicles")
-@CrossOrigin(origins = "*", maxAge = 3600) // Autorise le frontend (CORS)
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class VehicleController {
 
     private final VehicleService vehicleService;
     private final SubscriptionGuard subscriptionGuard;
 
-    // Injection par constructeur (bonne pratique)
-    public VehicleController(VehicleService vehicleService , SubscriptionGuard subscriptionGuard) {
+    public VehicleController(VehicleService vehicleService, SubscriptionGuard subscriptionGuard) {
         this.vehicleService = vehicleService;
         this.subscriptionGuard = subscriptionGuard;
     }
 
     /**
-     * ✅ LISTE des véhicules accessibles à l'utilisateur connecté
-     *
-     * - DRIVER : voit ses véhicules
-     * - OWNER  : voit ses véhicules
-     * - ADMIN  : voit tout
-     *
-     * Le filtrage réel est effectué dans le service.
+     * OWNER : voit seulement ses véhicules
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public List<VehicleDTO> list(Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehiclesForConnectedUser(auth);
     }
 
     /**
-     * ✅ Récupérer un véhicule par ID
-     *
-     * Le service vérifie si l'utilisateur a le droit d'y accéder.
+     * OWNER : voir un de ses véhicules
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO getById(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.getVehicleByIdSecured(id, auth);
     }
 
     /**
-     * ✅ Créer un véhicule
-     *
-     * Autorisé uniquement pour OWNER et ADMIN.
-     * L'owner sera automatiquement lié via Authentication.
+     * OWNER : créer un véhicule
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO create(@RequestBody VehicleDTO dto, Authentication auth) {
-
-        // Logs utiles pour debug JWT (à retirer en production)
-        System.out.println("AUTH user=" + auth.getName());
-        System.out.println("AUTH roles=" + auth.getAuthorities());
         subscriptionGuard.requireOwnerActive(auth);
-
         return vehicleService.createVehicleSecured(dto, auth);
     }
 
     /**
-     * ✅ Modifier un véhicule
-     *
-     * OWNER peut modifier uniquement ses véhicules.
-     * ADMIN peut modifier tous les véhicules.
+     * OWNER : modifier un de ses véhicules
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO update(@PathVariable Long id,
                              @RequestBody VehicleDTO dto,
                              Authentication auth) {
-
-        // Debug sécurité
-        System.out.println("UPDATE AUTH user=" + auth.getName());
-        System.out.println("UPDATE AUTH roles=" + auth.getAuthorities());
-        System.out.println("UPDATE AUTH id=" +
-                com.example.fleet_backend.security.AuthUtil.userId(auth));
         subscriptionGuard.requireOwnerActive(auth);
-
         return vehicleService.updateVehicleSecured(id, dto, auth);
     }
 
     /**
-     * ✅ Supprimer un véhicule
-     *
-     * - OWNER : peut supprimer ses véhicules
-     * - ADMIN : peut supprimer tous
+     * OWNER : supprimer un de ses véhicules
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         vehicleService.deleteVehicleSecured(id, auth);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * OWNER : désaffecter un driver d’un véhicule
+     */
     @PostMapping("/{id}/unassign-driver")
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         Vehicle updated = vehicleService.unassignDriver(id);
@@ -124,22 +89,12 @@ public class VehicleController {
     }
 
     /**
-     * ✅ Retirer le conducteur d’un véhicule (version sécurisée)
-     *
-     * OWNER ou ADMIN uniquement.
+     * OWNER : retirer le conducteur d’un véhicule
      */
     @PostMapping("/{id}/remove-driver")
-    @PreAuthorize("hasAnyRole('OWNER')")
+    @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {
         subscriptionGuard.requireOwnerActive(auth);
         return vehicleService.removeDriverFromVehicleSecured(id, auth);
     }
-
-    /**
-     * ⚠ Version non sécurisée (pas de @PreAuthorize ici)
-     * À sécuriser si utilisé en production.
-     *
-     * Retire le conducteur d’un véhicule.
-     */
-
 }

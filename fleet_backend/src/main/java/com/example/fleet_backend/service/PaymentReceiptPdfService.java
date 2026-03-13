@@ -37,13 +37,14 @@ public class PaymentReceiptPdfService {
     private static final Color LIGHT_BG = new Color(248, 250, 252);
     private static final Color SUCCESS = new Color(5, 150, 105);
 
-    private final Path outputRoot = Paths.get("uploads/generated-cash-receipts");
+    private final Path outputRoot = Paths.get("uploads/generated-payment-receipts");
 
-    public GeneratedReceipt generateCashReceipt(Payment payment, User owner, String adminComment) {
+    public GeneratedReceipt generateReceipt(Payment payment, User owner, String adminComment) {
         try {
             Files.createDirectories(outputRoot);
 
-            String fileName = "cash-receipt-" + payment.getId() + "-" + UUID.randomUUID() + ".pdf";
+            String methodLabel = resolveMethodLabel(payment);
+            String fileName = "payment-receipt-" + methodLabel.toLowerCase() + "-" + payment.getId() + "-" + UUID.randomUUID() + ".pdf";
             Path filePath = outputRoot.resolve(fileName);
 
             try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
@@ -52,27 +53,27 @@ public class PaymentReceiptPdfService {
 
                 document.open();
 
-                addHeader(document);
-                addTitle(document);
+                addHeader(document, methodLabel);
+                addTitle(document, methodLabel);
                 addOwnerBlock(document, owner);
-                addPaymentBlock(document, payment);
-                addAdminBlock(document, adminComment);
-                addFooterNote(document);
+                addPaymentBlock(document, payment, methodLabel);
+                addAdminBlock(document, adminComment, methodLabel);
+                addFooterNote(document, methodLabel);
 
                 document.close();
             }
 
             return new GeneratedReceipt(
                     fileName,
-                    "/uploads/generated-cash-receipts/" + fileName
+                    "/uploads/generated-payment-receipts/" + fileName
             );
 
         } catch (Exception e) {
-            throw new RuntimeException("Erreur lors de la génération du PDF justificatif cash", e);
+            throw new RuntimeException("Erreur lors de la génération du PDF justificatif de paiement", e);
         }
     }
 
-    private void addHeader(Document document) throws Exception {
+    private void addHeader(Document document, String methodLabel) throws Exception {
         PdfPTable header = new PdfPTable(new float[]{1.2f, 3.8f});
         header.setWidthPercentage(100);
         header.setSpacingAfter(18f);
@@ -103,7 +104,7 @@ public class PaymentReceiptPdfService {
 
         Paragraph company = new Paragraph();
         company.add(new Chunk("Fleet Management Platform\n", fontBold(18, PRIMARY)));
-        company.add(new Chunk("Justificatif officiel de paiement cash\n", fontRegular(11, SECONDARY)));
+        company.add(new Chunk("Justificatif officiel de paiement " + methodLabel + "\n", fontRegular(11, SECONDARY)));
         company.add(new Chunk("Document généré automatiquement par le système", fontRegular(10, SECONDARY)));
         companyCell.addElement(company);
 
@@ -126,8 +127,8 @@ public class PaymentReceiptPdfService {
         document.add(line);
     }
 
-    private void addTitle(Document document) throws Exception {
-        Paragraph title = new Paragraph("REÇU DE PAIEMENT CASH", fontBold(20, PRIMARY));
+    private void addTitle(Document document, String methodLabel) throws Exception {
+        Paragraph title = new Paragraph("REÇU DE PAIEMENT " + methodLabel, fontBold(20, PRIMARY));
         title.setAlignment(Element.ALIGN_CENTER);
         title.setSpacingAfter(6f);
         document.add(title);
@@ -156,14 +157,14 @@ public class PaymentReceiptPdfService {
         document.add(table);
     }
 
-    private void addPaymentBlock(Document document, Payment payment) throws Exception {
+    private void addPaymentBlock(Document document, Payment payment, String methodLabel) throws Exception {
         document.add(sectionTitle("Détails du paiement"));
 
         PdfPTable table = new PdfPTable(new float[]{1.7f, 3.3f});
         table.setWidthPercentage(100);
         table.setSpacingAfter(16f);
 
-        addInfoRow(table, "Méthode", "CASH");
+        addInfoRow(table, "Méthode", methodLabel);
         addInfoRow(table, "Montant", payment.getAmount() != null ? payment.getAmount() + " DT" : "—");
         addInfoRow(table, "Durée", payment.getMonths() != null ? payment.getMonths() + " mois" : "—");
         addInfoRow(table, "Référence", safe(payment.getReference()));
@@ -171,10 +172,14 @@ public class PaymentReceiptPdfService {
         addInfoRow(table, "Date demande", formatDate(payment.getPaidAt()));
         addInfoRow(table, "Date validation", formatDate(LocalDateTime.now()));
 
+        if (payment.getProofFileName() != null && !payment.getProofFileName().isBlank()) {
+            addInfoRow(table, "Justificatif owner", payment.getProofFileName());
+        }
+
         document.add(table);
     }
 
-    private void addAdminBlock(Document document, String adminComment) throws Exception {
+    private void addAdminBlock(Document document, String adminComment, String methodLabel) throws Exception {
         document.add(sectionTitle("Validation administrative"));
 
         PdfPTable box = new PdfPTable(1);
@@ -191,7 +196,7 @@ public class PaymentReceiptPdfService {
         p.add(new Chunk(
                 (adminComment != null && !adminComment.isBlank())
                         ? adminComment
-                        : "Paiement cash reçu et validé. Le compte owner est activé.",
+                        : defaultComment(methodLabel),
                 fontRegular(11, PRIMARY)
         ));
         p.setLeading(16f);
@@ -227,9 +232,9 @@ public class PaymentReceiptPdfService {
         document.add(signatureTable);
     }
 
-    private void addFooterNote(Document document) throws Exception {
+    private void addFooterNote(Document document, String methodLabel) throws Exception {
         Paragraph footer = new Paragraph(
-                "Ce document atteste que le paiement cash a bien été reçu et validé par l’administration.",
+                "Ce document atteste que le paiement " + methodLabel + " a bien été validé par l’administration.",
                 fontRegular(10, SUCCESS)
         );
         footer.setSpacingBefore(24f);
@@ -282,6 +287,22 @@ public class PaymentReceiptPdfService {
     private String formatDate(LocalDateTime dt) {
         if (dt == null) return "—";
         return dt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+    }
+
+    private String resolveMethodLabel(Payment payment) {
+        if (payment == null || payment.getMethod() == null) {
+            return "PAIEMENT";
+        }
+
+        return switch (payment.getMethod()) {
+            case CASH -> "CASH";
+            case BANK_TRANSFER -> "VIREMENT";
+            case CHEQUE -> "CHÈQUE";
+        };
+    }
+
+    private String defaultComment(String methodLabel) {
+        return "Paiement " + methodLabel + " validé. Le compte owner est activé.";
     }
 
     public record GeneratedReceipt(String fileName, String fileUrl) {}
