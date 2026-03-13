@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Receipt,
   Upload,
+  FileText,
 } from "lucide-react";
 
 import { AdminOnly } from "@/components/layout/AdminOnly";
@@ -43,7 +44,7 @@ function statusLabel(status?: string | null) {
     case "PENDING_OWNER_PROOF":
       return "Attente justificatif owner";
     case "PENDING_ADMIN_CASH_PROOF":
-      return "Attente justificatif admin cash";
+      return "Attente validation admin";
     case "PENDING_VERIFICATION":
       return "Attente vérification";
     case "APPROVED":
@@ -124,16 +125,8 @@ function AdminPaymentsInner() {
   const pendingCount = useMemo(() => payments.length, [payments]);
 
   async function handleApprove(paymentId: number) {
-    const file = approveFile[paymentId];
+    const file = approveFile[paymentId] ?? null;
     const comment = approveComment[paymentId];
-
-    if (!file) {
-      setFeedback({
-        type: "error",
-        message: "Le justificatif admin est obligatoire pour approuver.",
-      });
-      return;
-    }
 
     try {
       setBusyId(paymentId);
@@ -144,7 +137,9 @@ function AdminPaymentsInner() {
 
       setFeedback({
         type: "ok",
-        message: `Paiement #${paymentId} approuvé avec succès.`,
+        message: file
+          ? `Paiement #${paymentId} approuvé avec fichier admin.`
+          : `Paiement #${paymentId} approuvé avec génération automatique du PDF.`,
       });
 
       setApproveComment((prev) => ({ ...prev, [paymentId]: "" }));
@@ -195,8 +190,8 @@ function AdminPaymentsInner() {
               Validation des paiements
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              L’admin vérifie les preuves owner et joint sa propre confirmation à
-              l’approbation.
+              L’admin vérifie les preuves owner puis approuve. Il peut joindre un
+              fichier admin ou laisser le système générer automatiquement un PDF.
             </p>
           </div>
 
@@ -241,7 +236,8 @@ function AdminPaymentsInner() {
               const isCash = p.method === "CASH";
               const isWaitingOwnerProof = p.status === "PENDING_OWNER_PROOF";
               const canApprove =
-                p.status === "PENDING_VERIFICATION" || p.status === "PENDING_ADMIN_CASH_PROOF";
+                p.status === "PENDING_VERIFICATION" ||
+                p.status === "PENDING_ADMIN_CASH_PROOF";
 
               return (
                 <div
@@ -296,7 +292,7 @@ function AdminPaymentsInner() {
                       {isCash ? (
                         <div className="flex items-start gap-2">
                           <ShieldCheck className="mt-0.5 h-4 w-4 text-blue-700" />
-                          Paiement cash : l’admin doit joindre sa justification avant approbation.
+                          Paiement cash : l’admin peut joindre un fichier ou laisser le système générer un PDF.
                         </div>
                       ) : isWaitingOwnerProof ? (
                         <div className="flex items-start gap-2">
@@ -306,13 +302,13 @@ function AdminPaymentsInner() {
                       ) : (
                         <div className="flex items-start gap-2">
                           <Upload className="mt-0.5 h-4 w-4 text-violet-700" />
-                          Le justificatif owner a été envoyé. Vérifiez puis approuvez.
+                          Le justificatif owner a été envoyé. L’admin peut joindre un fichier ou générer un PDF automatiquement.
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                  <div className="mt-5 grid gap-5 lg:grid-cols-3">
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-extrabold text-slate-900">
                         Justificatif owner
@@ -341,6 +337,33 @@ function AdminPaymentsInner() {
 
                     <div className="rounded-2xl border border-slate-200 p-4">
                       <div className="text-sm font-extrabold text-slate-900">
+                        Justificatif admin
+                      </div>
+
+                      {p.adminProofFileUrl ? (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
+                          <div className="truncate text-sm font-semibold text-slate-800">
+                            {p.adminProofFileName || "Fichier admin"}
+                          </div>
+                          <a
+                            href={buildFileUrl(p.adminProofFileUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white"
+                          >
+                            Ouvrir
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-start gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                          <FileText className="mt-0.5 h-4 w-4" />
+                          Aucun justificatif admin encore généré.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="text-sm font-extrabold text-slate-900">
                         Action admin
                       </div>
 
@@ -358,6 +381,9 @@ function AdminPaymentsInner() {
                             }
                             className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                           />
+                          <span className="mt-1 block text-xs font-normal text-slate-500">
+                            Optionnel. Si aucun fichier n’est choisi, un PDF sera généré automatiquement.
+                          </span>
                         </label>
 
                         <label className="block text-sm font-semibold text-slate-700">
@@ -410,7 +436,7 @@ function AdminPaymentsInner() {
                           <button
                             onClick={() => handleReject(p.id)}
                             disabled={busyId === p.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                           >
                             <FileX2 className="h-4 w-4" />
                             Refuser
@@ -419,6 +445,12 @@ function AdminPaymentsInner() {
                       </div>
                     </div>
                   </div>
+
+                  {p.adminComment && (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                      <span className="font-bold">Commentaire admin :</span> {p.adminComment}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -46,11 +46,15 @@ export const paymentService = {
 
   async approvePayment(
     paymentId: number,
-    file: File,
+    file?: File | null,
     comment?: string
   ): Promise<PaymentResponse> {
     const formData = new FormData();
-    formData.append("file", file);
+
+    if (file) {
+      formData.append("file", file);
+    }
+
     if (comment?.trim()) {
       formData.append("comment", comment.trim());
     }
@@ -78,5 +82,4 @@ export const paymentService = {
     );
     return res.data;
   },
-  
 };

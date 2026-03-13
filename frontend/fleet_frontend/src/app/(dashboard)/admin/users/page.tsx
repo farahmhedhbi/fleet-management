@@ -85,18 +85,16 @@ export default function AdminUsersPage() {
     const owner = visibleUsers.filter((u) =>
       String(u.role).includes("OWNER")
     ).length;
-    const driver = visibleUsers.filter((u) =>
-      String(u.role).includes("DRIVER")
-    ).length;
+    
 
-    return { total, admin, owner, driver };
+    return { total, owner };
   }, [visibleUsers]);
 
   async function loadUsers() {
     setIsRefreshing(true);
     setLoading(true);
     try {
-      const data = await adminService.listUsers();
+      const data = await adminService.listOwners();
       setUsers(data || []);
     } catch (e: any) {
       toastError(
@@ -285,15 +283,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-600">Admins</div>
-                  <Shield className="h-5 w-5 text-purple-500" />
-                </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {stats.admin}
-                </div>
-              </div>
+              
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
                 <div className="flex items-center justify-between">
@@ -305,15 +295,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-600">Drivers</div>
-                  <BadgeCheck className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {stats.driver}
-                </div>
-              </div>
+              
             </div>
 
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
@@ -495,57 +477,9 @@ export default function AdminUsersPage() {
                       />
                     </div>
 
-                    {!isInvite && (
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-700">Role</div>
-                          <select
-                            value={role}
-                            onChange={(e) => setRole(e.target.value as RoleName)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                          >
-                            {ROLES_EDIT.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                    
 
-                        <div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            License number {isDriver ? "(required)" : "(only for drivers)"}
-                          </div>
-                          <input
-                            value={licenseNumber}
-                            onChange={(e) => setLicenseNumber(e.target.value)}
-                            disabled={!isDriver}
-                            placeholder={isDriver ? "ex: TN-DR-1234" : "Only for drivers"}
-                            className={cn(
-                              "mt-1 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2",
-                              !isDriver
-                                ? "border-slate-200 bg-slate-50 text-slate-400 focus:ring-slate-200"
-                                : "border-slate-200 bg-white text-slate-800 focus:ring-slate-200"
-                            )}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {mode === "edit" && (
-                      <div>
-                        <div className="text-sm font-semibold text-slate-700">
-                          New password (optional)
-                        </div>
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                          placeholder="Leave empty to keep current password"
-                        />
-                      </div>
-                    )}
+                    
 
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button

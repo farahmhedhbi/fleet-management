@@ -260,34 +260,26 @@ export default function DashboardPage() {
       }
 
       // ✅ DRIVER: my profile + my vehicles
-      if (isDriver) {
-        const [, myVehicles] = await Promise.all([driverService.me(), vehicleService.getMine()]);
+      
+       // ✅ DRIVER: only my profile
+if (isDriver) {
+  await driverService.me();
 
-        const vehiclesNeedingMaintenance = (myVehicles as any[]).filter((v: any) => {
-          if (!v.nextMaintenanceDate) return false;
-          return new Date(v.nextMaintenanceDate) <= nextWeek;
-        }).length;
+  setStats({
+    totalDrivers: 1,
+    totalVehicles: 0,
+    availableVehicles: 0,
+    activeDrivers: 1,
+    vehiclesNeedingMaintenance: 0,
+    totalMileage: 0,
+    fleetHealth: 100,
+  });
 
-        const totalMileage = (myVehicles as any[]).reduce(
-          (sum, v: any) => sum + (v.mileage || 0),
-          0
-        );
-
-        setStats({
-          totalDrivers: 1,
-          totalVehicles: myVehicles.length,
-          availableVehicles: (myVehicles as any[]).filter((v: any) => v.status === "AVAILABLE").length,
-          activeDrivers: 1,
-          vehiclesNeedingMaintenance,
-          totalMileage,
-          fleetHealth: 100,
-        });
-
-        setAdminStats(null);
-        setRecentDrivers([]);
-        setRecentVehicles((myVehicles as any[]).slice(0, 5));
-        return;
-      }
+  setAdminStats(null);
+  setRecentDrivers([]);
+  setRecentVehicles([]);
+  return;
+}
 
       // ✅ OWNER: vehicles only
       if (isOwner) {
