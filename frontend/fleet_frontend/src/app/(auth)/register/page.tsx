@@ -207,9 +207,7 @@ export default function RegisterPage() {
 
           <div className="mt-10 rounded-[28px] border border-slate-200 bg-white/70 p-5 shadow-sm backdrop-blur">
             <p className="text-sm font-extrabold text-slate-900">Type de compte</p>
-            <p className="mt-2 text-sm text-slate-600">
-              Cette page permet uniquement la création d’un compte owner.
-            </p>
+            
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span
@@ -226,10 +224,7 @@ export default function RegisterPage() {
               </span>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-              Note : la création d’un compte <b>Admin</b> est désactivée.
-              Le backend gère un <b>compte admin unique</b>.
-            </div>
+           
           </div>
         </div>
 

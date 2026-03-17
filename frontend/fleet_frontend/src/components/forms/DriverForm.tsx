@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import {
@@ -63,11 +63,6 @@ export default function DriverForm({
 
   const [errors, setErrors] = useState<FormErrors>({});
 
-  useEffect(() => {
-    validateForm(formData);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, isEdit]);
-
   const statusOptions: DriverStatus[] = useMemo(
     () => ["ACTIVE", "INACTIVE", "ON_LEAVE", "SUSPENDED"],
     []
@@ -95,7 +90,7 @@ export default function DriverForm({
     }
 
     if (!values.phone?.trim()) {
-      nextErrors.phone = "Le téléphone est obligatoire.";
+      nextErrors.phone = "Le numéro de téléphone est obligatoire.";
     } else if (!/^[+]?[0-9\s\-()]{6,20}$/.test(values.phone.trim())) {
       nextErrors.phone = "Veuillez saisir un numéro de téléphone valide.";
     }
@@ -107,10 +102,23 @@ export default function DriverForm({
         "Le numéro de permis doit contenir au moins 4 caractères.";
     }
 
-    if (values.licenseExpiry) {
-      const d = new Date(values.licenseExpiry);
-      if (Number.isNaN(d.getTime())) {
+    if (!values.licenseExpiry?.trim()) {
+      nextErrors.licenseExpiry =
+        "La date d’expiration du permis est obligatoire.";
+    } else {
+      const expiry = new Date(values.licenseExpiry);
+      const today = new Date();
+
+      if (Number.isNaN(expiry.getTime())) {
         nextErrors.licenseExpiry = "Date d’expiration invalide.";
+      } else {
+        today.setHours(0, 0, 0, 0);
+        expiry.setHours(0, 0, 0, 0);
+
+        if (expiry <= today) {
+          nextErrors.licenseExpiry =
+            "La date d’expiration doit être supérieure à aujourd’hui.";
+        }
       }
     }
 
@@ -146,13 +154,24 @@ export default function DriverForm({
             : Number(value)
           : value,
     }));
+
+    setErrors((prev) => ({
+      ...prev,
+      [name]: undefined,
+    }));
   }
 
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
+
     setFormData((prev) => ({
       ...prev,
       [name]: value ? `${value}T00:00:00` : "",
+    }));
+
+    setErrors((prev) => ({
+      ...prev,
+      [name]: undefined,
     }));
   }
 
@@ -193,7 +212,6 @@ export default function DriverForm({
         };
 
         await driverService.create(payload);
-
         toast.success(
           "Conducteur créé avec succès. Un email contenant les identifiants temporaires a été envoyé. Le conducteur devra changer son mot de passe à la première connexion."
         );
@@ -202,22 +220,41 @@ export default function DriverForm({
       router.push("/drivers");
       router.refresh();
     } catch (error: any) {
-      const message =
+      const rawMessage =
         error?.response?.data?.message ||
         error?.response?.data?.error ||
+        error?.response?.data?.details ||
         error?.message ||
         "Erreur lors de l’enregistrement.";
 
-      const lower = String(message).toLowerCase();
+      const lower = String(rawMessage).toLowerCase();
 
-      if (lower.includes("email")) {
+      if (
+        lower.includes("email already exists") ||
+        lower.includes("email already used")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          email: "Cet email existe déjà.",
+        }));
         toast.error("Cet email existe déjà.");
-      } else if (lower.includes("phone")) {
+      } else if (lower.includes("phone already exists")) {
+        setErrors((prev) => ({
+          ...prev,
+          phone: "Ce numéro de téléphone existe déjà.",
+        }));
         toast.error("Ce numéro de téléphone existe déjà.");
-      } else if (lower.includes("license")) {
+      } else if (
+        lower.includes("license number already exists") ||
+        lower.includes("license number already used")
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          licenseNumber: "Ce numéro de permis existe déjà.",
+        }));
         toast.error("Ce numéro de permis existe déjà.");
       } else {
-        toast.error(message);
+        toast.error(String(rawMessage));
       }
     } finally {
       setLoading(false);
@@ -234,6 +271,7 @@ export default function DriverForm({
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <button
+            type="button"
             onClick={() => router.push("/drivers")}
             className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
           >
@@ -272,9 +310,9 @@ export default function DriverForm({
                 Comportement automatique du backend
               </h3>
               <p className="mt-1 text-sm text-blue-800">
-                Lors de la création, le backend génère un mot de passe temporaire,
-                oblige le conducteur à changer ce mot de passe à la première
-                connexion, puis envoie les accès par email.
+                Lors de la création, le backend génère un mot de passe
+                temporaire, oblige le conducteur à changer ce mot de passe à la
+                première connexion, puis envoie les accès par email.
               </p>
             </div>
           </div>
@@ -301,12 +339,16 @@ export default function DriverForm({
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="firstName"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Prénom *
                   </label>
                   <div className="relative">
                     <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="firstName"
                       name="firstName"
                       type="text"
                       value={formData.firstName}
@@ -321,12 +363,16 @@ export default function DriverForm({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="lastName"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Nom *
                   </label>
                   <div className="relative">
                     <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="lastName"
                       name="lastName"
                       type="text"
                       value={formData.lastName}
@@ -359,12 +405,16 @@ export default function DriverForm({
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="email"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Email *
                   </label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="email"
                       name="email"
                       type="email"
                       value={formData.email}
@@ -379,12 +429,16 @@ export default function DriverForm({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="phone"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Téléphone *
                   </label>
                   <div className="relative">
                     <Phone className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="phone"
                       name="phone"
                       type="tel"
                       value={formData.phone || ""}
@@ -417,12 +471,16 @@ export default function DriverForm({
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="licenseNumber"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Numéro de permis *
                   </label>
                   <div className="relative">
                     <IdCard className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="licenseNumber"
                       name="licenseNumber"
                       type="text"
                       value={formData.licenseNumber}
@@ -439,12 +497,16 @@ export default function DriverForm({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Date d’expiration du permis
+                  <label
+                    htmlFor="licenseExpiry"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Date d’expiration du permis *
                   </label>
                   <div className="relative">
                     <Calendar className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <input
+                      id="licenseExpiry"
                       name="licenseExpiry"
                       type="date"
                       value={toDateInputValue(formData.licenseExpiry)}
@@ -479,10 +541,14 @@ export default function DriverForm({
 
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="ecoScore"
+                      className="mb-2 block text-sm font-medium text-gray-700"
+                    >
                       Eco Score
                     </label>
                     <input
+                      id="ecoScore"
                       name="ecoScore"
                       type="number"
                       min="0"
@@ -499,10 +565,14 @@ export default function DriverForm({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="status"
+                      className="mb-2 block text-sm font-medium text-gray-700"
+                    >
                       Statut *
                     </label>
                     <select
+                      id="status"
                       name="status"
                       value={formData.status || "ACTIVE"}
                       onChange={handleChange}
@@ -537,7 +607,7 @@ export default function DriverForm({
 
               <button
                 type="submit"
-                disabled={loading || Object.keys(errors).length > 0}
+                disabled={loading}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save size={18} />
