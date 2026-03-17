@@ -9,7 +9,6 @@ import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.RoleRepository;
 import com.example.fleet_backend.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,25 +19,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * ✅ DriverService
- *
- * Service métier pour gérer les conducteurs (Drivers).
- *
- * Fonctions principales:
- * - Consulter le profil du conducteur connecté (My Profile)
- * - CRUD complet sur les conducteurs (create, read, update, delete)
- *
- * @Service:
- * - Composant Spring injectable (couche métier).
- *
- * @Transactional:
- * - Toutes les opérations DB sont transactionnelles
- * - En cas d'erreur, rollback automatique (cohérence des données).
- */
 @Service
 @Transactional
 public class DriverService {
+
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -62,25 +46,10 @@ public class DriverService {
         this.passwordEncoder = passwordEncoder;
         this.temporaryPasswordService = temporaryPasswordService;
         this.emailService = emailService;
-        this.smsService = smsService;
         this.passwordGeneratorService = passwordGeneratorService;
+        this.smsService = smsService;
     }
 
-
-    /**
-     * ✅ Retourne le profil du conducteur connecté
-     *
-     * Idée:
-     * - Authentication contient l'identité du user connecté
-     * - auth.getName() retourne l'email (dans ton système: email = username)
-     * - On récupère ensuite le Driver correspondant à cet email
-     *
-     * @param auth objet Spring Security (utilisateur connecté)
-     * @return DriverDTO du conducteur connecté
-     */
-    /**
-     * DRIVER connecté : voir son propre profil
-     */
     public DriverDTO getMyProfile(Authentication auth) {
         String email = auth.getName();
 
@@ -90,10 +59,6 @@ public class DriverService {
         return new DriverDTO(driver);
     }
 
-
-    /**
-     * OWNER connecté courant
-     */
     private User getAuthenticatedOwner(Authentication auth) {
         String email = auth.getName();
 
@@ -107,10 +72,6 @@ public class DriverService {
         return user;
     }
 
-
-    /**
-     * OWNER : lister seulement ses drivers
-     */
     public List<DriverDTO> getMyDrivers(Authentication auth) {
         User owner = getAuthenticatedOwner(auth);
 
@@ -120,9 +81,6 @@ public class DriverService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * OWNER : voir les détails d’un de ses drivers
-     */
     public DriverDTO getMyDriverById(Long id, Authentication auth) {
         User owner = getAuthenticatedOwner(auth);
 
@@ -134,12 +92,6 @@ public class DriverService {
         return new DriverDTO(driver);
     }
 
-
-
-
-    /**
-     * OWNER : modifier seulement un driver qui lui appartient
-     */
     public DriverDTO updateMyDriver(Long id, DriverDTO dto, Authentication auth) {
         User owner = getAuthenticatedOwner(auth);
 
@@ -148,24 +100,40 @@ public class DriverService {
                         "Driver not found with id: " + id + " for this owner"
                 ));
 
-        String newFirstName = dto.getFirstName() == null ? existingDriver.getFirstName() : dto.getFirstName().trim();
-        String newLastName = dto.getLastName() == null ? existingDriver.getLastName() : dto.getLastName().trim();
-        String newEmail = dto.getEmail() == null ? existingDriver.getEmail() : dto.getEmail().trim().toLowerCase();
-        String newPhone = dto.getPhone() == null ? existingDriver.getPhone() : dto.getPhone().trim();
-        String newLicense = dto.getLicenseNumber() == null ? existingDriver.getLicenseNumber() : dto.getLicenseNumber().trim();
+        String oldEmail = existingDriver.getEmail();
+
+        String newFirstName = dto.getFirstName() == null
+                ? existingDriver.getFirstName()
+                : dto.getFirstName().trim();
+
+        String newLastName = dto.getLastName() == null
+                ? existingDriver.getLastName()
+                : dto.getLastName().trim();
+
+        String newEmail = dto.getEmail() == null
+                ? existingDriver.getEmail()
+                : dto.getEmail().trim().toLowerCase();
+
+        String newPhone = dto.getPhone() == null
+                ? existingDriver.getPhone()
+                : dto.getPhone().trim();
+
+        String newLicense = dto.getLicenseNumber() == null
+                ? existingDriver.getLicenseNumber()
+                : dto.getLicenseNumber().trim();
 
         if (!existingDriver.getEmail().equalsIgnoreCase(newEmail)) {
-            if (userRepository.existsByEmail(newEmail) || driverRepository.existsByEmail(newEmail)) {
+            if (userRepository.existsByEmailIgnoreCase(newEmail) || driverRepository.existsByEmail(newEmail)) {
                 throw new IllegalArgumentException("Email already exists");
             }
         }
 
         if (newPhone != null && !newPhone.isBlank()) {
-            User userWithPhone = userRepository.findByEmail(existingDriver.getEmail()).orElse(null);
-            String oldPhone = userWithPhone != null ? userWithPhone.getPhone() : existingDriver.getPhone();
+            User linkedUser = userRepository.findByEmailIgnoreCase(oldEmail).orElse(null);
+            String oldPhone = linkedUser != null ? linkedUser.getPhone() : existingDriver.getPhone();
 
             if (oldPhone == null || !oldPhone.equals(newPhone)) {
-                if (Boolean.TRUE.equals(userRepository.existsByPhone(newPhone))) {
+                if (userRepository.existsByPhone(newPhone)) {
                     throw new IllegalArgumentException("Phone already exists");
                 }
             }
@@ -188,26 +156,21 @@ public class DriverService {
 
         Driver updatedDriver = driverRepository.save(existingDriver);
 
-        User user = userRepository.findByEmail(existingDriver.getEmail())
+        User linkedUser = userRepository.findByEmailIgnoreCase(oldEmail)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for driver email: " + existingDriver.getEmail()
+                        "User account not found for driver email: " + oldEmail
                 ));
 
-        user.setFirstName(newFirstName);
-        user.setLastName(newLastName);
-        user.setEmail(newEmail);
-        user.setPhone(newPhone);
+        linkedUser.setFirstName(newFirstName);
+        linkedUser.setLastName(newLastName);
+        linkedUser.setEmail(newEmail);
+        linkedUser.setPhone(newPhone);
 
-        userRepository.save(user);
+        userRepository.save(linkedUser);
 
         return new DriverDTO(updatedDriver);
     }
 
-
-    /**
-     * OWNER : supprimer un driver qui lui appartient
-     * Supprime aussi le compte User lié pour éviter un compte orphelin.
-     */
     public void deleteMyDriver(Long id, Authentication auth) {
         User owner = getAuthenticatedOwner(auth);
 
@@ -219,10 +182,8 @@ public class DriverService {
         String driverEmail = driver.getEmail();
 
         driverRepository.delete(driver);
-
         userRepository.findByEmail(driverEmail).ifPresent(userRepository::delete);
     }
-
 
     public DriverDTO createDriverByOwner(CreateDriverByOwnerRequest request, Authentication auth) {
         if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
@@ -236,15 +197,22 @@ public class DriverService {
             throw new IllegalArgumentException("Access denied");
         }
 
+        String firstName = normalizeRequiredText(request.getFirstName(), "First name is required");
+        String lastName = normalizeRequiredText(request.getLastName(), "Last name is required");
         String email = normalizeEmail(request.getEmail());
-        String licenseNumber = normalizeText(request.getLicenseNumber());
+        String phone = normalizeOptionalText(request.getPhone());
+        String licenseNumber = normalizeRequiredText(request.getLicenseNumber(), "License number is required");
 
-        if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new IllegalArgumentException("Email already used");
+        if (userRepository.existsByEmailIgnoreCase(email) || driverRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        if (phone != null && userRepository.existsByPhone(phone)) {
+            throw new IllegalArgumentException("Phone already exists");
         }
 
         if (driverRepository.existsByLicenseNumber(licenseNumber)) {
-            throw new IllegalArgumentException("License number already used");
+            throw new IllegalArgumentException("License number already exists");
         }
 
         Role driverRole = roleRepository.findByName("ROLE_DRIVER")
@@ -253,10 +221,10 @@ public class DriverService {
         String tempPassword = passwordGeneratorService.generateTemporaryPassword(12);
 
         User driverUser = new User();
-        driverUser.setFirstName(normalizeText(request.getFirstName()));
-        driverUser.setLastName(normalizeText(request.getLastName()));
+        driverUser.setFirstName(firstName);
+        driverUser.setLastName(lastName);
         driverUser.setEmail(email);
-        driverUser.setPhone(normalizeText(request.getPhone()));
+        driverUser.setPhone(phone);
         driverUser.setPassword(passwordEncoder.encode(tempPassword));
         driverUser.setRole(driverRole);
         driverUser.setEnabled(true);
@@ -265,14 +233,12 @@ public class DriverService {
         userRepository.save(driverUser);
 
         Driver driver = new Driver();
-        driver.setFirstName(driverUser.getFirstName());
-        driver.setLastName(driverUser.getLastName());
-        driver.setEmail(driverUser.getEmail());
-        driver.setPhone(driverUser.getPhone());
+        driver.setFirstName(firstName);
+        driver.setLastName(lastName);
+        driver.setEmail(email);
+        driver.setPhone(phone);
         driver.setLicenseNumber(licenseNumber);
         driver.setLicenseExpiry(request.getLicenseExpiry());
-
-        // ✅ ligne manquante
         driver.setOwner(owner);
 
         Driver savedDriver = driverRepository.save(driver);
@@ -286,6 +252,7 @@ public class DriverService {
 
         return new DriverDTO(savedDriver);
     }
+
     private String normalizeEmail(String email) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email is required");
@@ -293,16 +260,20 @@ public class DriverService {
         return email.trim().toLowerCase();
     }
 
-    private String normalizeText(String value) {
+    private String normalizeRequiredText(String value, String message) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Required field is missing");
+            throw new IllegalArgumentException(message);
         }
         return value.trim();
     }
 
-    /**
-     * ADMIN : nombre de drivers d’un owner
-     */
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
     public long countDriversByOwner(Long ownerId) {
         return driverRepository.countByOwnerId(ownerId);
     }
