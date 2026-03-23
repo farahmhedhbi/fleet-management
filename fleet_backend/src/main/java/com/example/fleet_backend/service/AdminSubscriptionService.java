@@ -38,10 +38,9 @@ public class AdminSubscriptionService {
             throw new IllegalArgumentException("User is not an OWNER");
         }
 
-        // ✅ 1) Enregistrer un paiement (traçabilité)
         Payment p = new Payment();
         p.setUser(owner);
-        p.setMethod(Payment.Method.valueOf(req.getMethod().name())); // enum compatible
+        p.setMethod(Payment.Method.valueOf(req.getMethod().name()));
         p.setAmount(req.getAmount().doubleValue());
         p.setMonths(req.getMonths());
         p.setReference(req.getReference());
@@ -49,11 +48,9 @@ public class AdminSubscriptionService {
         p.setPaidAt(LocalDateTime.now());
         paymentRepository.save(p);
 
-        // ✅ 2) Calcul paidUntil
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime base = owner.getPaidUntil();
 
-        // Si paidUntil est null ou passé => base = now, sinon on prolonge
         if (base == null || base.isBefore(now)) base = now;
 
         LocalDateTime newPaidUntil = base.plusMonths(req.getMonths());

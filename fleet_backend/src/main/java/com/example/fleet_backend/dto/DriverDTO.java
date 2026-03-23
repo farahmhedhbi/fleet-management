@@ -17,7 +17,6 @@ public class DriverDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public DriverDTO() {}
 
     public DriverDTO(Driver driver) {
         this.id = driver.getId();
@@ -33,7 +32,9 @@ public class DriverDTO {
         this.updatedAt = driver.getUpdatedAt();
     }
 
-    // Getters and Setters
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
 
     public Long getId() {
         return id;

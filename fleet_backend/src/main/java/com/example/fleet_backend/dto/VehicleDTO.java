@@ -3,19 +3,7 @@ package com.example.fleet_backend.dto;
 import com.example.fleet_backend.model.Vehicle;
 import java.time.LocalDateTime;
 
-/**
- * ✅ VehicleDTO
- *
- * Data Transfer Object utilisé pour :
- * - Envoyer les données véhicule au frontend
- * - Éviter d’exposer directement l’entité JPA
- * - Ajouter des champs enrichis (driverName, driverEmail)
- *
- * Avantages :
- * - Séparation Entity / API
- * - Contrôle des données exposées
- * - Format propre pour le frontend
- */
+
 public class VehicleDTO {
 
     private Long id;
@@ -34,10 +22,7 @@ public class VehicleDTO {
     private LocalDateTime lastMaintenanceDate;
     private LocalDateTime nextMaintenanceDate;
 
-    /**
-     * ✅ Données enrichies du conducteur
-     * (pas juste driverId, mais aussi nom + email)
-     */
+
     private Long driverId;
     private String driverName;
     private String driverEmail;
@@ -47,11 +32,7 @@ public class VehicleDTO {
 
     public VehicleDTO() {}
 
-    /**
-     * ✅ Constructeur de mapping Entity → DTO
-     *
-     * Transforme un Vehicle en VehicleDTO.
-     */
+
     public VehicleDTO(Vehicle vehicle) {
         this.id = vehicle.getId();
         this.registrationNumber = vehicle.getRegistrationNumber();
@@ -67,9 +48,6 @@ public class VehicleDTO {
         this.lastMaintenanceDate = vehicle.getLastMaintenanceDate();
         this.nextMaintenanceDate = vehicle.getNextMaintenanceDate();
 
-        /**
-         * ✅ Mapping du driver si assigné
-         */
         if (vehicle.getDriver() != null) {
             this.driverId = vehicle.getDriver().getId();
             this.driverName = vehicle.getDriver().getFirstName() + " " +

@@ -3,164 +3,70 @@ package com.example.fleet_backend.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-/**
- * ✅ Entité Vehicle
- *
- * Représente un véhicule dans le système de gestion de flotte.
- *
- * Cette classe est mappée à la table "vehicles" en base de données.
- *
- * Relations principales :
- * - ManyToOne vers Driver (conducteur assigné)
- * - ManyToOne vers User (owner/propriétaire du véhicule)
- *
- * Contient :
- * - Informations d’identification (registrationNumber, vin)
- * - Caractéristiques techniques (fuelType, transmission)
- * - État métier (status, mileage)
- * - Données maintenance
- * - Audit (createdAt, updatedAt)
- */
+
 @Entity
 @Table(name = "vehicles")
 public class Vehicle {
 
-    /**
-     * ✅ Clé primaire auto-générée
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * ✅ Numéro d'immatriculation
-     * - Obligatoire
-     * - Unique
-     */
     @Column(name = "registration_number", nullable = false, unique = true)
     private String registrationNumber;
 
-    /**
-     * ✅ Marque du véhicule (ex: Toyota, BMW)
-     */
     @Column(name = "brand", nullable = false)
     private String brand;
 
-    /**
-     * ✅ Modèle du véhicule
-     */
     @Column(name = "model", nullable = false)
     private String model;
 
-    /**
-     * ✅ Année de fabrication
-     */
     @Column(name = "year", nullable = false)
     private Integer year;
 
-    /**
-     * ✅ Couleur (optionnel)
-     */
     @Column(name = "color")
     private String color;
 
-    /**
-     * ✅ VIN (Vehicle Identification Number)
-     * - Unique si présent
-     */
     @Column(name = "vin", unique = true)
     private String vin;
 
-    /**
-     * ✅ Type de carburant
-     * Enum stocké en STRING en base
-     */
     @Column(name = "fuel_type")
     @Enumerated(EnumType.STRING)
     private FuelType fuelType;
 
-    /**
-     * ✅ Type de transmission
-     */
     @Column(name = "transmission")
     @Enumerated(EnumType.STRING)
     private TransmissionType transmission;
 
-    /**
-     * ✅ Statut métier du véhicule
-     * Exemple : AVAILABLE, IN_USE, UNDER_MAINTENANCE
-     */
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
     private VehicleStatus status;
 
-    /**
-     * ✅ Kilométrage actuel
-     */
     @Column(name = "mileage")
     private Double mileage;
 
-    /**
-     * ✅ Date dernière maintenance
-     */
     @Column(name = "last_maintenance_date")
     private LocalDateTime lastMaintenanceDate;
 
-    /**
-     * ✅ Date prochaine maintenance prévue
-     */
     @Column(name = "next_maintenance_date")
     private LocalDateTime nextMaintenanceDate;
 
-    /**
-     * ✅ Conducteur assigné
-     *
-     * ManyToOne :
-     * - Plusieurs véhicules peuvent être assignés à un même driver
-     *
-     * FetchType.EAGER :
-     * - Le driver est chargé automatiquement avec le véhicule
-     */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "driver_id")
     private Driver driver;
 
-    /**
-     * ✅ Owner (propriétaire du véhicule)
-     *
-     * ManyToOne :
-     * - Un owner peut posséder plusieurs véhicules
-     *
-     * FetchType.LAZY :
-     * - L'owner est chargé seulement si nécessaire
-     *
-     * nullable = false :
-     * - Chaque véhicule doit obligatoirement appartenir à un owner
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
-    /**
-     * ✅ Date création (audit)
-     */
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    /**
-     * ✅ Date dernière mise à jour (audit)
-     */
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Constructeur vide requis par JPA
-     */
     public Vehicle() {}
 
-    /**
-     * Constructeur pratique pour création rapide
-     */
     public Vehicle(String registrationNumber, String brand, String model, Integer year) {
         this.registrationNumber = registrationNumber;
         this.brand = brand;
@@ -168,14 +74,6 @@ public class Vehicle {
         this.year = year;
     }
 
-    /**
-     * ✅ Méthode appelée automatiquement avant INSERT en base.
-     *
-     * - Initialise createdAt
-     * - Initialise updatedAt
-     * - Définit status par défaut = AVAILABLE
-     * - Définit mileage par défaut = 0.0
-     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -189,11 +87,6 @@ public class Vehicle {
         }
     }
 
-    /**
-     * ✅ Méthode appelée automatiquement avant UPDATE.
-     *
-     * Met à jour updatedAt.
-     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

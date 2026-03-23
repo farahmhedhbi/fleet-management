@@ -4,13 +4,15 @@ public class OwnerVehicleCountDTO {
     private Long ownerId;
     private long vehiclesCount;
 
-    public OwnerVehicleCountDTO() {
-    }
+
 
     public OwnerVehicleCountDTO(Long ownerId, long vehiclesCount) {
         this.ownerId = ownerId;
         this.vehiclesCount = vehiclesCount;
     }
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
 
     public Long getOwnerId() {
         return ownerId;

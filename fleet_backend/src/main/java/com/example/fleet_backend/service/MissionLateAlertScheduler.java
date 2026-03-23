@@ -39,8 +39,6 @@ public class MissionLateAlertScheduler {
             if (mission == null || mission.getId() == null) {
                 continue;
             }
-
-            // ✅ si l’alerte a déjà été envoyée une fois, ne pas recréer
             if (mission.isLateAlertSent()) {
                 continue;
             }
@@ -66,7 +64,6 @@ public class MissionLateAlertScheduler {
                     mission.getId()
             );
 
-            // ✅ mémorise que l’alerte a déjà été envoyée
             mission.setLateAlertSent(true);
             missionRepository.save(mission);
         }

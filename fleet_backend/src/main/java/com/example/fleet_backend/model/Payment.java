@@ -17,9 +17,9 @@ public class Payment {
     }
 
     public enum Status {
-        PENDING_OWNER_PROOF,       // owner doit envoyer preuve (virement/chèque)
-        PENDING_ADMIN_CASH_PROOF,  // cash : admin doit envoyer justification
-        PENDING_VERIFICATION,      // admin doit vérifier la preuve owner
+        PENDING_OWNER_PROOF,
+        PENDING_ADMIN_CASH_PROOF,
+        PENDING_VERIFICATION,
         APPROVED,
         REJECTED
     }

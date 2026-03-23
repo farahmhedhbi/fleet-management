@@ -25,6 +25,10 @@ public class CreateDriverByOwnerRequest {
 
     private LocalDateTime licenseExpiry;
 
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
+
     public String getFirstName() {
         return firstName;
     }

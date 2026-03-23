@@ -17,18 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-/**
- * SecurityConfig
- *
- * Configuration centrale de Spring Security.
- *
- * Gère :
- * - JWT Authentication
- * - Autorisation par rôles
- * - Désactivation sessions (STATELESS)
- * - Gestion erreurs 401
- * - Configuration endpoints protégés
- */
+
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {

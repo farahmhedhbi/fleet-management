@@ -24,9 +24,6 @@ public class VehicleController {
         this.subscriptionGuard = subscriptionGuard;
     }
 
-    /**
-     * OWNER : voit seulement ses véhicules
-     */
     @GetMapping
     @PreAuthorize("hasRole('OWNER')")
     public List<VehicleDTO> list(Authentication auth) {
@@ -34,9 +31,6 @@ public class VehicleController {
         return vehicleService.getVehiclesForConnectedUser(auth);
     }
 
-    /**
-     * OWNER : voir un de ses véhicules
-     */
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO getById(@PathVariable Long id, Authentication auth) {
@@ -44,9 +38,6 @@ public class VehicleController {
         return vehicleService.getVehicleByIdSecured(id, auth);
     }
 
-    /**
-     * OWNER : créer un véhicule
-     */
     @PostMapping
     @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO create(@RequestBody VehicleDTO dto, Authentication auth) {
@@ -54,9 +45,6 @@ public class VehicleController {
         return vehicleService.createVehicleSecured(dto, auth);
     }
 
-    /**
-     * OWNER : modifier un de ses véhicules
-     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO update(@PathVariable Long id,
@@ -66,9 +54,6 @@ public class VehicleController {
         return vehicleService.updateVehicleSecured(id, dto, auth);
     }
 
-    /**
-     * OWNER : supprimer un de ses véhicules
-     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
@@ -77,9 +62,6 @@ public class VehicleController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * OWNER : désaffecter un driver d’un véhicule
-     */
     @PostMapping("/{id}/unassign-driver")
     @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Vehicle> unassignDriver(@PathVariable Long id, Authentication auth) {
@@ -88,9 +70,6 @@ public class VehicleController {
         return ResponseEntity.ok(updated);
     }
 
-    /**
-     * OWNER : retirer le conducteur d’un véhicule
-     */
     @PostMapping("/{id}/remove-driver")
     @PreAuthorize("hasRole('OWNER')")
     public VehicleDTO removeDriver(@PathVariable Long id, Authentication auth) {

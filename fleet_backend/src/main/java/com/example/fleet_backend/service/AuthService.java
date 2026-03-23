@@ -119,26 +119,21 @@ public class AuthService {
 
         String cleanEmail = email.trim().toLowerCase();
 
-        // ✅ Email unique
         if (userRepository.existsByEmail(cleanEmail)) {
             throw new RuntimeException("Error: Email is already in use!");
         }
 
-        // Normaliser roleName
         String normalizedRoleName = normalizeRoleName(roleName);
 
-        // 🚫 Interdire création ADMIN via registerUser()
         if ("ROLE_ADMIN".equals(normalizedRoleName)) {
             throw new IllegalArgumentException("Forbidden: cannot create ADMIN account using this endpoint.");
         }
 
-        // Vérifier que le rôle existe en DB
         Role role = roleRepository.findByName(normalizedRoleName)
                 .orElseThrow(() -> new RuntimeException(
                         "Error: Role '" + normalizedRoleName + "' not found."
                 ));
 
-        // Construire l'utilisateur
         User user = new User();
         user.setFirstName(firstName != null ? firstName.trim() : "");
         user.setLastName(lastName != null ? lastName.trim() : "");
@@ -147,7 +142,6 @@ public class AuthService {
         user.setRole(role);
         user.setEnabled(true);
 
-        // ✅ Si OWNER => démarrer essai gratuit 30 jours
         if ("ROLE_OWNER".equals(role.getName())) {
             LocalDateTime now = LocalDateTime.now();
             user.setTrialStartAt(now);
@@ -155,11 +149,7 @@ public class AuthService {
             user.setSubscriptionStatus(User.SubscriptionStatus.TRIAL);
             user.setPaidUntil(null);
         }
-
-        // Sauvegarder user
         User saved = userRepository.save(user);
-
-        // ✅ Si DRIVER => créer Driver + licenseNumber obligatoire
         if ("ROLE_DRIVER".equals(saved.getRole().getName())) {
 
             String lic = (licenseNumber == null) ? "" : licenseNumber.trim();
@@ -181,7 +171,6 @@ public class AuthService {
                 driverRepository.save(d);
             }
         }
-
         return saved;
     }
 
@@ -193,9 +182,7 @@ public class AuthService {
         if (roleName == null || roleName.trim().isEmpty()) {
             throw new RuntimeException("Role name cannot be empty");
         }
-
         String r = roleName.trim().toUpperCase();
-
         if (!r.startsWith("ROLE_")) {
             r = "ROLE_" + r;
         }

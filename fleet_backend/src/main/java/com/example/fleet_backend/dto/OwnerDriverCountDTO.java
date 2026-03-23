@@ -5,13 +5,16 @@ public class OwnerDriverCountDTO {
     private Long ownerId;
     private long driversCount;
 
-    public OwnerDriverCountDTO() {
-    }
+
 
     public OwnerDriverCountDTO(Long ownerId, long driversCount) {
         this.ownerId = ownerId;
         this.driversCount = driversCount;
     }
+
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
 
     public Long getOwnerId() {
         return ownerId;

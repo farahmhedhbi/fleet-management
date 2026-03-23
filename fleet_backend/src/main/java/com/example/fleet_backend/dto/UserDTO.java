@@ -3,46 +3,24 @@ package com.example.fleet_backend.dto;
 import com.example.fleet_backend.model.User;
 import java.time.LocalDateTime;
 
-/**
- * ✅ UserDTO
- *
- * Data Transfer Object utilisé pour exposer les informations
- * d’un utilisateur au frontend.
- *
- * Objectif :
- * - Ne pas exposer l'entité User directement
- * - Ne jamais exposer le password
- * - Envoyer uniquement les données nécessaires
- */
+
 public class UserDTO {
 
     private Long id;
     private String firstName;
     private String lastName;
     private String email;
-
-    /**
-     * ✅ Rôle sous forme String
-     * Exemple : ROLE_OWNER
-     */
     private String role;
-
-    /**
-     * ✅ Date de création du compte
-     */
     private LocalDateTime createdAt;
 
     public UserDTO() {}
 
-    /**
-     * ✅ Constructeur de mapping Entity → DTO
-     */
     public UserDTO(User u) {
         this.id = u.getId();
         this.firstName = u.getFirstName();
         this.lastName = u.getLastName();
         this.email = u.getEmail();
-        this.role = u.getRoleName(); // méthode utilitaire de User
+        this.role = u.getRoleName();
         this.createdAt = u.getCreatedAt();
     }
 

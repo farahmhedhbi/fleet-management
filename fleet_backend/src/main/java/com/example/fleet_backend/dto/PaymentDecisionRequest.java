@@ -4,13 +4,13 @@ public class PaymentDecisionRequest {
 
     private String comment;
 
-    public PaymentDecisionRequest() {
-    }
-
     public PaymentDecisionRequest(String comment) {
         this.comment = comment;
     }
 
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
     public String getComment() {
         return comment;
     }

@@ -1,42 +1,11 @@
 package com.example.fleet_backend.dto;
 
-/**
- * ✅ AdminInviteUserRequest
- *
- * DTO utilisé lorsqu'un ADMIN invite un nouvel utilisateur
- * dans la plateforme (Owner ou Driver).
- *
- * Utilisé dans :
- * AdminService.inviteUser(...)
- *
- * Flux :
- * 1️⃣ Admin crée un utilisateur sans mot de passe
- * 2️⃣ Un mot de passe temporaire est généré
- * 3️⃣ Un email d’activation est envoyé
- * 4️⃣ L’utilisateur définit son propre mot de passe
- */
+
 public class AdminInviteUserRequest {
-
-    /**
-     * Prénom du nouvel utilisateur
-     */
     public String firstName;
-
-    /**
-     * Nom du nouvel utilisateur
-     */
     public String lastName;
-
-    /**
-     * Email (servira d'identifiant unique)
-     * ⚠ Doit être unique en base
-     */
     public String email;
-
-
     public String role;
-
-
 
     // =========================
     // GETTERS & SETTERS

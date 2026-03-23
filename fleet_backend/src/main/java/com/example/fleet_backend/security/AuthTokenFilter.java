@@ -40,7 +40,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
         String path = request.getServletPath();
 
-        // ✅ Ne pas filtrer les fichiers uploadés
         if (path.startsWith("/uploads/")) {
             filterChain.doFilter(request, response);
             return;

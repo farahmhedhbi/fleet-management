@@ -66,11 +66,11 @@ public class FleetBackendApplication {
 				admin.setEnabled(true);
 
 				userRepository.save(admin);
-				System.out.println("✅ Admin user créé: admin@fleet.com / admin123");
+				System.out.println("Admin user créé: admin@fleet.com / admin123");
 			} else if (adminCount == 1) {
-				System.out.println("✅ Admin unique déjà existant (ok).");
+				System.out.println("Admin unique déjà existant (ok).");
 			} else {
-				System.out.println("⚠️ ATTENTION: Plusieurs admins détectés (" + adminCount + ").");
+				System.out.println("ATTENTION: Plusieurs admins détectés (" + adminCount + ").");
 			}
 
 			if (userRepository.findByEmail("driver@fleet.com").isEmpty()) {

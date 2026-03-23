@@ -23,7 +23,6 @@ public class AdminSubscriptionController {
         this.adminSubscriptionService = adminSubscriptionService;
     }
 
-    // ✅ IMPORTANT: email peut contenir "." -> need {email:.+}
     @PostMapping("/by-email/{email:.+}/activate-subscription")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserSubscriptionResponse> activateByEmail(

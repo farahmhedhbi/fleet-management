@@ -269,8 +269,6 @@ public class MissionService {
                     "This mission cannot be started before its scheduled start time: " + mission.getStartDate()
             );
         }
-
-        // ✅ vérifier si le démarrage est en retard
         boolean startedLate = mission.getStartDate() != null && LocalDateTime.now().isAfter(mission.getStartDate());
 
         mission.setStatus(Mission.MissionStatus.IN_PROGRESS);
@@ -287,8 +285,6 @@ public class MissionService {
         clearDriverLateAlert(driver, mission.getId());
 
         Mission saved = missionRepository.save(mission);
-
-        // ✅ notifier le owner seulement si la mission a démarré en retard
         if (startedLate && saved.getOwner() != null) {
             String driverName = buildDriverName(driver);
             notificationService.createForUser(

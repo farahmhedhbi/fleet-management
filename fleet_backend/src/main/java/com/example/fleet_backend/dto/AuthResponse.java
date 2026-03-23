@@ -11,7 +11,6 @@ public class AuthResponse {
     public String lastName;
     public String role;
 
-    // ✅ subscription
     public String subscriptionStatus;
     public Instant trialStartAt;
     public Instant trialEndAt;
@@ -36,6 +35,9 @@ public class AuthResponse {
         this.mustChangePassword = mustChangePassword;
     }
 
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
     public String getToken() {
         return token;
     }

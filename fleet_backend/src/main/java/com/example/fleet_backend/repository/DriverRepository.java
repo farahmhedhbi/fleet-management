@@ -25,7 +25,7 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
 
     long count();
 
-    // ✅ FIX: enum (pas String)
+
     long countByStatus(Driver.DriverStatus status);
     List<Driver> findAllByOwner(User owner);
 

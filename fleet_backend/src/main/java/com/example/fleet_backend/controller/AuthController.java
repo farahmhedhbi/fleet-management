@@ -55,11 +55,7 @@ public class AuthController {
         try {
             logger.info("Register attempt for email: {}, role: {}",
                     registerRequest.getEmail(), registerRequest.getRole());
-
-            // ✅ Normaliser le rôle
             String normalizedRole = authService.normalizeRoleNamePublic(registerRequest.getRole());
-
-            // 🚫 BLOQUER création admin via register public
             if ("ROLE_ADMIN".equals(normalizedRole)) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "error", "FORBIDDEN_ROLE",
@@ -67,7 +63,6 @@ public class AuthController {
                 ));
             }
 
-            // 🚗 Si DRIVER → licenseNumber obligatoire
             if ("ROLE_DRIVER".equals(normalizedRole)) {
                 if (registerRequest.getLicenseNumber() == null ||
                         registerRequest.getLicenseNumber().trim().isEmpty()) {
@@ -80,11 +75,9 @@ public class AuthController {
                     registerRequest.getLastName(),
                     registerRequest.getEmail(),
                     registerRequest.getPassword(),
-                    normalizedRole,                 // ✅ envoyer le rôle normalisé
+                    normalizedRole,
                     registerRequest.getLicenseNumber()
             );
-
-            // Auto-login
             AuthResponse response = authService.authenticateUser(
                     new AuthRequest(registerRequest.getEmail(), registerRequest.getPassword())
             );
@@ -123,10 +116,7 @@ public class AuthController {
             ));
         }
 
-        // ✅ fiable même si principal n'est pas UserDetailsImpl
         String email = authentication.getName();
-
-        // ✅ au cas où auth.getName() ne serait pas l'email (rare), fallback:
         if (email == null || email.isBlank()) {
             Object principal = authentication.getPrincipal();
             if (principal instanceof org.springframework.security.core.userdetails.User springUser) {
@@ -143,9 +133,7 @@ public class AuthController {
             ));
         }
 
-        User u = userService.getByEmail(email); // doit exister
-
-        // ✅ HashMap accepte null (contrairement à Map.of)
+        User u = userService.getByEmail(email);
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         body.put("id", u.getId());
         body.put("email", u.getEmail());

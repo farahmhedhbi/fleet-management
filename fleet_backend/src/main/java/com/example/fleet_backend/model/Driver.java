@@ -4,117 +4,55 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * ✅ Entité Driver
- *
- * Représente le profil métier d’un conducteur.
- *
- * ⚠️ Important :
- * - Un Driver est différent d’un User.
- * - User = authentification / sécurité
- * - Driver = profil métier (permis, score éco, véhicules assignés)
- *
- * Table : drivers
- */
+
 @Entity
 @Table(name = "drivers")
 public class Driver {
 
-    /**
-     * ✅ Clé primaire auto-générée
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * ✅ Prénom du conducteur
-     */
     @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    /**
-     * ✅ Nom du conducteur
-     */
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
-    /**
-     * ✅ Email (lié au User.email)
-     * - unique
-     * - utilisé pour retrouver le driver connecté
-     */
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
-    /**
-     * ✅ Numéro de téléphone (optionnel)
-     */
     @Column(name = "phone")
     private String phone;
 
-    /**
-     * ✅ Numéro de permis (obligatoire)
-     * - unique
-     */
     @Column(name = "license_number", nullable = false, unique = true)
     private String licenseNumber;
 
-    /**
-     * ✅ Date d’expiration du permis
-     */
     @Column(name = "license_expiry")
     private LocalDateTime licenseExpiry;
 
-    /**
-     * ✅ Score éco-conduite
-     *
-     * Utilisé pour :
-     * - KPI
-     * - Dashboard
-     * - Gamification
-     */
     @Column(name = "eco_score")
     private Double ecoScore;
 
-    /**
-     * ✅ Statut du conducteur
-     */
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
     private DriverStatus status;
 
-    /**
-     * ✅ Relation OneToMany avec Vehicle
-     *
-     * - Un driver peut avoir plusieurs véhicules
-     * - mappedBy = "driver" correspond à Vehicle.driver
-     * - Cascade.ALL → attention : suppression driver supprime véhicules liés
-     * - FetchType.LAZY → performance optimisée
-     */
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Vehicle> vehicles;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     private User owner;
-    /**
-     * ✅ Audit
-     */
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Constructeur vide requis par JPA
-     */
     public Driver() {}
 
-    /**
-     * Constructeur pratique
-     */
     public Driver(String firstName, String lastName, String email, String licenseNumber) {
         this.firstName = firstName;
         this.lastName = lastName;
@@ -122,12 +60,6 @@ public class Driver {
         this.licenseNumber = licenseNumber;
     }
 
-    /**
-     * ✅ Avant insertion en base
-     * - Initialise dates
-     * - Définit status par défaut = ACTIVE
-     * - Définit ecoScore par défaut = 0
-     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -142,9 +74,6 @@ public class Driver {
         }
     }
 
-    /**
-     * ✅ Avant update
-     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
@@ -197,9 +126,7 @@ public class Driver {
     public void setOwner(User owner) {
         this.owner = owner;
     }
-    /**
-     * ✅ Enum représentant les états possibles d’un conducteur
-     */
+
     public enum DriverStatus {
         ACTIVE,
         INACTIVE,

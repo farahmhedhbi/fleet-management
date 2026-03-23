@@ -25,6 +25,10 @@ public class CreateOwnerPaymentRequest {
         CHEQUE
     }
 
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
+
     public Method getMethod() {
         return method;
     }

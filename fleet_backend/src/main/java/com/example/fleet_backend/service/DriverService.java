@@ -27,27 +27,21 @@ public class DriverService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final TemporaryPasswordService temporaryPasswordService;
     private final EmailService emailService;
-    private final SmsService smsService;
     private final PasswordGeneratorService passwordGeneratorService;
 
     public DriverService(DriverRepository driverRepository,
                          UserRepository userRepository,
                          RoleRepository roleRepository,
                          PasswordEncoder passwordEncoder,
-                         TemporaryPasswordService temporaryPasswordService,
                          EmailService emailService,
-                         PasswordGeneratorService passwordGeneratorService,
-                         SmsService smsService) {
+                         PasswordGeneratorService passwordGeneratorService) {
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
-        this.temporaryPasswordService = temporaryPasswordService;
         this.emailService = emailService;
         this.passwordGeneratorService = passwordGeneratorService;
-        this.smsService = smsService;
     }
 
     public DriverDTO getMyProfile(Authentication auth) {

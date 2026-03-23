@@ -18,7 +18,7 @@ public class MissionDTO {
     private String driverName;
     private String driverEmail;
 
-    public MissionDTO() {}
+
 
     public MissionDTO(Mission m) {
         this.id = m.getId();
@@ -40,7 +40,9 @@ public class MissionDTO {
         }
     }
 
-    // getters/setters...
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

@@ -3,64 +3,18 @@ package com.example.fleet_backend.dto;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
-/**
- * ✅ TripIngestRequest
- *
- * DTO utilisé pour l’ingestion sécurisée des données de trajets
- * via une API REST (ex: GPS/OBD, client externe).
- *
- * Différence avec TripPayload :
- * - Validation plus stricte (@Positive au lieu de @PositiveOrZero)
- * - Destiné aux entrées temps réel
- *
- * Format attendu :
- * {
- *   "vehicle_id": 1,
- *   "driver_id": 2,
- *   "distance": 120,
- *   "duration": 90,
- *   "date": "2026-02-01"
- * }
- */
-public class TripIngestRequest {
 
-    /**
-     * ✅ ID du véhicule
-     * Obligatoire
-     */
+public class TripIngestRequest {
     @NotNull
     private Long vehicle_id;
-
-    /**
-     * ✅ ID du conducteur
-     * Obligatoire
-     */
     @NotNull
     private Long driver_id;
-
-    /**
-     * ✅ Distance parcourue
-     * Strictement positive (> 0)
-     */
     @NotNull
     @Positive
     private Integer distance;
-
-    /**
-     * ✅ Durée du trajet
-     * Strictement positive (> 0)
-     */
     @NotNull
     @Positive
     private Integer duration;
-
-    /**
-     * ✅ Date du trajet
-     * Format attendu : "YYYY-MM-DD"
-     *
-     * Validation fine du format possible plus tard
-     * (ex: @Pattern ou transformation en LocalDate)
-     */
     @NotNull
     private String date;
 

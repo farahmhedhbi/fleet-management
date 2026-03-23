@@ -6,107 +6,45 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 
 
-/**
- * ✅ Entité User
- *
- * Représente un utilisateur du système.
- *
- * Responsabilités principales :
- * - Authentification (email + password)
- * - Autorisation (role)
- * - Activation / désactivation de compte (enabled)
- * - Audit (createdAt, updatedAt, lastLoginAt)
- *
- * Table : users
- * Contrainte unique sur email.
- */
+
 @Entity
 @Table(name = "users",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = "email") // garantit unicité email en base
+                @UniqueConstraint(columnNames = "email")
         })
 public class User {
-
-    /**
-     * ✅ Clé primaire auto-générée
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * ✅ Prénom (obligatoire)
-     */
     @Column(nullable = false)
     private String firstName;
 
-    /**
-     * ✅ Nom (obligatoire)
-     */
     @Column(nullable = false)
     private String lastName;
 
-    /**
-     * ✅ Email (identifiant principal)
-     * - unique
-     * - obligatoire
-     */
     @Column(nullable = false, unique = true)
     private String email;
 
-    /**
-     * ✅ Mot de passe encodé (BCrypt)
-     * - jamais stocké en clair
-     */
     @Column(nullable = false)
     private String password;
 
-    /**
-     * ✅ Relation vers Role
-     *
-     * ManyToOne :
-     * - Plusieurs users peuvent avoir le même rôle.
-     *
-     * FetchType.EAGER :
-     * - Le rôle est chargé immédiatement avec le user
-     * - Important pour Spring Security (UserDetailsImpl)
-     */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
-    /**
-     * ✅ Audit - date création
-     */
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    /**
-     * ✅ Audit - date mise à jour
-     */
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * ✅ Compte activé ou non
-     *
-     * - true  → utilisateur peut se connecter
-     * - false → login bloqué (Spring Security via UserDetailsImpl.isEnabled())
-     */
     @Column(nullable = false)
     private boolean enabled = true;
 
-    /**
-     * Getter / Setter pour enabled
-     */
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
-    /**
-     * ✅ Date de dernière connexion réussie
-     *
-     * Mise à jour dans AuthService.authenticateUser()
-     */
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
@@ -114,14 +52,8 @@ public class User {
     public void setLastLoginAt(LocalDateTime lastLoginAt)
     { this.lastLoginAt = lastLoginAt; }
 
-    /**
-     * Constructeur vide requis par JPA
-     */
     public User() {}
 
-    /**
-     * Constructeur pratique
-     */
     public User(String firstName, String lastName, String email, String password, Role role) {
         this.firstName = firstName;
         this.lastName = lastName;
@@ -130,28 +62,17 @@ public class User {
         this.role = role;
     }
 
-    /**
-     * ✅ Méthode appelée automatiquement avant INSERT
-     * Initialise createdAt et updatedAt
-     */
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * ✅ Méthode appelée automatiquement avant UPDATE
-     * Met à jour updatedAt
-     */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
-    // =========================
-// SUBSCRIPTION (OWNER)
-// =========================
     public enum SubscriptionStatus {
         TRIAL, ACTIVE, EXPIRED
     }
@@ -247,19 +168,10 @@ public class User {
     // MÉTHODES UTILITAIRES RÔLE
     // =========================
 
-    /**
-     * ✅ Retourne le nom du rôle sous forme String
-     * Exemple: "ROLE_ADMIN"
-     */
     public String getRoleName() {
         return role != null ? role.getName() : null;
     }
 
-    /**
-     * ✅ Retourne le rôle sous forme d'enum (Role.ERole)
-     *
-     * Sécurise contre erreurs si role null ou invalide.
-     */
     public Role.ERole getRoleEnum() {
         if (role == null || role.getName() == null) {
             return null;
@@ -271,16 +183,11 @@ public class User {
         }
     }
 
-    /**
-     * ✅ Vérifie si l'utilisateur possède un rôle spécifique (enum)
-     */
+
     public boolean hasRole(Role.ERole roleEnum) {
         return getRoleEnum() == roleEnum;
     }
 
-    /**
-     * ✅ Vérifie si l'utilisateur possède un rôle spécifique (String)
-     */
     public boolean hasRole(String roleName) {
         return role != null
                 && role.getName() != null

@@ -21,23 +21,15 @@ public class SubscriptionGuard {
 
         User u = userRepository.findByEmailIgnoreCase(auth.getName())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        // ✅ Ne rien faire si pas OWNER (DRIVER/ADMIN ne sont pas concernés)
         if (!"ROLE_OWNER".equals(u.getRoleName())) return;
-
-        // ✅ ACTIVE: paidUntil doit être futur
         if (u.getSubscriptionStatus() == User.SubscriptionStatus.ACTIVE) {
             if (u.getPaidUntil() != null && u.getPaidUntil().isAfter(LocalDateTime.now())) return;
             throw new SubscriptionExpiredException();
         }
-
-        // ✅ TRIAL: trialEndAt doit être futur
         if (u.getSubscriptionStatus() == User.SubscriptionStatus.TRIAL) {
             if (u.getTrialEndAt() != null && u.getTrialEndAt().isAfter(LocalDateTime.now())) return;
             throw new SubscriptionExpiredException();
         }
-
-        // ✅ EXPIRED
         throw new SubscriptionExpiredException();
     }
 }
