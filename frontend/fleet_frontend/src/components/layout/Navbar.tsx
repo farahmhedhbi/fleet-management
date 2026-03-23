@@ -26,8 +26,6 @@ interface NavbarProps {
   setSidebarOpen: (open: boolean) => void;
 }
 
-const PLAYED_TOAST_IDS_STORAGE_KEY = "played-notification-toast-ids";
-
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
@@ -83,32 +81,6 @@ function isOwnerLateStartNotification(notification: Notification) {
   return notification?.title?.trim().toLowerCase() === "mission démarrée en retard";
 }
 
-function getStoredPlayedToastIds(): number[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const raw = localStorage.getItem(PLAYED_TOAST_IDS_STORAGE_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((id) => typeof id === "number");
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredPlayedToastIds(ids: number[]) {
-  if (typeof window === "undefined") return;
-
-  try {
-    localStorage.setItem(PLAYED_TOAST_IDS_STORAGE_KEY, JSON.stringify(ids));
-  } catch {
-    // ignore
-  }
-}
-
 export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -119,6 +91,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // popup flottante seulement pour le driver en retard
   const [floatingAlert, setFloatingAlert] = useState<Notification | null>(null);
 
   const isMountedRef = useRef(true);
@@ -126,8 +99,6 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
   useEffect(() => {
     isMountedRef.current = true;
-    alreadyPlayedIdsRef.current = new Set(getStoredPlayedToastIds());
-
     return () => {
       isMountedRef.current = false;
     };
@@ -181,16 +152,16 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
     (list: Notification[]) => {
       const driverLateUnread = list.filter((n) => isDriverLateAlert(n) && !n.read);
 
+      // popup flottante pour le driver
       setFloatingAlert(driverLateUnread.length > 0 ? driverLateUnread[0] : null);
 
+      // son + toast une seule fois pour alerte driver
       const newDriverLateUnread = driverLateUnread.filter(
         (n) => typeof n.id === "number" && !alreadyPlayedIdsRef.current.has(n.id)
       );
 
       if (newDriverLateUnread.length > 0) {
         newDriverLateUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
-        saveStoredPlayedToastIds([...alreadyPlayedIdsRef.current]);
-
         playLateAlertSound();
 
         const latest = newDriverLateUnread[0];
@@ -199,6 +170,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
         });
       }
 
+      // toast orange pour owner : mission démarrée en retard
       const ownerLateStartUnread = list.filter(
         (n) =>
           isOwnerLateStartNotification(n) &&
@@ -209,7 +181,6 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
       if (ownerLateStartUnread.length > 0) {
         ownerLateStartUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
-        saveStoredPlayedToastIds([...alreadyPlayedIdsRef.current]);
 
         const latest = ownerLateStartUnread[0];
         toast.warn(latest.message || "Mission démarrée en retard", {
@@ -300,6 +271,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
     return () => clearInterval(timer);
   }, [canSeeNotifs, loadUnreadCount, loadNotifications]);
 
+  // popup driver toutes les 60 secondes tant qu'elle est non lue
   useEffect(() => {
     if (!canSeeNotifs) return;
 
