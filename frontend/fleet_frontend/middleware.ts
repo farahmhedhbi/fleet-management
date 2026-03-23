@@ -9,7 +9,9 @@ const ROLES = {
 } as const;
 
 function matches(pathname: string, routes: string[]) {
-  return routes.some((route) => pathname === route || pathname.startsWith(route + "/"));
+  return routes.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
+  );
 }
 
 function getDefaultDashboardByRole(role?: string) {
@@ -29,7 +31,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const role = request.cookies.get("role")?.value;
 
-  // ✅ Routes publiques
+  // Routes publiques
   const publicRoutes = [
     "/",
     "/login",
@@ -37,7 +39,7 @@ export function middleware(request: NextRequest) {
     "/reset-password",
   ];
 
-  // ✅ Routes protégées
+  // Routes protégées
   const protectedRoutes = [
     "/dashboard",
     "/drivers",
@@ -46,18 +48,32 @@ export function middleware(request: NextRequest) {
     "/settings",
     "/missions",
     "/my-missions",
+    "/my-profile",
     "/owner",
     "/change-password",
     "/owner/billing",
+
+    // admin
+    "/admin/owners",
+    "/admin/users",
+    "/admin/subscriptions",
     "/admin/payments",
+
+    // communes
+    "/schedule",
+    "/documents",
   ];
 
-  // ✅ Routes par rôle
+  // Routes admin seulement
   const adminOnlyRoutes = [
     "/settings",
+    "/admin/owners",
+    "/admin/users",
+    "/admin/subscriptions",
     "/admin/payments",
   ];
 
+  // Owner ou admin
   const ownerOrAdminRoutes = [
     "/drivers",
     "/vehicles",
@@ -66,35 +82,43 @@ export function middleware(request: NextRequest) {
     "/owner/billing",
   ];
 
+  // Owner seulement
   const ownerOnlyRoutes = [
     "/owner",
   ];
 
+  // Driver seulement
   const driverOnlyRoutes = [
     "/my-missions",
+    "/my-profile",
   ];
 
+  // Routes partagées authentifiées
   const sharedAuthenticatedRoutes = [
     "/dashboard",
     "/change-password",
+    "/schedule",
+    "/documents",
   ];
 
   const isPublicRoute = matches(pathname, publicRoutes);
   const isProtectedRoute = matches(pathname, protectedRoutes);
 
-  // ✅ Si pas connecté et essaie d’entrer dans une route protégée
+  // Non connecté + route protégée
   if (!token && isProtectedRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // ✅ Si connecté et ouvre une route publique => rediriger selon rôle
+  // Connecté + route publique
   if (token && isPublicRoute) {
-    return NextResponse.redirect(new URL(getDefaultDashboardByRole(role), request.url));
+    return NextResponse.redirect(
+      new URL(getDefaultDashboardByRole(role), request.url)
+    );
   }
 
-  // ✅ Si connecté mais rôle absent/corrompu
+  // Token présent mais rôle absent
   if (token && isProtectedRoute && !role) {
     const res = NextResponse.redirect(new URL("/login", request.url));
     res.cookies.delete("token");
@@ -102,14 +126,12 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
-  // ✅ Contrôle d’accès par rôle
+  // Contrôle d’accès
   if (token && isProtectedRoute) {
-    // Routes partagées pour tout utilisateur authentifié
     if (matches(pathname, sharedAuthenticatedRoutes)) {
       return NextResponse.next();
     }
 
-    // Admin only
     if (matches(pathname, adminOnlyRoutes)) {
       if (role !== ROLES.ADMIN) {
         return NextResponse.redirect(
@@ -119,7 +141,6 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Owner ou Admin
     if (matches(pathname, ownerOrAdminRoutes)) {
       if (!(role === ROLES.OWNER || role === ROLES.ADMIN)) {
         return NextResponse.redirect(
@@ -129,7 +150,6 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Owner only
     if (matches(pathname, ownerOnlyRoutes)) {
       if (role !== ROLES.OWNER) {
         return NextResponse.redirect(
@@ -139,7 +159,6 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Driver only
     if (matches(pathname, driverOnlyRoutes)) {
       if (role !== ROLES.DRIVER) {
         return NextResponse.redirect(

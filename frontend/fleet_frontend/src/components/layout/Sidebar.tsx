@@ -58,7 +58,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
 
     // DRIVER
-    { name: "My Profile", href: "/my-profile", icon: UserCircle2, show: isDriver },
+    
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
 
     // OWNER
