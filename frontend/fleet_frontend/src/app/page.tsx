@@ -512,7 +512,7 @@ export default function Home() {
               transition={{ duration: 0.6 }}
               className="relative grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-lg"
             >
-              <span className="text-lg">⚡</span>
+              <span className="text-lg">🚘</span>
               <span className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-emerald-400" />
             </motion.div>
             <div className="leading-tight">

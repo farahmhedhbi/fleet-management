@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { RefObject } from "react";
 import { Vehicle } from "@/types/vehicle";
 import {
@@ -44,12 +43,9 @@ interface VehiclesViewProps {
   setSelectedVehicle: (vehicle: Vehicle | null) => void;
   viewMode: "grid" | "table";
   setViewMode: (value: "grid" | "table") => void;
-
-  // ✅ correction ici
   containerRef: RefObject<HTMLDivElement>;
 
   onDelete: (id: number) => void;
-  onAssignDriver: (vehicleId: number) => void;
   onExportPDF: () => void;
   onRefresh: () => void;
   onEdit: (id: number) => void;
@@ -77,7 +73,6 @@ export default function VehiclesView({
   setViewMode,
   containerRef,
   onDelete,
-  onAssignDriver,
   onExportPDF,
   onEdit,
   onCreate,
@@ -495,37 +490,7 @@ export default function VehiclesView({
                       </div>
                     </div>
 
-                    <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-200">
-                      {vehicle.driverName ? (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {vehicle.driverName}
-                            </p>
-                            {vehicle.driverEmail && (
-                              <p className="text-xs text-slate-500">
-                                {vehicle.driverEmail}
-                              </p>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            Assigné
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-slate-500">
-                            Aucun conducteur assigné
-                          </p>
-                          <button
-                            onClick={() => onAssignDriver(vehicle.id)}
-                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            Assigner
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                   
 
                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                       <div className="flex items-center gap-3">

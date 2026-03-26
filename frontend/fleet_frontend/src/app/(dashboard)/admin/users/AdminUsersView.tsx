@@ -9,7 +9,6 @@ import {
   RefreshCcw,
   Search,
   Trash2,
-  Pencil,
   X,
   Save,
   Shield,
@@ -18,7 +17,7 @@ import {
   UserCog,
   KeyRound,
 } from "lucide-react";
-import { ROLES_EDIT, roleChip } from "./page";
+import { roleChip } from "./page";
 
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -30,30 +29,19 @@ interface AdminUsersViewProps {
   isRefreshing: boolean;
   q: string;
   open: boolean;
-  mode: "invite" | "edit";
-  editing: User | null;
   firstName: string;
   lastName: string;
   email: string;
   role: RoleName;
-  licenseNumber: string;
-  newPassword: string;
   stats: {
     total: number;
     owner: number;
   };
-  isInvite: boolean;
-  effectiveRole: RoleName;
-  isDriver: boolean;
   onQChange: (value: string) => void;
   onFirstNameChange: (value: string) => void;
   onLastNameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
-  onRoleChange: (value: RoleName) => void;
-  onLicenseNumberChange: (value: string) => void;
-  onNewPasswordChange: (value: string) => void;
   onOpenInvite: () => void;
-  onOpenEdit: (user: User) => void;
   onClose: () => void;
   onSubmit: () => void;
   onDelete: (user: User) => void;
@@ -66,27 +54,16 @@ export default function AdminUsersView({
   isRefreshing,
   q,
   open,
-  mode,
-  editing,
   firstName,
   lastName,
   email,
   role,
-  licenseNumber,
-  newPassword,
   stats,
-  isInvite,
-  effectiveRole,
-  isDriver,
   onQChange,
   onFirstNameChange,
   onLastNameChange,
   onEmailChange,
-  onRoleChange,
-  onLicenseNumberChange,
-  onNewPasswordChange,
   onOpenInvite,
-  onOpenEdit,
   onClose,
   onSubmit,
   onDelete,
@@ -97,7 +74,7 @@ export default function AdminUsersView({
       <AdminOnly>
         <AdminShell
           title="Users Management"
-          subtitle="Invite, update and delete platform users."
+          subtitle="Invite and delete platform owners."
         >
           <div className="space-y-6">
             <div className="flex items-start justify-between gap-4">
@@ -110,7 +87,7 @@ export default function AdminUsersView({
               <div className="flex items-center gap-2">
                 <button
                   onClick={onRefresh}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
                 >
                   <RefreshCcw
                     className={isRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
@@ -120,7 +97,7 @@ export default function AdminUsersView({
 
                 <button
                   onClick={onOpenInvite}
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-green-500/25"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-green-500/25"
                 >
                   <Plus className="h-4 w-4" />
                   Invite Owner
@@ -153,7 +130,7 @@ export default function AdminUsersView({
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
               <div className="border-b border-slate-200 bg-slate-50 p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-bold text-slate-900">All Users</div>
+                  <div className="font-bold text-slate-900">All Owners</div>
 
                   <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700">
                     <Users className="h-4 w-4" />
@@ -166,7 +143,7 @@ export default function AdminUsersView({
                   <input
                     value={q}
                     onChange={(e) => onQChange(e.target.value)}
-                    placeholder="Search by name/email/role..."
+                    placeholder="Search by name or email..."
                     className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-200"
                   />
                 </div>
@@ -174,13 +151,13 @@ export default function AdminUsersView({
 
               <div className="p-5">
                 {loading ? (
-                  <div className="space-y-3 animate-pulse">
+                  <div className="animate-pulse space-y-3">
                     <div className="h-14 rounded-2xl bg-slate-200" />
                     <div className="h-14 rounded-2xl bg-slate-200" />
                     <div className="h-14 rounded-2xl bg-slate-200" />
                   </div>
                 ) : users.length === 0 ? (
-                  <div className="text-slate-600">No users found.</div>
+                  <div className="text-slate-600">No owners found.</div>
                 ) : (
                   <div className="space-y-3">
                     {users.map((u) => (
@@ -232,14 +209,6 @@ export default function AdminUsersView({
 
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => onOpenEdit(u)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
-                          >
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </button>
-
-                          <button
                             onClick={() => onDelete(u)}
                             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 via-red-600 to-rose-700 px-3 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-red-500/25"
                           >
@@ -260,30 +229,22 @@ export default function AdminUsersView({
                   <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-5">
                     <div className="flex items-start gap-3">
                       <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-900 text-white shadow-md">
-                        {mode === "invite" ? (
-                          <KeyRound className="h-5 w-5" />
-                        ) : (
-                          <Pencil className="h-5 w-5" />
-                        )}
+                        <KeyRound className="h-5 w-5" />
                       </div>
 
                       <div>
                         <div className="text-xs font-extrabold text-slate-600">
-                          {mode === "invite" ? "INVITE OWNER" : "EDIT USER"}
+                          INVITE OWNER
                         </div>
                         <div className="text-xl font-extrabold text-slate-900">
-                          {mode === "invite"
-                            ? "Invitation Owner"
-                            : `${editing?.firstName} ${editing?.lastName}`}
+                          Invitation Owner
                         </div>
-                        {mode === "invite" && (
-                          <div className="mt-1 text-sm font-semibold text-slate-600">
-                            Rôle :{" "}
-                            <span className="font-extrabold text-emerald-700">
-                              ROLE_OWNER
-                            </span>
-                          </div>
-                        )}
+                        <div className="mt-1 text-sm font-semibold text-slate-600">
+                          Rôle :{" "}
+                          <span className="font-extrabold text-emerald-700">
+                            {role}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -331,60 +292,6 @@ export default function AdminUsersView({
                       />
                     </div>
 
-                    {!isInvite && (
-                      <>
-                        <div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            Role
-                          </div>
-                          <select
-                            value={role}
-                            onChange={(e) => onRoleChange(e.target.value as RoleName)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                          >
-                            {ROLES_EDIT.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {isDriver && (
-                          <div>
-                            <div className="text-sm font-semibold text-slate-700">
-                              License number
-                            </div>
-                            <input
-                              value={licenseNumber}
-                              onChange={(e) =>
-                                onLicenseNumberChange(e.target.value)
-                              }
-                              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                            />
-                          </div>
-                        )}
-
-                        <div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            New password
-                          </div>
-                          <input
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => onNewPasswordChange(e.target.value)}
-                            placeholder="Laisser vide pour ne pas changer"
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-200"
-                          />
-                        </div>
-
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                          Rôle sélectionné :{" "}
-                          <span className="font-extrabold">{effectiveRole}</span>
-                        </div>
-                      </>
-                    )}
-
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button
                         onClick={onClose}
@@ -399,7 +306,7 @@ export default function AdminUsersView({
                         className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-2 text-sm font-extrabold text-white shadow-lg transition-all hover:shadow-lg"
                       >
                         <Save className="h-4 w-4" />
-                        {mode === "invite" ? "Send Invite" : "Save"}
+                        Send Invite
                       </button>
                     </div>
                   </div>

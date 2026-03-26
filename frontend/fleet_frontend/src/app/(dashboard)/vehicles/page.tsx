@@ -25,7 +25,6 @@ export default function VehiclesPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
 
-  // ✅ correction ici
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,19 +113,6 @@ export default function VehiclesPage() {
       fetchVehicles();
     } catch {
       alert("Failed to delete vehicle");
-    }
-  };
-
-  const handleAssignDriver = async (vehicleId: number) => {
-    const driverId = prompt("Enter driver ID:");
-    if (driverId && !isNaN(parseInt(driverId))) {
-      try {
-        await vehicleService.assignDriver(vehicleId, parseInt(driverId, 10));
-        fetchVehicles();
-        alert("Driver assigned successfully!");
-      } catch {
-        alert("Failed to assign driver");
-      }
     }
   };
 
@@ -236,7 +222,6 @@ export default function VehiclesPage() {
       setViewMode={setViewMode}
       containerRef={containerRef}
       onDelete={handleDelete}
-      onAssignDriver={handleAssignDriver}
       onExportPDF={handleExportPDF}
       onRefresh={fetchVehicles}
       onEdit={(id) => router.push(`/vehicles/edit/${id}`)}

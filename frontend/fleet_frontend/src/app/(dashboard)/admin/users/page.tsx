@@ -2,15 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { adminService } from "@/lib/services/adminService";
-import type { User, RoleName, InviteOwnerDTO, UpdateUserDTO } from "@/types/user";
+import type { User, RoleName, InviteOwnerDTO } from "@/types/user";
 import { toastError, toastSuccess } from "@/components/ui/Toast";
 import AdminUsersView from "./AdminUsersView";
 
-export const ROLES_EDIT: RoleName[] = [
-  "ROLE_OWNER",
-  "ROLE_DRIVER",
-  "ROLE_API_CLIENT",
-];
+export const ROLES_EDIT: RoleName[] = ["ROLE_OWNER"];
 
 export function isAdminRole(role?: string) {
   const r = String(role || "").toUpperCase();
@@ -41,20 +37,12 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
 
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"invite" | "edit">("invite");
-  const [editing, setEditing] = useState<User | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
 
-  const [role, setRole] = useState<RoleName>("ROLE_OWNER");
-  const [licenseNumber, setLicenseNumber] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-
-  const isInvite = mode === "invite";
-  const effectiveRole: RoleName = isInvite ? "ROLE_OWNER" : role;
-  const isDriver = effectiveRole === "ROLE_DRIVER";
+  const role: RoleName = "ROLE_OWNER";
 
   const visibleUsers = useMemo(() => {
     return (users || []).filter((u) => !isAdminRole(u.role));
@@ -106,33 +94,10 @@ export default function AdminUsersPage() {
     setFirstName("");
     setLastName("");
     setEmail("");
-    setRole("ROLE_OWNER");
-    setLicenseNumber("");
-    setNewPassword("");
-    setEditing(null);
   }
 
   function openInvite() {
     resetForm();
-    setMode("invite");
-    setRole("ROLE_OWNER");
-    setOpen(true);
-  }
-
-  function openEdit(u: User) {
-    if (isAdminRole(u.role)) {
-      toastError("Modification des comptes ADMIN interdite.");
-      return;
-    }
-
-    resetForm();
-    setMode("edit");
-    setEditing(u);
-    setFirstName(u.firstName || "");
-    setLastName(u.lastName || "");
-    setEmail(u.email || "");
-    setRole((u.role as RoleName) || "ROLE_OWNER");
-    setLicenseNumber((u as any).licenseNumber || "");
     setOpen(true);
   }
 
@@ -142,68 +107,30 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (!isInvite && isDriver && !licenseNumber.trim()) {
-      toastError("Le numéro de permis est obligatoire pour un conducteur.");
-      return;
-    }
-
     try {
-      if (mode === "invite") {
-        const payload: InviteOwnerDTO = {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim().toLowerCase(),
-          role: "ROLE_OWNER",
-        };
+      const payload: InviteOwnerDTO = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        role: "ROLE_OWNER",
+      };
 
-        const invited = await adminService.inviteOwner(payload);
+      const invited = await adminService.inviteOwner(payload);
 
-        if (!isAdminRole(invited?.role)) {
-          setUsers((prev) => [invited, ...(prev || [])]);
-        }
-
-        toastSuccess(
-          "Invitation envoyée. L’owner recevra un email avec un mot de passe temporaire et devra le changer à la première connexion."
-        );
-        setOpen(false);
-        return;
+      if (!isAdminRole(invited?.role)) {
+        setUsers((prev) => [invited, ...(prev || [])]);
       }
 
-      if (mode === "edit" && editing) {
-        if (isAdminRole(effectiveRole)) {
-          toastError("Impossible de définir ROLE_ADMIN depuis cette page.");
-          return;
-        }
-
-        const payload: UpdateUserDTO = {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim().toLowerCase(),
-          role: effectiveRole,
-          ...(newPassword.trim() ? { password: newPassword.trim() } : {}),
-          ...(isDriver ? { licenseNumber: licenseNumber.trim() } : {}),
-        };
-
-        const updated = await adminService.updateUser(editing.id, payload);
-
-        if (isAdminRole(updated?.role)) {
-          setUsers((prev) => (prev || []).filter((x) => x.id !== editing.id));
-        } else {
-          setUsers((prev) =>
-            (prev || []).map((x) =>
-              x.id === updated.id ? { ...x, ...updated } : x
-            )
-          );
-        }
-
-        toastSuccess("Utilisateur mis à jour avec succès.");
-        setOpen(false);
-      }
+      toastSuccess(
+        "Invitation envoyée. L’owner recevra un email avec un mot de passe temporaire et devra le changer à la première connexion."
+      );
+      setOpen(false);
+      resetForm();
     } catch (e: any) {
       toastError(
         e?.response?.data?.error ||
           e?.response?.data?.message ||
-          "Erreur save user"
+          "Erreur invitation owner"
       );
     }
   }
@@ -237,27 +164,16 @@ export default function AdminUsersPage() {
       isRefreshing={isRefreshing}
       q={q}
       open={open}
-      mode={mode}
-      editing={editing}
       firstName={firstName}
       lastName={lastName}
       email={email}
       role={role}
-      licenseNumber={licenseNumber}
-      newPassword={newPassword}
       stats={stats}
-      isInvite={isInvite}
-      effectiveRole={effectiveRole}
-      isDriver={isDriver}
       onQChange={setQ}
       onFirstNameChange={setFirstName}
       onLastNameChange={setLastName}
       onEmailChange={setEmail}
-      onRoleChange={setRole}
-      onLicenseNumberChange={setLicenseNumber}
-      onNewPasswordChange={setNewPassword}
       onOpenInvite={openInvite}
-      onOpenEdit={openEdit}
       onClose={() => setOpen(false)}
       onSubmit={submit}
       onDelete={remove}

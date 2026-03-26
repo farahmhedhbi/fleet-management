@@ -1,3 +1,6 @@
+
+
+
 "use client";
 
 import Link from "next/link";
@@ -94,38 +97,6 @@ export default function LoginView({
             <StatPill icon={<ShieldCheck className="h-4 w-4" />} label="Accès sécurisé" />
             <StatPill icon={<MapPin className="h-4 w-4" />} label="Tracking temps réel" />
             <StatPill icon={<Sparkles className="h-4 w-4" />} label="Insights IA" />
-          </div>
-
-          <div className="mt-10 rounded-[28px] border border-slate-200 bg-white/70 p-5 shadow-sm backdrop-blur">
-            <p className="text-sm font-extrabold text-slate-900">Comptes de test</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Cliquez pour remplir automatiquement le formulaire.
-            </p>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {testAccounts.map((a) => (
-                <button
-                  key={a.role}
-                  type="button"
-                  onClick={() => onFillTestAccount(a)}
-                  className={cn(
-                    "group rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-                    a.chip
-                  )}
-                >
-                  <p className={cn("text-sm font-extrabold", a.color)}>{a.role}</p>
-                  <p className="mt-1 truncate text-xs font-semibold text-slate-600">{a.email}</p>
-                  <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <span className="rounded-full bg-white/70 px-2 py-1">••••••</span>
-                    <span className="opacity-70 transition group-hover:translate-x-0.5">→</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <p className="mt-4 text-xs text-slate-500">
-              Ces comptes sont créés automatiquement quand le backend démarre.
-            </p>
           </div>
         </div>
 
