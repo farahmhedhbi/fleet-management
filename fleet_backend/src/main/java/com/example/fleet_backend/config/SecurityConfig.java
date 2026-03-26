@@ -90,6 +90,7 @@ public class SecurityConfig {
                         .hasAuthority("ROLE_ADMIN")
 
                         .requestMatchers("/api/auth/me").authenticated()
+                        .requestMatchers("/api/gps/**").permitAll()
 
                         // Tout le reste sécurisé
                         .anyRequest().authenticated()
