@@ -35,7 +35,8 @@ public class DriverDTO {
     // =========================
     // GETTERS & SETTERS
     // =========================
-
+    public DriverDTO() {
+    }
     public Long getId() {
         return id;
     }

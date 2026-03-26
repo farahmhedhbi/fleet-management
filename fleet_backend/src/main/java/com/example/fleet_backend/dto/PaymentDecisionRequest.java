@@ -3,6 +3,7 @@ package com.example.fleet_backend.dto;
 public class PaymentDecisionRequest {
 
     private String comment;
+    public PaymentDecisionRequest() {}
 
     public PaymentDecisionRequest(String comment) {
         this.comment = comment;

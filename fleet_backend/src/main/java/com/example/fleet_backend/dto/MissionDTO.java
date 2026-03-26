@@ -18,7 +18,9 @@ public class MissionDTO {
     private String driverName;
     private String driverEmail;
 
+    public MissionDTO() {
 
+    }
 
     public MissionDTO(Mission m) {
         this.id = m.getId();
