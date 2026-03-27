@@ -33,14 +33,13 @@ public class GpsDataService {
                 ? request.getTimestamp()
                 : LocalDateTime.now();
 
-        GpsData gpsData = new GpsData(
-                request.getLatitude(),
-                request.getLongitude(),
-                request.getSpeed(),
-                request.getEngineOn(),
-                timestamp,
-                vehicle
-        );
+        GpsData gpsData = new GpsData();
+        gpsData.setLatitude(request.getLatitude());
+        gpsData.setLongitude(request.getLongitude());
+        gpsData.setSpeed(request.getSpeed());
+        gpsData.setEngineOn(request.getEngineOn());
+        gpsData.setTimestamp(timestamp);
+        gpsData.setVehicle(vehicle);
 
         gpsDataRepository.save(gpsData);
     }

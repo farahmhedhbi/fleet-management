@@ -57,6 +57,7 @@ public class SecurityConfig {
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
+                        .requestMatchers("/api/simulator/**").permitAll()
 
                         // FICHIERS STATIQUES UPLOADÉS
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()

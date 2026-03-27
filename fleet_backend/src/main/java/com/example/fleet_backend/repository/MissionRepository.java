@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface MissionRepository extends JpaRepository<Mission, Long> {
 
@@ -39,4 +40,6 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                                 @Param("endDate") LocalDateTime endDate);
 
     List<Mission> findByStatusAndStartDateBefore(Mission.MissionStatus status, LocalDateTime now);
+
+    Optional<Mission> findFirstByVehicleIdAndStatus(Long vehicleId, Mission.MissionStatus status);
 }

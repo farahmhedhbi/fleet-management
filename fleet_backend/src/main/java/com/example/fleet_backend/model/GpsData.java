@@ -26,21 +26,24 @@ public class GpsData {
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_id", nullable = false)
+    // ✅ NEW FIELD
+    @Column(name = "route_id")
+    private String routeId;
+
+    // ✅ NEW FIELD
+    @Column(name = "route_source")
+    private String routeSource;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "vehicle_id")
     private Vehicle vehicle;
 
     public GpsData() {
     }
 
-    public GpsData(Double latitude, Double longitude, Double speed, Boolean engineOn, LocalDateTime timestamp, Vehicle vehicle) {
-        this.latitude = latitude;
-        this.longitude = longitude;
-        this.speed = speed;
-        this.engineOn = engineOn;
-        this.timestamp = timestamp;
-        this.vehicle = vehicle;
-    }
+    // =========================
+    // GETTERS & SETTERS
+    // =========================
 
     public Long getId() {
         return id;
@@ -78,12 +81,33 @@ public class GpsData {
         this.engineOn = engineOn;
     }
 
+    // 🔥 مهم: هذا هو الحل للخطأ متاعك
+    public boolean isEngineOn() {
+        return engineOn != null && engineOn;
+    }
+
     public LocalDateTime getTimestamp() {
         return timestamp;
     }
 
     public void setTimestamp(LocalDateTime timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public String getRouteId() {
+        return routeId;
+    }
+
+    public void setRouteId(String routeId) {
+        this.routeId = routeId;
+    }
+
+    public String getRouteSource() {
+        return routeSource;
+    }
+
+    public void setRouteSource(String routeSource) {
+        this.routeSource = routeSource;
     }
 
     public Vehicle getVehicle() {

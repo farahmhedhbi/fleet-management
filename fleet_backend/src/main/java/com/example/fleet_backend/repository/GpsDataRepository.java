@@ -11,4 +11,6 @@ public interface GpsDataRepository extends JpaRepository<GpsData, Long> {
     List<GpsData> findByVehicleIdOrderByTimestampDesc(Long vehicleId);
 
     Optional<GpsData> findTopByVehicleIdOrderByTimestampDesc(Long vehicleId);
+
+
 }

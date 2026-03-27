@@ -1,29 +1,39 @@
 package com.example.fleet_backend.controller;
 
-import com.example.fleet_backend.dto.GpsDataResponse;
-import com.example.fleet_backend.service.GpsDataService;
+import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
+import com.example.fleet_backend.model.GpsData;
+import com.example.fleet_backend.service.GpsService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/gps")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "*")
 public class GpsController {
 
-    private final GpsDataService gpsDataService;
+    private final GpsService gpsService;
 
-    public GpsController(GpsDataService gpsDataService) {
-        this.gpsDataService = gpsDataService;
+    public GpsController(GpsService gpsService) {
+        this.gpsService = gpsService;
+    }
+
+    @GetMapping("/live")
+    public ResponseEntity<List<VehicleLiveStatusDTO>> getLiveFleet() {
+        return ResponseEntity.ok(gpsService.getLiveFleet());
     }
 
     @GetMapping("/vehicle/{id}/last")
-    public GpsDataResponse getLastPosition(@PathVariable Long id) {
-        return gpsDataService.getLastPosition(id);
+    public ResponseEntity<GpsData> getLastPosition(@PathVariable Long id) {
+        Optional<GpsData> gpsData = gpsService.getLastPosition(id);
+        return gpsData.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/vehicle/{id}/history")
-    public List<GpsDataResponse> getHistory(@PathVariable Long id) {
-        return gpsDataService.getHistory(id);
+    public ResponseEntity<List<GpsData>> getHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(gpsService.getHistory(id));
     }
 }
