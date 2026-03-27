@@ -4,14 +4,20 @@ import com.example.fleet_backend.dto.GpsIncomingDTO;
 import com.example.fleet_backend.dto.GpsPointDTO;
 import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
+import com.example.fleet_backend.exception.ResourceNotFoundException;
+import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.GpsDataRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
+import com.example.fleet_backend.security.AuthUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,14 +35,17 @@ public class GpsService {
     private final GpsDataRepository gpsDataRepository;
     private final VehicleRepository vehicleRepository;
     private final MissionRepository missionRepository;
+    private final DriverRepository driverRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GpsService(GpsDataRepository gpsDataRepository,
                       VehicleRepository vehicleRepository,
-                      MissionRepository missionRepository) {
+                      MissionRepository missionRepository,
+                      DriverRepository driverRepository) {
         this.gpsDataRepository = gpsDataRepository;
         this.vehicleRepository = vehicleRepository;
         this.missionRepository = missionRepository;
+        this.driverRepository = driverRepository;
     }
 
     public void processIncomingGps(GpsIncomingDTO dto) {
@@ -70,13 +79,19 @@ public class GpsService {
         }
     }
 
-    public Optional<GpsPointDTO> getLastPosition(Long vehicleId) {
-        return gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicleId)
+    @Transactional(readOnly = true)
+    public Optional<GpsPointDTO> getLastPositionSecured(Long vehicleId, Authentication auth) {
+        Vehicle vehicle = getAuthorizedVehicle(vehicleId, auth);
+
+        return gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicle.getId())
                 .map(this::toGpsPointDTO);
     }
 
-    public List<GpsPointDTO> getHistory(Long vehicleId) {
-        return gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicleId)
+    @Transactional(readOnly = true)
+    public List<GpsPointDTO> getHistorySecured(Long vehicleId, Authentication auth) {
+        Vehicle vehicle = getAuthorizedVehicle(vehicleId, auth);
+
+        return gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicle.getId())
                 .stream()
                 .map(this::toGpsPointDTO)
                 .toList();
@@ -96,8 +111,9 @@ public class GpsService {
         );
     }
 
-    public List<VehicleLiveStatusDTO> getLiveFleet() {
-        List<Vehicle> vehicles = vehicleRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<VehicleLiveStatusDTO> getLiveFleetSecured(Authentication auth) {
+        List<Vehicle> vehicles = getAuthorizedVehicles(auth);
         List<VehicleLiveStatusDTO> result = new ArrayList<>();
 
         for (Vehicle vehicle : vehicles) {
@@ -168,6 +184,56 @@ public class GpsService {
         }
 
         return result;
+    }
+
+    private List<Vehicle> getAuthorizedVehicles(Authentication auth) {
+        if (AuthUtil.isAdmin(auth)) {
+            return vehicleRepository.findAll();
+        }
+
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            Long ownerId = AuthUtil.userId(auth);
+            return vehicleRepository.findByOwnerId(ownerId);
+        }
+
+        if (AuthUtil.hasRole(auth, "DRIVER")) {
+            String email = auth.getName();
+            Driver driver = driverRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+            return vehicleRepository.findByDriverId(driver.getId());
+        }
+
+        throw new AccessDeniedException("Forbidden");
+    }
+
+    private Vehicle getAuthorizedVehicle(Long vehicleId, Authentication auth) {
+        Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + vehicleId));
+
+        if (AuthUtil.isAdmin(auth)) {
+            return vehicle;
+        }
+
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            Long ownerId = AuthUtil.userId(auth);
+            if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(ownerId)) {
+                throw new AccessDeniedException("Not your vehicle");
+            }
+            return vehicle;
+        }
+
+        if (AuthUtil.hasRole(auth, "DRIVER")) {
+            String email = auth.getName();
+            Driver driver = driverRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+
+            if (vehicle.getDriver() == null || !vehicle.getDriver().getId().equals(driver.getId())) {
+                throw new AccessDeniedException("Vehicle not assigned to you");
+            }
+            return vehicle;
+        }
+
+        throw new AccessDeniedException("Forbidden");
     }
 
     private List<MissionRoutePointDTO> parseMissionRoute(String routeJson) {

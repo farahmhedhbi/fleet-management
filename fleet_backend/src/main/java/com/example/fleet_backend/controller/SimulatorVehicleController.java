@@ -3,6 +3,7 @@ package com.example.fleet_backend.controller;
 import com.example.fleet_backend.dto.SimulatorVehicleDTO;
 import com.example.fleet_backend.service.SimulatorVehicleService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,7 +20,7 @@ public class SimulatorVehicleController {
     }
 
     @GetMapping("/vehicles")
-    public ResponseEntity<List<SimulatorVehicleDTO>> getVehiclesForSimulation() {
-        return ResponseEntity.ok(simulatorVehicleService.getVehiclesForSimulation());
+    public ResponseEntity<List<SimulatorVehicleDTO>> getVehiclesForSimulation(Authentication auth) {
+        return ResponseEntity.ok(simulatorVehicleService.getVehiclesForSimulationSecured(auth));
     }
 }
