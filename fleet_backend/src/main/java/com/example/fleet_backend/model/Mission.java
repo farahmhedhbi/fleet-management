@@ -52,6 +52,8 @@ public class Mission {
     private LocalDateTime finishedAt;
     @Column(name = "late_alert_sent", nullable = false)
     private boolean lateAlertSent = false;
+    @Column(columnDefinition = "TEXT")
+    private String routeJson;
 
     @PrePersist
     protected void onCreate() {
@@ -181,5 +183,12 @@ public class Mission {
 
     public void setFinishedAt(LocalDateTime finishedAt) {
         this.finishedAt = finishedAt;
+    }
+    public String getRouteJson() {
+        return routeJson;
+    }
+
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
     }
 }

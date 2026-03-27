@@ -1,7 +1,8 @@
 package com.example.fleet_backend.service;
 
-import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.dto.GpsIncomingDTO;
+import com.example.fleet_backend.dto.GpsPointDTO;
+import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.Mission;
@@ -9,6 +10,8 @@ import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.GpsDataRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +29,7 @@ public class GpsService {
     private final GpsDataRepository gpsDataRepository;
     private final VehicleRepository vehicleRepository;
     private final MissionRepository missionRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GpsService(GpsDataRepository gpsDataRepository,
                       VehicleRepository vehicleRepository,
@@ -66,12 +70,30 @@ public class GpsService {
         }
     }
 
-    public Optional<GpsData> getLastPosition(Long vehicleId) {
-        return gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicleId);
+    public Optional<GpsPointDTO> getLastPosition(Long vehicleId) {
+        return gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicleId)
+                .map(this::toGpsPointDTO);
     }
 
-    public List<GpsData> getHistory(Long vehicleId) {
-        return gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicleId);
+    public List<GpsPointDTO> getHistory(Long vehicleId) {
+        return gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicleId)
+                .stream()
+                .map(this::toGpsPointDTO)
+                .toList();
+    }
+
+    private GpsPointDTO toGpsPointDTO(GpsData gpsData) {
+        return new GpsPointDTO(
+                gpsData.getId(),
+                gpsData.getVehicle() != null ? gpsData.getVehicle().getId() : null,
+                gpsData.getLatitude(),
+                gpsData.getLongitude(),
+                gpsData.getSpeed(),
+                gpsData.isEngineOn(),
+                gpsData.getTimestamp(),
+                gpsData.getRouteId(),
+                gpsData.getRouteSource()
+        );
     }
 
     public List<VehicleLiveStatusDTO> getLiveFleet() {
@@ -98,22 +120,11 @@ public class GpsService {
                 Mission mission = activeMissionOpt.get();
 
                 if (mission.getDriver() != null) {
-                    String firstName = mission.getDriver().getFirstName() != null
-                            ? mission.getDriver().getFirstName()
-                            : "";
-                    String lastName = mission.getDriver().getLastName() != null
-                            ? mission.getDriver().getLastName()
-                            : "";
-
-                    currentDriverName = (firstName + " " + lastName).trim();
-                    if (currentDriverName.isBlank()) {
-                        currentDriverName = mission.getDriver().getEmail();
-                    }
+                    currentDriverName =
+                            mission.getDriver().getFirstName() + " " + mission.getDriver().getLastName();
                 }
 
-                // IMPORTANT:
-                // pas de route stockée dans Mission actuellement
-                missionRoute = Collections.emptyList();
+                missionRoute = parseMissionRoute(mission.getRouteJson());
             }
 
             if (lastGpsOpt.isEmpty()) {
@@ -157,6 +168,18 @@ public class GpsService {
         }
 
         return result;
+    }
+
+    private List<MissionRoutePointDTO> parseMissionRoute(String routeJson) {
+        if (routeJson == null || routeJson.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            return objectMapper.readValue(routeJson, new TypeReference<List<MissionRoutePointDTO>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     private String resolveVehicleName(Vehicle vehicle) {
