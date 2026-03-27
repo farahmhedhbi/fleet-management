@@ -18,6 +18,7 @@ import {
   CreditCard,
   ClipboardList,
   UserCircle2,
+  MapPinned,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
@@ -48,23 +49,23 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const isOwner = role === "ROLE_OWNER";
   const isDriver = role === "ROLE_DRIVER";
 
-  // ✅ OWNER premium visible seulement si abonnement actif (TRIAL valide ou ACTIVE valide)
   const isOwnerActive = useMemo(() => {
     if (!isOwner) return false;
     return isSubscriptionActive(user ?? undefined);
   }, [isOwner, user]);
 
   const items: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
+    { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
 
     // DRIVER
-    
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
+    { name: "Suivi GPS", href: "/driver/gps", icon: MapPinned, show: isDriver },
 
     // OWNER
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwnerActive },
     { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
+    { name: "Suivi GPS", href: "/owner/gps", icon: MapPinned, show: isOwnerActive },
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
 
     // OWNER billing
@@ -75,6 +76,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard, show: isAdmin },
     { name: "Payments", href: "/admin/payments", icon: CreditCard, show: isAdmin },
+    { name: "Suivi GPS", href: "/admin/gps", icon: MapPinned, show: isAdmin },
 
     // commun
     { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
@@ -130,7 +132,12 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                         : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                     )}
                   >
-                    <Icon className={cn("h-5 w-5 transition-transform", !active && "group-hover:scale-110")} />
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 transition-transform",
+                        !active && "group-hover:scale-110"
+                      )}
+                    />
                     <span>{it.name}</span>
                   </Link>
                 );
