@@ -14,27 +14,67 @@ public class GpsIncomingDTO {
 
     public GpsIncomingDTO() {}
 
-    public Long getVehicleId() { return vehicleId; }
-    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
+    public Long getVehicleId() {
+        return vehicleId;
+    }
 
-    public Double getLatitude() { return latitude; }
-    public void setLatitude(Double latitude) { this.latitude = latitude; }
+    public void setVehicleId(Long vehicleId) {
+        this.vehicleId = vehicleId;
+    }
 
-    public Double getLongitude() { return longitude; }
-    public void setLongitude(Double longitude) { this.longitude = longitude; }
+    public Double getLatitude() {
+        return latitude;
+    }
 
-    public Double getSpeed() { return speed; }
-    public void setSpeed(Double speed) { this.speed = speed; }
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
 
-    public boolean isEngineOn() { return engineOn; }
-    public void setEngineOn(boolean engineOn) { this.engineOn = engineOn; }
+    public Double getLongitude() {
+        return longitude;
+    }
 
-    public LocalDateTime getTimestamp() { return timestamp; }
-    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
 
-    public String getRouteId() { return routeId; }
-    public void setRouteId(String routeId) { this.routeId = routeId; }
+    public Double getSpeed() {
+        return speed;
+    }
 
-    public String getRouteSource() { return routeSource; }
-    public void setRouteSource(String routeSource) { this.routeSource = routeSource; }
+    public void setSpeed(Double speed) {
+        this.speed = speed;
+    }
+
+    public boolean isEngineOn() {
+        return engineOn;
+    }
+
+    public void setEngineOn(boolean engineOn) {
+        this.engineOn = engineOn;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public String getRouteId() {
+        return routeId;
+    }
+
+    public void setRouteId(String routeId) {
+        this.routeId = routeId;
+    }
+
+    public String getRouteSource() {
+        return routeSource;
+    }
+
+    public void setRouteSource(String routeSource) {
+        this.routeSource = routeSource;
+    }
 }

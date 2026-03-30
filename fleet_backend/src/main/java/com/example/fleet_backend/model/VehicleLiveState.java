@@ -4,12 +4,16 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "gps_data")
-public class GpsData {
+@Table(name = "vehicle_live_state")
+public class VehicleLiveState {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id", nullable = false, unique = true)
+    private Vehicle vehicle;
 
     @Column(nullable = false)
     private Double latitude;
@@ -21,10 +25,17 @@ public class GpsData {
     private Double speed;
 
     @Column(nullable = false)
-    private Boolean engineOn;
+    private boolean engineOn;
 
     @Column(nullable = false)
-    private LocalDateTime timestamp;
+    private LocalDateTime lastTimestamp;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private LiveStatus liveStatus;
+
+    @Column(name = "mission_id")
+    private Long missionId;
 
     @Column(name = "route_id")
     private String routeId;
@@ -32,14 +43,18 @@ public class GpsData {
     @Column(name = "route_source")
     private String routeSource;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "vehicle_id")
-    private Vehicle vehicle;
-
-    public GpsData() {}
+    public VehicleLiveState() {}
 
     public Long getId() {
         return id;
+    }
+
+    public Vehicle getVehicle() {
+        return vehicle;
+    }
+
+    public void setVehicle(Vehicle vehicle) {
+        this.vehicle = vehicle;
     }
 
     public Double getLatitude() {
@@ -66,24 +81,36 @@ public class GpsData {
         this.speed = speed;
     }
 
-    public Boolean getEngineOn() {
+    public boolean isEngineOn() {
         return engineOn;
     }
 
-    public void setEngineOn(Boolean engineOn) {
+    public void setEngineOn(boolean engineOn) {
         this.engineOn = engineOn;
     }
 
-    public boolean isEngineOn() {
-        return engineOn != null && engineOn;
+    public LocalDateTime getLastTimestamp() {
+        return lastTimestamp;
     }
 
-    public LocalDateTime getTimestamp() {
-        return timestamp;
+    public void setLastTimestamp(LocalDateTime lastTimestamp) {
+        this.lastTimestamp = lastTimestamp;
     }
 
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
+    public LiveStatus getLiveStatus() {
+        return liveStatus;
+    }
+
+    public void setLiveStatus(LiveStatus liveStatus) {
+        this.liveStatus = liveStatus;
+    }
+
+    public Long getMissionId() {
+        return missionId;
+    }
+
+    public void setMissionId(Long missionId) {
+        this.missionId = missionId;
     }
 
     public String getRouteId() {
@@ -100,13 +127,5 @@ public class GpsData {
 
     public void setRouteSource(String routeSource) {
         this.routeSource = routeSource;
-    }
-
-    public Vehicle getVehicle() {
-        return vehicle;
-    }
-
-    public void setVehicle(Vehicle vehicle) {
-        this.vehicle = vehicle;
     }
 }

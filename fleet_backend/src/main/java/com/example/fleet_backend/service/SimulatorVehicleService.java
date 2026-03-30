@@ -10,7 +10,10 @@ import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.security.AuthUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
@@ -25,13 +28,16 @@ public class SimulatorVehicleService {
     private final VehicleRepository vehicleRepository;
     private final MissionRepository missionRepository;
     private final DriverRepository driverRepository;
+    private final ObjectMapper objectMapper;
 
     public SimulatorVehicleService(VehicleRepository vehicleRepository,
                                    MissionRepository missionRepository,
-                                   DriverRepository driverRepository) {
+                                   DriverRepository driverRepository,
+                                   ObjectMapper objectMapper) {
         this.vehicleRepository = vehicleRepository;
         this.missionRepository = missionRepository;
         this.driverRepository = driverRepository;
+        this.objectMapper = objectMapper;
     }
 
     public List<SimulatorVehicleDTO> getVehiclesForSimulationSecured(Authentication auth) {
@@ -43,6 +49,10 @@ public class SimulatorVehicleService {
     }
 
     private List<Vehicle> getAuthorizedVehicles(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return vehicleRepository.findAll();
+        }
+
         if (AuthUtil.isAdmin(auth)) {
             return vehicleRepository.findAll();
         }
@@ -54,8 +64,11 @@ public class SimulatorVehicleService {
 
         if (AuthUtil.hasRole(auth, "DRIVER")) {
             String email = auth.getName();
+
             Driver driver = driverRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException("Driver not found for email: " + email));
+
             return vehicleRepository.findByDriverId(driver.getId());
         }
 
@@ -63,25 +76,23 @@ public class SimulatorVehicleService {
     }
 
     private SimulatorVehicleDTO toSimulatorDTO(Vehicle vehicle) {
-        Optional<Mission> activeMissionOpt =
-                missionRepository.findFirstByVehicleIdAndStatus(
-                        vehicle.getId(),
-                        Mission.MissionStatus.IN_PROGRESS
-                );
+        Optional<Mission> activeMissionOpt = missionRepository.findFirstByVehicleIdAndStatus(
+                vehicle.getId(),
+                Mission.MissionStatus.IN_PROGRESS
+        );
 
         boolean missionActive = activeMissionOpt.isPresent();
         Long missionId = null;
-        String routeSource = "STATIC";
         String routeId = "static-" + vehicle.getId();
+        String routeSource = "STATIC";
         List<MissionRoutePointDTO> missionRoute = Collections.emptyList();
 
         if (missionActive) {
             Mission mission = activeMissionOpt.get();
             missionId = mission.getId();
-            routeSource = "MISSION";
             routeId = "mission-" + mission.getId();
-
-            missionRoute = Collections.emptyList();
+            routeSource = "MISSION";
+            missionRoute = parseMissionRoute(mission.getRouteJson());
         }
 
         return new SimulatorVehicleDTO(
@@ -91,10 +102,25 @@ public class SimulatorVehicleService {
                 safeModel(vehicle),
                 missionActive,
                 missionId,
-                routeSource,
                 routeId,
+                routeSource,
                 missionRoute
         );
+    }
+
+    private List<MissionRoutePointDTO> parseMissionRoute(String routeJson) {
+        if (routeJson == null || routeJson.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            return objectMapper.readValue(
+                    routeJson,
+                    new TypeReference<List<MissionRoutePointDTO>>() {}
+            );
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     private String safeRegistration(Vehicle vehicle) {

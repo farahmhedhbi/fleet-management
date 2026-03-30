@@ -17,7 +17,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
@@ -48,35 +47,37 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
 
-                        // Preflight CORS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // AUTH PUBLIC
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
+
+                        .requestMatchers(HttpMethod.POST, "/api/gps/ingest").permitAll()
                         .requestMatchers("/api/simulator/**").permitAll()
 
-                        // FICHIERS STATIQUES UPLOADÉS
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 
-                        // VEHICLES READ
-                        .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
-                        .hasAnyAuthority(
-                                "ROLE_OWNER"
-                        )
+                        .requestMatchers(HttpMethod.GET, "/api/gps/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER")
 
-                        // DRIVER : son propre profil
-                        .requestMatchers(HttpMethod.GET, "/api/drivers/me")
+                        .requestMatchers("/api/events/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER")
+
+                        .requestMatchers("/api/missions/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER")
+
+                        .requestMatchers(HttpMethod.GET, "/api/vehicles/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_OWNER", "ROLE_DRIVER")
+
+                        .requestMatchers("/api/drivers/me")
                         .hasAuthority("ROLE_DRIVER")
 
-                        // OWNER : gestion de ses drivers
                         .requestMatchers("/api/drivers/**")
                         .hasAuthority("ROLE_OWNER")
 
-                        // VEHICLES WRITE
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_OWNER")
 
@@ -86,14 +87,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_OWNER")
 
-                        // ADMIN ZONE
                         .requestMatchers("/api/admin/**")
                         .hasAuthority("ROLE_ADMIN")
 
                         .requestMatchers("/api/auth/me").authenticated()
-                        .requestMatchers("/api/gps/**").permitAll()
 
-                        // Tout le reste sécurisé
                         .anyRequest().authenticated()
                 );
 

@@ -11,16 +11,16 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/simulator")
 @CrossOrigin(origins = "*")
-public class SimulatorVehicleController {
+public class SimulatorController {
 
     private final SimulatorVehicleService simulatorVehicleService;
 
-    public SimulatorVehicleController(SimulatorVehicleService simulatorVehicleService) {
+    public SimulatorController(SimulatorVehicleService simulatorVehicleService) {
         this.simulatorVehicleService = simulatorVehicleService;
     }
 
     @GetMapping("/vehicles")
-    public ResponseEntity<List<SimulatorVehicleDTO>> getVehiclesForSimulation(Authentication auth) {
+    public ResponseEntity<List<SimulatorVehicleDTO>> getVehiclesForSimulator(Authentication auth) {
         return ResponseEntity.ok(simulatorVehicleService.getVehiclesForSimulationSecured(auth));
     }
 }

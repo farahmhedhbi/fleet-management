@@ -7,86 +7,84 @@ import java.time.LocalDateTime;
 @Table(name = "missions")
 public class Mission {
 
+    public enum MissionStatus {
+        PLANNED,
+        IN_PROGRESS,
+        COMPLETED,
+        CANCELED
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 150)
     private String title;
 
-    @Column(length = 2000)
+    @Column(length = 1000)
     private String description;
 
-    @Column(name = "start_date", nullable = false)
+    @Column(nullable = false, length = 255)
+    private String departure;
+
+    @Column(nullable = false, length = 255)
+    private String destination;
+
+    @Column(nullable = false)
     private LocalDateTime startDate;
 
-    @Column(name = "end_date", nullable = false)
+    @Column(nullable = false)
     private LocalDateTime endDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private MissionStatus status = MissionStatus.PLANNED;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "vehicle_id", nullable = false)
-    private Vehicle vehicle;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "driver_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
     private Driver driver;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
-    private User owner;
+    @JoinColumn(name = "vehicle_id")
+    private Vehicle vehicle;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "started_at")
-    private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
-    private LocalDateTime finishedAt;
-    @Column(name = "late_alert_sent", nullable = false)
-    private boolean lateAlertSent = false;
     @Column(columnDefinition = "TEXT")
     private String routeJson;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-        if (status == null) status = MissionStatus.PLANNED;
-    }
-    public boolean isLateAlertSent() {
-        return lateAlertSent;
-    }
+    @Column(nullable = false)
+    private Boolean lateAlertSent = false;
 
-    public void setLateAlertSent(boolean lateAlertSent) {
-        this.lateAlertSent = lateAlertSent;
+    private LocalDateTime startedAt;
+    private LocalDateTime finishedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        if (status == null) {
+            status = MissionStatus.PLANNED;
+        }
+        if (lateAlertSent == null) {
+            lateAlertSent = false;
+        }
     }
 
     @PreUpdate
-    protected void onUpdate() {
+    public void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
-    public enum MissionStatus {
-        PLANNED,
-        IN_PROGRESS,
-        DONE,
-        CANCELED
-    }
+    public Mission() {}
 
     public Long getId() {
         return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getTitle() {
@@ -103,6 +101,22 @@ public class Mission {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getDeparture() {
+        return departure;
+    }
+
+    public void setDeparture(String departure) {
+        this.departure = departure;
+    }
+
+    public String getDestination() {
+        return destination;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
     }
 
     public LocalDateTime getStartDate() {
@@ -129,12 +143,12 @@ public class Mission {
         this.status = status;
     }
 
-    public Vehicle getVehicle() {
-        return vehicle;
+    public User getOwner() {
+        return owner;
     }
 
-    public void setVehicle(Vehicle vehicle) {
-        this.vehicle = vehicle;
+    public void setOwner(User owner) {
+        this.owner = owner;
     }
 
     public Driver getDriver() {
@@ -145,28 +159,32 @@ public class Mission {
         this.driver = driver;
     }
 
-    public User getOwner() {
-        return owner;
+    public Vehicle getVehicle() {
+        return vehicle;
     }
 
-    public void setOwner(User owner) {
-        this.owner = owner;
+    public void setVehicle(Vehicle vehicle) {
+        this.vehicle = vehicle;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getRouteJson() {
+        return routeJson;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
     }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
+    public Boolean getLateAlertSent() {
+        return lateAlertSent;
     }
 
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+    public boolean isLateAlertSent() {
+        return lateAlertSent != null && lateAlertSent;
+    }
+
+    public void setLateAlertSent(Boolean lateAlertSent) {
+        this.lateAlertSent = lateAlertSent;
     }
 
     public LocalDateTime getStartedAt() {
@@ -184,11 +202,12 @@ public class Mission {
     public void setFinishedAt(LocalDateTime finishedAt) {
         this.finishedAt = finishedAt;
     }
-    public String getRouteJson() {
-        return routeJson;
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
-    public void setRouteJson(String routeJson) {
-        this.routeJson = routeJson;
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }

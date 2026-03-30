@@ -28,22 +28,19 @@ public class MissionService {
     private final VehicleRepository vehicleRepository;
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
-    private final NotificationService notificationService;
 
     public MissionService(MissionRepository missionRepository,
                           VehicleRepository vehicleRepository,
                           DriverRepository driverRepository,
-                          UserRepository userRepository,
-                          NotificationService notificationService) {
+                          UserRepository userRepository) {
         this.missionRepository = missionRepository;
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
-        this.notificationService = notificationService;
     }
 
-    public List<MissionDTO> list(Authentication auth) {
-        if (AuthUtil.isAdmin(auth)) {
+    public List<MissionDTO> getMissions(Authentication auth) {
+        if (AuthUtil.hasRole(auth, "ADMIN")) {
             return missionRepository.findAll()
                     .stream()
                     .map(MissionDTO::new)
@@ -51,19 +48,18 @@ public class MissionService {
         }
 
         if (AuthUtil.hasRole(auth, "OWNER")) {
-            Long ownerId = AuthUtil.userId(auth);
-            return missionRepository.findByOwnerId(ownerId)
+            User owner = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+            return missionRepository.findByOwner_Id(owner.getId())
                     .stream()
                     .map(MissionDTO::new)
                     .collect(Collectors.toList());
         }
 
         if (AuthUtil.hasRole(auth, "DRIVER")) {
-            String email = auth.getName();
-            Driver driver = driverRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
-
-            return missionRepository.findByDriverId(driver.getId())
+            Driver driver = driverRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
+            return missionRepository.findByDriver_Id(driver.getId())
                     .stream()
                     .map(MissionDTO::new)
                     .collect(Collectors.toList());
@@ -72,164 +68,63 @@ public class MissionService {
         throw new AccessDeniedException("Forbidden");
     }
 
-    public MissionDTO create(MissionDTO dto, Authentication auth) {
-        if (!(AuthUtil.isAdmin(auth) || AuthUtil.hasRole(auth, "OWNER"))) {
+    public MissionDTO createMission(MissionDTO dto, Authentication auth) {
+        if (!AuthUtil.hasRole(auth, "OWNER") && !AuthUtil.hasRole(auth, "ADMIN")) {
             throw new AccessDeniedException("Forbidden");
         }
 
+        if (dto.getVehicleId() == null) {
+            throw new IllegalArgumentException("vehicleId is required");
+        }
+        if (dto.getDriverId() == null) {
+            throw new IllegalArgumentException("driverId is required");
+        }
         if (dto.getStartDate() == null || dto.getEndDate() == null) {
             throw new IllegalArgumentException("startDate and endDate are required");
         }
-
         if (!dto.getEndDate().isAfter(dto.getStartDate())) {
             throw new IllegalArgumentException("endDate must be after startDate");
         }
 
-        if (dto.getVehicleId() == null || dto.getDriverId() == null) {
-            throw new IllegalArgumentException("vehicleId and driverId are required");
-        }
+        User owner = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
 
         Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + dto.getVehicleId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
 
         Driver driver = driverRepository.findById(dto.getDriverId())
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + dto.getDriverId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        if (!AuthUtil.isAdmin(auth)) {
-            Long ownerId = AuthUtil.userId(auth);
-            if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(ownerId)) {
-                throw new AccessDeniedException("Not your vehicle");
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
+                throw new AccessDeniedException("You can only use your own vehicles");
             }
         }
 
         if (missionRepository.existsVehicleOverlap(vehicle.getId(), dto.getStartDate(), dto.getEndDate())) {
-            throw new IllegalArgumentException("Vehicle is already assigned to another mission in this period");
+            throw new IllegalArgumentException("Vehicle already assigned on this time range");
         }
 
         if (missionRepository.existsDriverOverlap(driver.getId(), dto.getStartDate(), dto.getEndDate())) {
-            throw new IllegalArgumentException("Driver is already assigned to another mission in this period");
+            throw new IllegalArgumentException("Driver already assigned on this time range");
         }
-
-        if (vehicle.getOwner() == null) {
-            throw new IllegalArgumentException("Vehicle has no owner");
-        }
-
-        User owner = userRepository.findById(vehicle.getOwner().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Owner user not found: " + vehicle.getOwner().getId()));
 
         Mission mission = new Mission();
-        mission.setTitle(dto.getTitle() == null || dto.getTitle().isBlank() ? "Mission" : dto.getTitle());
+        mission.setTitle(dto.getTitle());
         mission.setDescription(dto.getDescription());
+        mission.setDeparture(dto.getDeparture());
+        mission.setDestination(dto.getDestination());
         mission.setStartDate(dto.getStartDate());
         mission.setEndDate(dto.getEndDate());
-        mission.setStatus(dto.getStatus() == null ? Mission.MissionStatus.PLANNED : dto.getStatus());
-        mission.setVehicle(vehicle);
-        mission.setDriver(driver);
         mission.setOwner(owner);
+        mission.setDriver(driver);
+        mission.setVehicle(vehicle);
+        mission.setRouteJson(dto.getRouteJson());
+        mission.setStatus(Mission.MissionStatus.PLANNED);
         mission.setLateAlertSent(false);
 
         Mission saved = missionRepository.save(mission);
-
-        User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
-        if (driverUser != null) {
-            notificationService.createForUser(
-                    driverUser.getId(),
-                    "New mission assigned",
-                    "You have been assigned to mission: " + saved.getTitle(),
-                    saved.getId()
-            );
-        }
-
         return new MissionDTO(saved);
-    }
-
-    public MissionDTO updateStatus(Long id, Mission.MissionStatus status, Authentication auth) {
-        Mission mission = missionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + id));
-
-        if (AuthUtil.isAdmin(auth)) {
-            applyStatusSideEffects(mission, status);
-            return new MissionDTO(missionRepository.save(mission));
-        }
-
-        if (AuthUtil.hasRole(auth, "OWNER")) {
-            Long ownerId = AuthUtil.userId(auth);
-            if (mission.getOwner() == null || !mission.getOwner().getId().equals(ownerId)) {
-                throw new AccessDeniedException("Not your mission");
-            }
-
-            applyStatusSideEffects(mission, status);
-            return new MissionDTO(missionRepository.save(mission));
-        }
-
-        if (AuthUtil.hasRole(auth, "DRIVER")) {
-            throw new AccessDeniedException("Driver cannot update mission status manually");
-        }
-
-        throw new AccessDeniedException("Forbidden");
-    }
-
-    public void delete(Long id, Authentication auth) {
-        Mission mission = missionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + id));
-
-        Driver driver = mission.getDriver();
-        String missionTitle = mission.getTitle();
-        Long missionId = mission.getId();
-        Vehicle vehicle = mission.getVehicle();
-
-        if (AuthUtil.isAdmin(auth)) {
-            clearDriverLateAlert(driver, missionId);
-
-            if (vehicle != null) {
-                setVehicleAvailable(vehicle);
-            }
-
-            missionRepository.delete(mission);
-
-            if (driver != null && driver.getEmail() != null) {
-                User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
-                if (driverUser != null) {
-                    notificationService.createForUser(
-                            driverUser.getId(),
-                            "Mission canceled",
-                            "Mission was canceled: " + (missionTitle != null ? missionTitle : ("#" + missionId)),
-                            null
-                    );
-                }
-            }
-            return;
-        }
-
-        if (AuthUtil.hasRole(auth, "OWNER")) {
-            Long ownerId = AuthUtil.userId(auth);
-            if (mission.getOwner() == null || !mission.getOwner().getId().equals(ownerId)) {
-                throw new AccessDeniedException("Not your mission");
-            }
-
-            clearDriverLateAlert(driver, missionId);
-
-            if (vehicle != null) {
-                setVehicleAvailable(vehicle);
-            }
-
-            missionRepository.delete(mission);
-
-            if (driver != null && driver.getEmail() != null) {
-                User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
-                if (driverUser != null) {
-                    notificationService.createForUser(
-                            driverUser.getId(),
-                            "Mission canceled",
-                            "Owner canceled mission: " + (missionTitle != null ? missionTitle : ("#" + missionId)),
-                            null
-                    );
-                }
-            }
-            return;
-        }
-
-        throw new AccessDeniedException("Forbidden");
     }
 
     public MissionDTO startMission(Long missionId, Authentication auth) {
@@ -240,39 +135,30 @@ public class MissionService {
             throw new AccessDeniedException("Forbidden");
         }
 
-        String email = auth.getName();
-        Driver driver = driverRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+        Driver driver = driverRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
         if (mission.getDriver() == null || !mission.getDriver().getId().equals(driver.getId())) {
             throw new AccessDeniedException("Not your mission");
-        }
-
-        if (mission.getStatus() == Mission.MissionStatus.DONE) {
-            throw new IllegalArgumentException("Mission already finished");
-        }
-
-        if (mission.getStatus() == Mission.MissionStatus.CANCELED) {
-            throw new IllegalArgumentException("Mission is canceled");
-        }
-
-        if (mission.getStatus() == Mission.MissionStatus.IN_PROGRESS) {
-            throw new IllegalArgumentException("Mission already started");
         }
 
         if (mission.getStatus() != Mission.MissionStatus.PLANNED) {
             throw new IllegalArgumentException("Only planned missions can be started");
         }
 
-        if (mission.getStartDate() != null && LocalDateTime.now().isBefore(mission.getStartDate())) {
-            throw new IllegalArgumentException(
-                    "This mission cannot be started before its scheduled start time: " + mission.getStartDate()
-            );
+        if (missionRepository.existsByVehicleIdAndStatus(
+                mission.getVehicle().getId(),
+                Mission.MissionStatus.IN_PROGRESS)) {
+            throw new IllegalArgumentException("This vehicle already has an active mission");
         }
-        boolean startedLate = mission.getStartDate() != null && LocalDateTime.now().isAfter(mission.getStartDate());
+
+        if (missionRepository.existsByDriverIdAndStatus(
+                mission.getDriver().getId(),
+                Mission.MissionStatus.IN_PROGRESS)) {
+            throw new IllegalArgumentException("This driver already has an active mission");
+        }
 
         mission.setStatus(Mission.MissionStatus.IN_PROGRESS);
-
         if (mission.getStartedAt() == null) {
             mission.setStartedAt(LocalDateTime.now());
         }
@@ -281,20 +167,7 @@ public class MissionService {
             setVehicleInUse(mission.getVehicle());
         }
 
-        mission.setLateAlertSent(false);
-        clearDriverLateAlert(driver, mission.getId());
-
         Mission saved = missionRepository.save(mission);
-        if (startedLate && saved.getOwner() != null) {
-            String driverName = buildDriverName(driver);
-            notificationService.createForUser(
-                    saved.getOwner().getId(),
-                    "Mission démarrée en retard",
-                    "Le driver " + driverName + " a démarré en retard la mission : " + saved.getTitle(),
-                    saved.getId()
-            );
-        }
-
         return new MissionDTO(saved);
     }
 
@@ -306,34 +179,18 @@ public class MissionService {
             throw new AccessDeniedException("Forbidden");
         }
 
-        String email = auth.getName();
-        Driver driver = driverRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+        Driver driver = driverRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
         if (mission.getDriver() == null || !mission.getDriver().getId().equals(driver.getId())) {
             throw new AccessDeniedException("Not your mission");
-        }
-
-        if (mission.getStatus() == Mission.MissionStatus.DONE) {
-            throw new IllegalArgumentException("Mission already finished");
-        }
-
-        if (mission.getStatus() == Mission.MissionStatus.CANCELED) {
-            throw new IllegalArgumentException("Mission is canceled");
         }
 
         if (mission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
             throw new IllegalArgumentException("Only missions in progress can be finished");
         }
 
-        if (mission.getEndDate() != null && LocalDateTime.now().isBefore(mission.getEndDate())) {
-            throw new IllegalArgumentException(
-                    "You can finish this mission only at " + mission.getEndDate()
-            );
-        }
-
-        mission.setStatus(Mission.MissionStatus.DONE);
-
+        mission.setStatus(Mission.MissionStatus.COMPLETED);
         if (mission.getFinishedAt() == null) {
             mission.setFinishedAt(LocalDateTime.now());
         }
@@ -342,87 +199,75 @@ public class MissionService {
             setVehicleAvailable(mission.getVehicle());
         }
 
-        mission.setLateAlertSent(false);
-        clearDriverLateAlert(driver, mission.getId());
-
         Mission saved = missionRepository.save(mission);
         return new MissionDTO(saved);
     }
 
-    private void applyStatusSideEffects(Mission mission, Mission.MissionStatus status) {
-        mission.setStatus(status);
-
-        if (status == Mission.MissionStatus.IN_PROGRESS) {
-            if (mission.getStartedAt() == null) {
-                mission.setStartedAt(LocalDateTime.now());
-            }
-            if (mission.getVehicle() != null) {
-                setVehicleInUse(mission.getVehicle());
-            }
-            mission.setLateAlertSent(false);
-            clearDriverLateAlert(mission.getDriver(), mission.getId());
+    public Mission completeMissionFromGps(Mission mission) {
+        if (mission == null) {
+            return null;
         }
 
-        if (status == Mission.MissionStatus.DONE) {
-            if (mission.getFinishedAt() == null) {
-                mission.setFinishedAt(LocalDateTime.now());
-            }
-            if (mission.getVehicle() != null) {
-                setVehicleAvailable(mission.getVehicle());
-            }
-            mission.setLateAlertSent(false);
-            clearDriverLateAlert(mission.getDriver(), mission.getId());
+        Mission managed = missionRepository.findById(mission.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
+
+        if (managed.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
+            return managed;
         }
 
-        if (status == Mission.MissionStatus.CANCELED) {
-            if (mission.getVehicle() != null) {
-                setVehicleAvailable(mission.getVehicle());
-            }
-            mission.setLateAlertSent(false);
-            clearDriverLateAlert(mission.getDriver(), mission.getId());
+        managed.setStatus(Mission.MissionStatus.COMPLETED);
+
+        if (managed.getFinishedAt() == null) {
+            managed.setFinishedAt(LocalDateTime.now());
         }
+
+        if (managed.getVehicle() != null) {
+            setVehicleAvailable(managed.getVehicle());
+        }
+
+        return missionRepository.save(managed);
     }
 
-    private void clearDriverLateAlert(Driver driver, Long missionId) {
-        if (driver == null || driver.getEmail() == null || driver.getEmail().isBlank() || missionId == null) {
-            return;
+    public void cancelMission(Long missionId, Authentication auth) {
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
+
+        if (!AuthUtil.hasRole(auth, "OWNER") && !AuthUtil.hasRole(auth, "ADMIN")) {
+            throw new AccessDeniedException("Forbidden");
         }
 
-        User driverUser = userRepository.findByEmail(driver.getEmail()).orElse(null);
-        if (driverUser == null) {
-            return;
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            User owner = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+            if (mission.getOwner() == null || !mission.getOwner().getId().equals(owner.getId())) {
+                throw new AccessDeniedException("Forbidden");
+            }
         }
 
-        notificationService.clearNotificationByTitle(
-                driverUser.getId(),
-                missionId,
-                NotificationService.DRIVER_LATE_ALERT_TITLE
-        );
+        mission.setStatus(Mission.MissionStatus.CANCELED);
+        if (mission.getVehicle() != null) {
+            setVehicleAvailable(mission.getVehicle());
+        }
+        missionRepository.save(mission);
     }
 
-    private String buildDriverName(Driver driver) {
-        if (driver == null) return "Driver";
+    public void deleteMission(Long missionId, Authentication auth) {
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
 
-        String firstName = null;
-        String lastName = null;
-
-        try {
-            firstName = driver.getFirstName();
-            lastName = driver.getLastName();
-        } catch (Exception ignored) {
+        if (!AuthUtil.hasRole(auth, "OWNER") && !AuthUtil.hasRole(auth, "ADMIN")) {
+            throw new AccessDeniedException("Forbidden");
         }
 
-        String fullName = ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
-
-        if (!fullName.isBlank()) {
-            return fullName;
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            User owner = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+            if (mission.getOwner() == null || !mission.getOwner().getId().equals(owner.getId())) {
+                throw new AccessDeniedException("Forbidden");
+            }
         }
 
-        if (driver.getEmail() != null && !driver.getEmail().isBlank()) {
-            return driver.getEmail();
-        }
-
-        return "Driver";
+        missionRepository.delete(mission);
     }
 
     private void setVehicleInUse(Vehicle vehicle) {

@@ -13,18 +13,11 @@ public class GpsPointDTO {
     private String routeId;
     private String routeSource;
 
-    public GpsPointDTO() {
-    }
+    public GpsPointDTO() {}
 
-    public GpsPointDTO(Long id,
-                       Long vehicleId,
-                       Double latitude,
-                       Double longitude,
-                       Double speed,
-                       boolean engineOn,
-                       LocalDateTime timestamp,
-                       String routeId,
-                       String routeSource) {
+    public GpsPointDTO(Long id, Long vehicleId, Double latitude, Double longitude,
+                       Double speed, boolean engineOn, LocalDateTime timestamp,
+                       String routeId, String routeSource) {
         this.id = id;
         this.vehicleId = vehicleId;
         this.latitude = latitude;

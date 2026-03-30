@@ -1,80 +1,167 @@
 package com.example.fleet_backend.dto;
 
+import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.model.Mission;
+import com.example.fleet_backend.model.Vehicle;
+
 import java.time.LocalDateTime;
 
 public class MissionDTO {
     private Long id;
     private String title;
     private String description;
+    private String departure;
+    private String destination;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
-    private Mission.MissionStatus status;
+    private String status;
+
+    private Long ownerId;
+
+    private Long driverId;
+    private String driverName;
 
     private Long vehicleId;
     private String vehicleRegistrationNumber;
 
-    private Long driverId;
-    private String driverName;
-    private String driverEmail;
+    private String routeJson;
 
-    public MissionDTO() {
+    private LocalDateTime startedAt;
+    private LocalDateTime finishedAt;
 
-    }
+    public MissionDTO() {}
 
-    public MissionDTO(Mission m) {
-        this.id = m.getId();
-        this.title = m.getTitle();
-        this.description = m.getDescription();
-        this.startDate = m.getStartDate();
-        this.endDate = m.getEndDate();
-        this.status = m.getStatus();
+    public MissionDTO(Mission mission) {
+        this.id = mission.getId();
+        this.title = mission.getTitle();
+        this.description = mission.getDescription();
+        this.departure = mission.getDeparture();
+        this.destination = mission.getDestination();
+        this.startDate = mission.getStartDate();
+        this.endDate = mission.getEndDate();
+        this.status = mission.getStatus() != null ? mission.getStatus().name() : null;
+        this.routeJson = mission.getRouteJson();
+        this.startedAt = mission.getStartedAt();
+        this.finishedAt = mission.getFinishedAt();
 
-        if (m.getVehicle() != null) {
-            this.vehicleId = m.getVehicle().getId();
-            this.vehicleRegistrationNumber = m.getVehicle().getRegistrationNumber();
+        if (mission.getOwner() != null) {
+            this.ownerId = mission.getOwner().getId();
         }
 
-        if (m.getDriver() != null) {
-            this.driverId = m.getDriver().getId();
-            this.driverName = (m.getDriver().getFirstName() + " " + m.getDriver().getLastName()).trim();
-            this.driverEmail = m.getDriver().getEmail();
+        Driver driver = mission.getDriver();
+        if (driver != null) {
+            this.driverId = driver.getId();
+            this.driverName = ((driver.getFirstName() != null ? driver.getFirstName() : "") + " "
+                    + (driver.getLastName() != null ? driver.getLastName() : "")).trim();
+            if (this.driverName.isBlank()) {
+                this.driverName = driver.getEmail();
+            }
+        }
+
+        Vehicle vehicle = mission.getVehicle();
+        if (vehicle != null) {
+            this.vehicleId = vehicle.getId();
+            this.vehicleRegistrationNumber = vehicle.getRegistrationNumber();
         }
     }
 
-    // =========================
-    // GETTERS & SETTERS
-    // =========================
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public String getDescription() {
+        return description;
+    }
 
-    public LocalDateTime getStartDate() { return startDate; }
-    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
+    public String getDeparture() {
+        return departure;
+    }
 
-    public LocalDateTime getEndDate() { return endDate; }
-    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+    public String getDestination() {
+        return destination;
+    }
 
-    public Mission.MissionStatus getStatus() { return status; }
-    public void setStatus(Mission.MissionStatus status) { this.status = status; }
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
 
-    public Long getVehicleId() { return vehicleId; }
-    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
+    public LocalDateTime getEndDate() {
+        return endDate;
+    }
 
-    public Long getDriverId() { return driverId; }
-    public void setDriverId(Long driverId) { this.driverId = driverId; }
+    public String getStatus() {
+        return status;
+    }
 
-    public String getVehicleRegistrationNumber() { return vehicleRegistrationNumber; }
-    public void setVehicleRegistrationNumber(String v) { this.vehicleRegistrationNumber = v; }
+    public Long getOwnerId() {
+        return ownerId;
+    }
 
-    public String getDriverName() { return driverName; }
-    public void setDriverName(String driverName) { this.driverName = driverName; }
+    public Long getDriverId() {
+        return driverId;
+    }
 
-    public String getDriverEmail() { return driverEmail; }
-    public void setDriverEmail(String driverEmail) { this.driverEmail = driverEmail; }
+    public String getDriverName() {
+        return driverName;
+    }
+
+    public Long getVehicleId() {
+        return vehicleId;
+    }
+
+    public String getVehicleRegistrationNumber() {
+        return vehicleRegistrationNumber;
+    }
+
+    public String getRouteJson() {
+        return routeJson;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+
+    public LocalDateTime getFinishedAt() {
+        return finishedAt;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setDeparture(String departure) {
+        this.departure = departure;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
+
+    public void setStartDate(LocalDateTime startDate) {
+        this.startDate = startDate;
+    }
+
+    public void setEndDate(LocalDateTime endDate) {
+        this.endDate = endDate;
+    }
+
+    public void setDriverId(Long driverId) {
+        this.driverId = driverId;
+    }
+
+    public void setVehicleId(Long vehicleId) {
+        this.vehicleId = vehicleId;
+    }
+
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
+    }
 }
