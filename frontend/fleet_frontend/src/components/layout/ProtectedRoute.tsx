@@ -1,7 +1,6 @@
-// src/components/layout/ProtectedRoute.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/authContext";
 import { isSubscriptionActive } from "@/lib/subscription";
@@ -9,19 +8,23 @@ import { isSubscriptionActive } from "@/lib/subscription";
 type Role = "ROLE_ADMIN" | "ROLE_OWNER" | "ROLE_DRIVER";
 
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
+  allowedRoles?: Role[];
   requiredRoles?: Role[];
   requireOwnerActive?: boolean;
 };
 
 export function ProtectedRoute({
   children,
+  allowedRoles,
   requiredRoles,
-  requireOwnerActive,
+  requireOwnerActive = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, isAuthenticated } = useAuth();
+
+  const rolesToCheck = allowedRoles ?? requiredRoles;
 
   useEffect(() => {
     if (loading) return;
@@ -36,7 +39,7 @@ export function ProtectedRoute({
       return;
     }
 
-    if (requiredRoles && !requiredRoles.includes(user.role)) {
+    if (rolesToCheck && !rolesToCheck.includes(user.role as Role)) {
       router.replace("/dashboard");
       return;
     }
@@ -46,12 +49,35 @@ export function ProtectedRoute({
         router.replace("/owner/billing");
       }
     }
-  }, [loading, isAuthenticated, user, pathname, requiredRoles, requireOwnerActive, router]);
+  }, [
+    loading,
+    isAuthenticated,
+    user,
+    pathname,
+    rolesToCheck,
+    requireOwnerActive,
+    router,
+  ]);
 
-  if (loading) return <div className="p-6">Chargement...</div>;
-  if (!user) return null;
-  if (user.mustChangePassword && pathname !== "/change-password") return null;
-  if (requiredRoles && !requiredRoles.includes(user.role)) return null;
+  if (loading) {
+    return <div className="p-6">Chargement...</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  if (user.mustChangePassword && pathname !== "/change-password") {
+    return null;
+  }
+
+  if (rolesToCheck && !rolesToCheck.includes(user.role as Role)) {
+    return null;
+  }
+
+  if (requireOwnerActive && user.role === "ROLE_OWNER" && !isSubscriptionActive(user)) {
+    return null;
+  }
 
   return <>{children}</>;
 }

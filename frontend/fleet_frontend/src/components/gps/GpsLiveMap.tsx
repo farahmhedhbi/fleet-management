@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
+import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 
 const GpsLiveMapClient = dynamic(() => import("./GpsLiveMapClient"), {
   ssr: false,

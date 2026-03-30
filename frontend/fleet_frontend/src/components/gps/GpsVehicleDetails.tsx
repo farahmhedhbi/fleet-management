@@ -1,6 +1,6 @@
 "use client";
 
-import { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
+import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 import { formatTimestamp, getStatusClasses, getStatusLabel } from "@/lib/utils/gps";
 
 interface GpsVehicleDetailsProps {
@@ -26,9 +26,7 @@ export default function GpsVehicleDetails({
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
-            {vehicle.vehicleName}
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900">{vehicle.vehicleName}</h2>
           <p className="text-sm text-gray-500">
             Driver courant : {vehicle.currentDriverName || "Aucun"}
           </p>
@@ -82,9 +80,7 @@ export default function GpsVehicleDetails({
 
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Mission ID</p>
-          <p className="font-semibold text-gray-900">
-            {vehicle.missionId ?? "-"}
-          </p>
+          <p className="font-semibold text-gray-900">{vehicle.missionId ?? "-"}</p>
         </div>
 
         <div className="rounded-xl border border-gray-200 p-4">

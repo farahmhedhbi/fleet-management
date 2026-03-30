@@ -1,69 +1,41 @@
-import { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
-
-const API_BASE = "http://localhost:8080/api/gps";
-
-function getAuthHeaders(): HeadersInit {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const token =
-    localStorage.getItem("token") ||
-    localStorage.getItem("jwt") ||
-    localStorage.getItem("accessToken");
-
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      }
-    : {
-        "Content-Type": "application/json",
-      };
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = `Erreur ${response.status}`;
-    try {
-      const text = await response.text();
-      if (text?.trim()) {
-        message = text;
-      }
-    } catch {
-      // ignore
-    }
-    throw new Error(message);
-  }
-
-  return response.json() as Promise<T>;
-}
+import { api } from "@/lib/api";
+import type { GpsData, VehicleEventDTO, VehicleLiveStatusDTO } from "@/types/gps";
 
 export const gpsService = {
   async getLiveFleet(): Promise<VehicleLiveStatusDTO[]> {
-    const response = await fetch(`${API_BASE}/live`, {
-      method: "GET",
-      cache: "no-store",
-      headers: getAuthHeaders(),
-    });
-    return handleResponse<VehicleLiveStatusDTO[]>(response);
+    const res = await api.get<VehicleLiveStatusDTO[]>("/api/gps/live");
+    return res.data;
   },
 
-  async getVehicleLastPosition(vehicleId: number): Promise<GpsData> {
-    const response = await fetch(`${API_BASE}/vehicle/${vehicleId}/last`, {
-      method: "GET",
-      cache: "no-store",
-      headers: getAuthHeaders(),
-    });
-    return handleResponse<GpsData>(response);
+  async getLastPosition(vehicleId: number): Promise<GpsData | null> {
+    try {
+      const res = await api.get<GpsData>(`/api/gps/vehicle/${vehicleId}/last`);
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 
-  async getVehicleHistory(vehicleId: number): Promise<GpsData[]> {
-    const response = await fetch(`${API_BASE}/vehicle/${vehicleId}/history`, {
-      method: "GET",
-      cache: "no-store",
-      headers: getAuthHeaders(),
+  async getHistory(vehicleId: number, from?: string, to?: string): Promise<GpsData[]> {
+    const params: Record<string, string> = {};
+    if (from && to) {
+      params.from = from;
+      params.to = to;
+    }
+
+    const res = await api.get<GpsData[]>(`/api/gps/vehicle/${vehicleId}/history`, {
+      params,
     });
-    return handleResponse<GpsData[]>(response);
+    return res.data;
+  },
+
+  async getLatestEvents(): Promise<VehicleEventDTO[]> {
+    const res = await api.get<VehicleEventDTO[]>("/api/events/live");
+    return res.data;
+  },
+
+  async getVehicleEvents(vehicleId: number): Promise<VehicleEventDTO[]> {
+    const res = await api.get<VehicleEventDTO[]>(`/api/events/vehicle/${vehicleId}`);
+    return res.data;
   },
 };

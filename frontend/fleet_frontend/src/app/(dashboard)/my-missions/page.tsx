@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
 import type { Mission } from "@/types/mission";
 import { toast } from "react-toastify";
-
 import MyMissionsView from "./MyMissionsView";
 
 function formatDateTime(value?: string) {
@@ -23,32 +22,32 @@ export default function MyMissionsPage() {
   const [actingId, setActingId] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setRefreshing(true);
     try {
       const ms = await missionService.getAll();
       setMissions(ms);
     } catch (e: any) {
-      console.error(e);
+      console.error("Failed to load missions:", e);
       toast.error(
-        e?.response?.data?.message || e?.message || "Failed to load missions"
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Failed to load missions"
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
+    load();
+  }, [load]);
 
-    return () => clearInterval(timer);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const filtered = useMemo(() => {
@@ -56,99 +55,89 @@ export default function MyMissionsPage() {
     if (!query) return missions;
 
     return missions.filter((m) => {
-      const text =
-        `${m.title ?? ""} ${m.description ?? ""} ${m.vehicleRegistrationNumber ?? ""} ${m.status ?? ""}`.toLowerCase();
+      const text = [
+        m.title,
+        m.description,
+        m.vehicleRegistrationNumber,
+        m.status,
+        m.departure,
+        m.destination,
+        m.driverName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
       return text.includes(query);
     });
   }, [missions, q]);
 
-  const canStartMission = (m: Mission) => {
-    if (m.status !== "PLANNED") return false;
+  const canStartMission = useCallback((mission: Mission) => {
+    return mission.status === "PLANNED";
+  }, []);
 
-    const startTime = new Date(m.startDate).getTime();
-    if (Number.isNaN(startTime)) return false;
+  const canFinishMission = useCallback((mission: Mission) => {
+    return mission.status === "IN_PROGRESS";
+  }, []);
 
-    return now >= startTime;
-  };
-
-  const canFinishMission = (m: Mission) => {
-    if (m.status !== "IN_PROGRESS") return false;
-
-    const endTime = new Date(m.endDate).getTime();
-    if (Number.isNaN(endTime)) return false;
-
-    return now >= endTime;
-  };
-
-  const getStartBlockedMessage = (m: Mission) => {
-    if (m.status !== "PLANNED") return null;
-
-    const startTime = new Date(m.startDate).getTime();
-    if (Number.isNaN(startTime)) return "Invalid mission start date.";
-
-    if (now < startTime) {
-      return `You can start this mission only at ${formatDateTime(m.startDate)}.`;
+  const getStartBlockedMessage = useCallback((mission: Mission) => {
+    if (mission.status !== "PLANNED") {
+      return "Only a planned mission can be started";
     }
-
     return null;
-  };
+  }, []);
 
-  const getFinishBlockedMessage = (m: Mission) => {
-    if (m.status !== "IN_PROGRESS") return null;
-
-    const endTime = new Date(m.endDate).getTime();
-    if (Number.isNaN(endTime)) return "Invalid mission end date.";
-
-    if (now < endTime) {
-      return `You can finish this mission only at ${formatDateTime(m.endDate)}.`;
+  const getFinishBlockedMessage = useCallback((mission: Mission) => {
+    if (mission.status !== "IN_PROGRESS") {
+      return "Only a mission in progress can be finished";
     }
-
     return null;
-  };
+  }, []);
 
-  const start = async (m: Mission) => {
-    if (!canStartMission(m)) {
-      const msg =
-        getStartBlockedMessage(m) || "You cannot start this mission yet.";
-      toast.warning(msg);
-      return;
-    }
+  const handleStart = useCallback(
+    async (mission: Mission) => {
+      try {
+        setActingId(mission.id);
+        await missionService.start(mission.id);
+        toast.success("Mission démarrée");
+        await load();
+      } catch (e: any) {
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Impossible de démarrer la mission"
+        );
+      } finally {
+        setActingId(null);
+      }
+    },
+    [load]
+  );
 
-    setActingId(m.id);
-    try {
-      await missionService.start(m.id);
-      toast.success("Mission started ✅ (Owner notified)");
-      await load();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Start failed");
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const finish = async (m: Mission) => {
-    if (!canFinishMission(m)) {
-      const msg =
-        getFinishBlockedMessage(m) || "You cannot finish this mission yet.";
-      toast.warning(msg);
-      return;
-    }
-
-    setActingId(m.id);
-    try {
-      await missionService.finish(m.id);
-      toast.success("Mission finished ✅ (Owner notified)");
-      await load();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Finish failed");
-    } finally {
-      setActingId(null);
-    }
-  };
+  const handleFinish = useCallback(
+    async (mission: Mission) => {
+      try {
+        setActingId(mission.id);
+        await missionService.finish(mission.id);
+        toast.success("Mission terminée");
+        await load();
+      } catch (e: any) {
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Impossible de terminer la mission"
+        );
+      } finally {
+        setActingId(null);
+      }
+    },
+    [load]
+  );
 
   return (
-    <ProtectedRoute requiredRoles={["ROLE_DRIVER"]}>
+    <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
         missions={missions}
         filtered={filtered}
@@ -159,8 +148,8 @@ export default function MyMissionsPage() {
         actingId={actingId}
         now={now}
         onRefresh={load}
-        onStart={start}
-        onFinish={finish}
+        onStart={handleStart}
+        onFinish={handleFinish}
         canStartMission={canStartMission}
         canFinishMission={canFinishMission}
         getStartBlockedMessage={getStartBlockedMessage}

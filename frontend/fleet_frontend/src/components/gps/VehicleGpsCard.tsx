@@ -1,6 +1,6 @@
 "use client";
 
-import { VehicleLiveStatusDTO } from "@/types/gps";
+import type { VehicleLiveStatusDTO } from "@/types/gps";
 import { formatTimestamp, getStatusClasses, getStatusLabel } from "@/lib/utils/gps";
 
 interface VehicleGpsCardProps {
@@ -18,9 +18,7 @@ export default function VehicleGpsCard({
     <button
       onClick={onClick}
       className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:shadow-md ${
-        isSelected
-          ? "border-blue-500 bg-blue-50"
-          : "border-gray-200 bg-white"
+        isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">

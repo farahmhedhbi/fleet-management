@@ -3,10 +3,6 @@ export interface MissionRoutePointDTO {
   longitude: number;
 }
 
-export type LiveStatus = "EN_MISSION" | "HORS_MISSION" | "INACTIF" | "OFFLINE";
-
-export type GpsFilterStatus = "ALL" | LiveStatus;
-
 export interface VehicleLiveStatusDTO {
   vehicleId: number;
   vehicleName: string;
@@ -15,22 +11,39 @@ export interface VehicleLiveStatusDTO {
   speed: number;
   engineOn: boolean;
   timestamp: string | null;
-  liveStatus: LiveStatus;
+  liveStatus: string;
   missionActive: boolean;
   missionId: number | null;
   currentDriverName: string | null;
   routeId: string | null;
-  routeSource: "MISSION" | "STATIC" | null;
+  routeSource: string | null;
   missionRoute: MissionRoutePointDTO[];
 }
 
 export interface GpsData {
   id: number;
+  vehicleId: number;
   latitude: number;
   longitude: number;
   speed: number;
   engineOn: boolean;
   timestamp: string;
-  routeId: string | null;
-  routeSource: string | null;
+  routeId?: string | null;
+  routeSource?: string | null;
 }
+
+export interface VehicleEventDTO {
+  id: number;
+  vehicleId: number;
+  missionId?: number | null;
+  eventType: string;
+  severity: string;
+  message: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  speed?: number | null;
+  createdAt: string;
+  acknowledged: boolean;
+}
+
+export type GpsFilterStatus = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";

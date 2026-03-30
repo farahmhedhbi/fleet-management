@@ -13,26 +13,28 @@ export const missionService = {
   },
 
   async create(payload: MissionDTO): Promise<Mission> {
-    const fixed: any = { ...payload };
-    fixed.startDate = toLocalDateTime(fixed.startDate);
-    fixed.endDate = toLocalDateTime(fixed.endDate);
+    const fixed: MissionDTO = {
+      ...payload,
+      startDate: toLocalDateTime(payload.startDate) || undefined,
+      endDate: toLocalDateTime(payload.endDate) || undefined,
+    };
+
     const res = await api.post<Mission>("/api/missions", fixed);
     return res.data;
   },
 
-  async updateStatus(id: number, status: MissionStatus): Promise<Mission> {
-    const res = await api.put<Mission>(`/api/missions/${id}/status?status=${status}`);
-    return res.data;
-  },
-
   async start(id: number): Promise<Mission> {
-    const res = await api.put<Mission>(`/api/missions/${id}/start`);
+    const res = await api.post<Mission>(`/api/missions/${id}/start`);
     return res.data;
   },
 
   async finish(id: number): Promise<Mission> {
-    const res = await api.put<Mission>(`/api/missions/${id}/finish`);
+    const res = await api.post<Mission>(`/api/missions/${id}/finish`);
     return res.data;
+  },
+
+  async cancel(id: number): Promise<void> {
+    await api.post(`/api/missions/${id}/cancel`);
   },
 
   async remove(id: number): Promise<void> {

@@ -1,77 +1,53 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import {
-  MapContainer,
-  Marker,
-  Popup,
-  Polyline,
-  TileLayer,
-  useMap,
-} from "react-leaflet";
-import type { LatLngTuple } from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
+import L, { type LatLngTuple } from "leaflet";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
-import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
-import { getStatusLabel, formatTimestamp } from "@/lib/utils/gps";
+import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
+import { useMemo } from "react";
 
-interface GpsLiveMapClientProps {
-  vehicles: VehicleLiveStatusDTO[];
-  selectedVehicleId: number | null;
-  history: GpsData[];
-}
+const gpsMarkerIcon = new L.Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
 
 function MapResizeController({ center }: { center: LatLngTuple }) {
   const map = useMap();
-
-  useEffect(() => {
-    const runFix = () => {
-      map.invalidateSize();
-      map.setView(center, map.getZoom(), { animate: false });
-    };
-
-    const t1 = window.setTimeout(runFix, 100);
-    const t2 = window.setTimeout(runFix, 300);
-    const t3 = window.setTimeout(runFix, 700);
-
-    const onResize = () => {
-      map.invalidateSize();
-    };
-
-    window.addEventListener("resize", onResize);
-
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [map, center]);
-
+  map.setView(center);
   return null;
 }
 
-export default function GpsLiveMapClient({
+interface FleetLiveMapProps {
+  vehicles: VehicleLiveStatusDTO[];
+  selectedVehicleId: number | null;
+  setSelectedVehicleId: (id: number) => void;
+  history: GpsData[];
+}
+
+export default function FleetLiveMap({
   vehicles,
   selectedVehicleId,
+  setSelectedVehicleId,
   history,
-}: GpsLiveMapClientProps) {
+}: FleetLiveMapProps) {
   const validVehicles = useMemo(
     () =>
       vehicles.filter(
-        (vehicle) =>
-          vehicle.latitude !== null &&
-          vehicle.longitude !== null &&
-          !Number.isNaN(vehicle.latitude) &&
-          !Number.isNaN(vehicle.longitude)
+        (v) =>
+          v.latitude !== null &&
+          v.longitude !== null &&
+          !Number.isNaN(v.latitude) &&
+          !Number.isNaN(v.longitude)
       ),
     [vehicles]
   );
 
-  const selectedVehicle = useMemo(
-    () =>
-      validVehicles.find((vehicle) => vehicle.vehicleId === selectedVehicleId) ?? null,
-    [validVehicles, selectedVehicleId]
-  );
+  const selectedVehicle =
+    validVehicles.find((vehicle) => vehicle.vehicleId === selectedVehicleId) ?? null;
 
   const defaultCenter: LatLngTuple = [35.8256, 10.6369];
 
@@ -119,6 +95,9 @@ export default function GpsLiveMapClient({
               key={vehicle.vehicleId}
               position={[vehicle.latitude!, vehicle.longitude!]}
               icon={gpsMarkerIcon}
+              eventHandlers={{
+                click: () => setSelectedVehicleId(vehicle.vehicleId),
+              }}
             >
               <Popup>
                 <div className="space-y-1 text-sm">

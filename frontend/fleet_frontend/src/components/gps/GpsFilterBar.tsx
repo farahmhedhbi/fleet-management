@@ -1,7 +1,7 @@
 "use client";
 
-import { GpsFilterStatus, VehicleLiveStatusDTO } from "@/types/gps";
-import { countByStatus, getStatusLabel } from "@/lib/utils/gps";
+import type { GpsFilterStatus, VehicleLiveStatusDTO } from "@/types/gps";
+import { countByStatus } from "@/lib/utils/gps";
 
 interface GpsFilterBarProps {
   vehicles: VehicleLiveStatusDTO[];
@@ -19,27 +19,11 @@ export default function GpsFilterBar({
   setSearch,
 }: GpsFilterBarProps) {
   const filterOptions: { label: string; value: GpsFilterStatus; count: number }[] = [
-    { label: "Tous", value: "ALL", count: vehicles.length },
-    {
-      label: getStatusLabel("EN_MISSION"),
-      value: "EN_MISSION",
-      count: countByStatus(vehicles, "EN_MISSION"),
-    },
-    {
-      label: getStatusLabel("HORS_MISSION"),
-      value: "HORS_MISSION",
-      count: countByStatus(vehicles, "HORS_MISSION"),
-    },
-    {
-      label: getStatusLabel("INACTIF"),
-      value: "INACTIF",
-      count: countByStatus(vehicles, "INACTIF"),
-    },
-    {
-      label: getStatusLabel("OFFLINE"),
-      value: "OFFLINE",
-      count: countByStatus(vehicles, "OFFLINE"),
-    },
+    { label: "Tous", value: "ALL", count: countByStatus(vehicles, "ALL") },
+    { label: "En mouvement", value: "MOVING", count: countByStatus(vehicles, "MOVING") },
+    { label: "Offline", value: "OFFLINE", count: countByStatus(vehicles, "OFFLINE") },
+    { label: "Mission active", value: "MISSION", count: countByStatus(vehicles, "MISSION") },
+    { label: "Alerte", value: "ALERT", count: countByStatus(vehicles, "ALERT") },
   ];
 
   return (

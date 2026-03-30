@@ -1,27 +1,41 @@
-export type MissionStatus = "PLANNED" | "IN_PROGRESS" | "DONE" | "CANCELED";
+export type MissionStatus =
+  | "PLANNED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELED";
 
-export type Mission = {
+export interface Mission {
   id: number;
   title: string;
-  description?: string | null;
-  startDate: string; // ISO
-  endDate: string;   // ISO
+  description?: string;
+  departure: string;
+  destination: string;
+  startDate?: string;
+  endDate?: string;
   status: MissionStatus;
 
-  vehicleId: number;
+  ownerId?: number;
+
+  driverId?: number;
+  driverName?: string;
+
+  vehicleId?: number;
   vehicleRegistrationNumber?: string;
 
-  driverId: number;
-  driverName?: string;
-  driverEmail?: string;
-};
+  routeJson?: string;
 
-export type MissionDTO = {
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface MissionDTO {
   title: string;
-  description?: string | null;
-  startDate: string; // "YYYY-MM-DD" or ISO (better ISO)
-  endDate: string;
-  status?: MissionStatus;
-  vehicleId: number;
+  description?: string;
+  departure: string;
+  destination: string;
+  startDate?: string;
+  endDate?: string;
   driverId: number;
-};
+  vehicleId: number;
+  routeJson?: string;
+}
