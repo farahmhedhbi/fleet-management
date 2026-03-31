@@ -24,19 +24,25 @@ import java.util.stream.Collectors;
 @Transactional
 public class MissionService {
 
+    private static final long MIN_DURATION_SECONDS = 300; // 5 min
+    private static final long EXTRA_MARGIN_SECONDS = 300; // 5 min
+
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
+    private final RoutePlannerService routePlannerService;
 
     public MissionService(MissionRepository missionRepository,
                           VehicleRepository vehicleRepository,
                           DriverRepository driverRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          RoutePlannerService routePlannerService) {
         this.missionRepository = missionRepository;
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
+        this.routePlannerService = routePlannerService;
     }
 
     public List<MissionDTO> getMissions(Authentication auth) {
@@ -73,17 +79,23 @@ public class MissionService {
             throw new AccessDeniedException("Forbidden");
         }
 
+        if (dto.getTitle() == null || dto.getTitle().isBlank()) {
+            throw new IllegalArgumentException("title is required");
+        }
+        if (dto.getDeparture() == null || dto.getDeparture().isBlank()) {
+            throw new IllegalArgumentException("departure is required");
+        }
+        if (dto.getDestination() == null || dto.getDestination().isBlank()) {
+            throw new IllegalArgumentException("destination is required");
+        }
         if (dto.getVehicleId() == null) {
             throw new IllegalArgumentException("vehicleId is required");
         }
         if (dto.getDriverId() == null) {
             throw new IllegalArgumentException("driverId is required");
         }
-        if (dto.getStartDate() == null || dto.getEndDate() == null) {
-            throw new IllegalArgumentException("startDate and endDate are required");
-        }
-        if (!dto.getEndDate().isAfter(dto.getStartDate())) {
-            throw new IllegalArgumentException("endDate must be after startDate");
+        if (dto.getStartDate() == null) {
+            throw new IllegalArgumentException("startDate is required");
         }
 
         User owner = userRepository.findByEmail(auth.getName())
@@ -99,27 +111,39 @@ public class MissionService {
             if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
                 throw new AccessDeniedException("You can only use your own vehicles");
             }
+
+            if (driver.getOwner() == null || !driver.getOwner().getId().equals(owner.getId())) {
+                throw new AccessDeniedException("You can only use your own drivers");
+            }
         }
 
-        if (missionRepository.existsVehicleOverlap(vehicle.getId(), dto.getStartDate(), dto.getEndDate())) {
-            throw new IllegalArgumentException("Vehicle already assigned on this time range");
+        RoutePlanResult plan = routePlannerService.buildRoutePlan(
+                dto.getDeparture().trim(),
+                dto.getDestination().trim()
+        );
+
+        long estimatedSeconds = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds()) + EXTRA_MARGIN_SECONDS;
+        LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
+
+        if (missionRepository.existsVehicleOverlap(vehicle.getId(), dto.getStartDate(), estimatedEndDate)) {
+            throw new IllegalArgumentException("Vehicle already assigned on this estimated time range");
         }
 
-        if (missionRepository.existsDriverOverlap(driver.getId(), dto.getStartDate(), dto.getEndDate())) {
-            throw new IllegalArgumentException("Driver already assigned on this time range");
+        if (missionRepository.existsDriverOverlap(driver.getId(), dto.getStartDate(), estimatedEndDate)) {
+            throw new IllegalArgumentException("Driver already assigned on this estimated time range");
         }
 
         Mission mission = new Mission();
-        mission.setTitle(dto.getTitle());
+        mission.setTitle(dto.getTitle().trim());
         mission.setDescription(dto.getDescription());
-        mission.setDeparture(dto.getDeparture());
-        mission.setDestination(dto.getDestination());
+        mission.setDeparture(dto.getDeparture().trim());
+        mission.setDestination(dto.getDestination().trim());
         mission.setStartDate(dto.getStartDate());
-        mission.setEndDate(dto.getEndDate());
+        mission.setEndDate(estimatedEndDate);
         mission.setOwner(owner);
         mission.setDriver(driver);
         mission.setVehicle(vehicle);
-        mission.setRouteJson(dto.getRouteJson());
+        mission.setRouteJson(plan.getRouteJson());
         mission.setStatus(Mission.MissionStatus.PLANNED);
         mission.setLateAlertSent(false);
 
@@ -267,16 +291,26 @@ public class MissionService {
             }
         }
 
+        if (mission.getStatus() == Mission.MissionStatus.IN_PROGRESS) {
+            throw new IllegalArgumentException("Cannot delete an in-progress mission");
+        }
+
         missionRepository.delete(mission);
     }
 
     private void setVehicleInUse(Vehicle vehicle) {
-        vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
-        vehicleRepository.save(vehicle);
+        try {
+            vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
+            vehicleRepository.save(vehicle);
+        } catch (Exception ignored) {
+        }
     }
 
     private void setVehicleAvailable(Vehicle vehicle) {
-        vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
-        vehicleRepository.save(vehicle);
+        try {
+            vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
+            vehicleRepository.save(vehicle);
+        } catch (Exception ignored) {
+        }
     }
 }
