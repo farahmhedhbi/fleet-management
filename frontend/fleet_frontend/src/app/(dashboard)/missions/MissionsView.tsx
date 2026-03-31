@@ -19,6 +19,13 @@ function statusBadge(status?: string) {
   }
 }
 
+function formatDateTime(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+}
+
 interface Props {
   missions: Mission[];
   vehicles: Vehicle[];
@@ -38,6 +45,7 @@ interface Props {
     planned: number;
     inProgress: number;
     completed: number;
+    canceled: number;
   };
   minDateTime: string;
   onRefresh: () => void;
@@ -71,7 +79,9 @@ export default function MissionsView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Missions</h1>
-          <p className="text-slate-600">Création et suivi des missions.</p>
+          <p className="text-slate-600">
+            Création et suivi des missions avec durée estimée automatiquement.
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -93,11 +103,12 @@ export default function MissionsView({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <div className="rounded-2xl border bg-white p-4">Total: {stats.total}</div>
         <div className="rounded-2xl border bg-white p-4">Planned: {stats.planned}</div>
         <div className="rounded-2xl border bg-white p-4">In progress: {stats.inProgress}</div>
         <div className="rounded-2xl border bg-white p-4">Completed: {stats.completed}</div>
+        <div className="rounded-2xl border bg-white p-4">Canceled: {stats.canceled}</div>
       </div>
 
       <div className="relative">
@@ -111,7 +122,7 @@ export default function MissionsView({
       </div>
 
       {openCreate && (
-        <div className="rounded-2xl border bg-white p-6 space-y-4">
+        <div className="space-y-4 rounded-2xl border bg-white p-6">
           <h2 className="text-xl font-bold">Create mission</h2>
 
           <input
@@ -122,7 +133,7 @@ export default function MissionsView({
           />
 
           <textarea
-            value={form.description}
+            value={form.description || ""}
             onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
             placeholder="Description"
             className="w-full rounded-xl border p-3"
@@ -147,23 +158,22 @@ export default function MissionsView({
             <input
               type="datetime-local"
               min={minDateTime}
-              value={form.startDate}
+              value={form.startDate || ""}
               onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
               className="w-full rounded-xl border p-3"
             />
-            <input
-              type="datetime-local"
-              min={minDateTime}
-              value={form.endDate}
-              onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
-              className="w-full rounded-xl border p-3"
-            />
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              La date de fin sera estimée automatiquement à partir du trajet réel.
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <select
               value={form.vehicleId || ""}
-              onChange={(e) => setForm((p) => ({ ...p, vehicleId: Number(e.target.value) }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, vehicleId: Number(e.target.value) }))
+              }
               className="w-full rounded-xl border p-3"
             >
               <option value="">Select vehicle</option>
@@ -176,7 +186,9 @@ export default function MissionsView({
 
             <select
               value={form.driverId || ""}
-              onChange={(e) => setForm((p) => ({ ...p, driverId: Number(e.target.value) }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, driverId: Number(e.target.value) }))
+              }
               className="w-full rounded-xl border p-3"
             >
               <option value="">Select driver</option>
@@ -187,13 +199,6 @@ export default function MissionsView({
               ))}
             </select>
           </div>
-
-          <textarea
-            value={form.routeJson || ""}
-            onChange={(e) => setForm((p) => ({ ...p, routeJson: e.target.value }))}
-            placeholder='Route JSON optionnel [{"latitude":35.1,"longitude":10.2}]'
-            className="w-full rounded-xl border p-3"
-          />
 
           <div className="flex gap-2">
             <button
@@ -219,24 +224,44 @@ export default function MissionsView({
       ) : (
         <div className="grid gap-4">
           {filtered.map((m) => (
-            <div key={m.id} className="rounded-2xl border bg-white p-5 space-y-3">
+            <div key={m.id} className="space-y-3 rounded-2xl border bg-white p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-bold">{m.title}</h3>
                   <p className="text-sm text-slate-600">{m.description || "—"}</p>
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-sm font-bold ${statusBadge(m.status)}`}>
+
+                <span
+                  className={`rounded-full border px-3 py-1 text-sm font-bold ${statusBadge(
+                    m.status
+                  )}`}
+                >
                   {m.status}
                 </span>
               </div>
 
               <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-                <div><strong>Route:</strong> {m.departure} → {m.destination}</div>
-                <div><strong>Vehicle:</strong> {m.vehicleRegistrationNumber || "—"}</div>
-                <div><strong>Driver:</strong> {m.driverName || "—"}</div>
-                <div><strong>Start:</strong> {m.startDate || "—"}</div>
-                <div><strong>Started At:</strong> {m.startedAt || "—"}</div>
-                <div><strong>Finished At:</strong> {m.finishedAt || "—"}</div>
+                <div>
+                  <strong>Route:</strong> {m.departure} → {m.destination}
+                </div>
+                <div>
+                  <strong>Vehicle:</strong> {m.vehicleRegistrationNumber || "—"}
+                </div>
+                <div>
+                  <strong>Driver:</strong> {m.driverName || "—"}
+                </div>
+                <div>
+                  <strong>Planned start:</strong> {formatDateTime(m.startDate)}
+                </div>
+                <div>
+                  <strong>Estimated end:</strong> {formatDateTime(m.endDate)}
+                </div>
+                <div>
+                  <strong>Started at:</strong> {formatDateTime(m.startedAt)}
+                </div>
+                <div>
+                  <strong>Finished at:</strong> {formatDateTime(m.finishedAt)}
+                </div>
               </div>
 
               <div className="flex gap-2">

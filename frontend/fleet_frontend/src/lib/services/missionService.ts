@@ -1,8 +1,8 @@
 import { api } from "@/lib/api";
-import type { Mission, MissionDTO, MissionStatus } from "@/types/mission";
+import type { Mission, MissionDTO } from "@/types/mission";
 
 function toLocalDateTime(v?: string | null) {
-  if (!v) return v;
+  if (!v) return undefined;
   return v.includes("T") ? v : `${v}T00:00:00`;
 }
 
@@ -15,8 +15,9 @@ export const missionService = {
   async create(payload: MissionDTO): Promise<Mission> {
     const fixed: MissionDTO = {
       ...payload,
-      startDate: toLocalDateTime(payload.startDate) || undefined,
-      endDate: toLocalDateTime(payload.endDate) || undefined,
+      startDate: toLocalDateTime(payload.startDate),
+      endDate: undefined,
+      routeJson: undefined,
     };
 
     const res = await api.post<Mission>("/api/missions", fixed);

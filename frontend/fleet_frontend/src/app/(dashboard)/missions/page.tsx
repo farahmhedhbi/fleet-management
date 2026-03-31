@@ -19,6 +19,16 @@ function minNowLocal() {
   return local.toISOString().slice(0, 16);
 }
 
+const emptyForm: MissionDTO = {
+  title: "",
+  description: "",
+  departure: "",
+  destination: "",
+  startDate: "",
+  vehicleId: 0,
+  driverId: 0,
+};
+
 export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -28,18 +38,7 @@ export default function MissionsPage() {
   const [creating, setCreating] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [q, setQ] = useState("");
-
-  const [form, setForm] = useState<MissionDTO>({
-    title: "",
-    description: "",
-    departure: "",
-    destination: "",
-    startDate: "",
-    endDate: "",
-    vehicleId: 0,
-    driverId: 0,
-    routeJson: "",
-  });
+  const [form, setForm] = useState<MissionDTO>(emptyForm);
 
   const loadAll = async () => {
     setRefreshing(true);
@@ -49,12 +48,18 @@ export default function MissionsPage() {
         vehicleService.getAll(),
         driverService.getAll(),
       ]);
+
       setMissions(ms);
       setVehicles(vs);
       setDrivers(ds);
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.response?.data?.message || e?.message || "Failed to load data");
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Failed to load data"
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,21 +87,12 @@ export default function MissionsPage() {
       planned: missions.filter((m) => m.status === "PLANNED").length,
       inProgress: missions.filter((m) => m.status === "IN_PROGRESS").length,
       completed: missions.filter((m) => m.status === "COMPLETED").length,
+      canceled: missions.filter((m) => m.status === "CANCELED").length,
     };
   }, [missions]);
 
   const resetForm = () => {
-    setForm({
-      title: "",
-      description: "",
-      departure: "",
-      destination: "",
-      startDate: "",
-      endDate: "",
-      vehicleId: 0,
-      driverId: 0,
-      routeJson: "",
-    });
+    setForm(emptyForm);
   };
 
   const submitCreate = async () => {
@@ -104,13 +100,8 @@ export default function MissionsPage() {
     if (!form.departure.trim()) return toast.warn("Departure is required");
     if (!form.destination.trim()) return toast.warn("Destination is required");
     if (!form.startDate) return toast.warn("Start date is required");
-    if (!form.endDate) return toast.warn("End date is required");
     if (!form.vehicleId) return toast.warn("Vehicle is required");
     if (!form.driverId) return toast.warn("Driver is required");
-
-    if (new Date(form.endDate) <= new Date(form.startDate)) {
-      return toast.warn("End date must be after start date");
-    }
 
     setCreating(true);
     try {
@@ -121,7 +112,12 @@ export default function MissionsPage() {
       await loadAll();
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.response?.data?.message || e?.message || "Create failed");
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Create failed"
+      );
     } finally {
       setCreating(false);
     }
@@ -129,23 +125,37 @@ export default function MissionsPage() {
 
   const deleteMission = async (id: number) => {
     if (!confirm("Delete this mission?")) return;
+
     try {
       await missionService.remove(id);
       toast.success("Mission deleted");
       await loadAll();
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Delete failed");
+      console.error(e);
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Delete failed"
+      );
     }
   };
 
   const cancelMission = async (id: number) => {
     if (!confirm("Cancel this mission?")) return;
+
     try {
       await missionService.cancel(id);
       toast.success("Mission canceled");
       await loadAll();
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Cancel failed");
+      console.error(e);
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Cancel failed"
+      );
     }
   };
 
