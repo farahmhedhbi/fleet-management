@@ -59,7 +59,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
     // DRIVER
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
-    { name: "Suivi GPS", href: "/driver/gps", icon: MapPinned, show: isDriver },
+    
 
     // OWNER
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },

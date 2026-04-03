@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Dispatch, SetStateAction } from "react";
 import type { Mission, MissionStatus } from "@/types/mission";
 import {
@@ -12,6 +13,8 @@ import {
   Clock,
   MapPin,
   User,
+  Route,
+  History,
 } from "lucide-react";
 
 function cn(...classes: (string | false | undefined)[]) {
@@ -189,16 +192,11 @@ export default function MyMissionsView({
                     </div>
                   ) : null}
 
-                  <div className="flex items-center gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => onStart(m)}
-                      disabled={busy || !canStart}
-                      className={cn(
-                        "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold text-white transition-all",
-                        busy || !canStart
-                          ? "bg-slate-300 cursor-not-allowed"
-                          : "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:shadow-lg"
-                      )}
+                      disabled={!canStart || busy}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Play className="h-4 w-4" />
                       Start
@@ -206,24 +204,31 @@ export default function MyMissionsView({
 
                     <button
                       onClick={() => onFinish(m)}
-                      disabled={busy || !canFinish}
-                      className={cn(
-                        "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold text-white transition-all",
-                        busy || !canFinish
-                          ? "bg-slate-300 cursor-not-allowed"
-                          : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-lg"
-                      )}
+                      disabled={!canFinish || busy}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Flag className="h-4 w-4" />
                       Finish
                     </button>
                   </div>
 
-                  {busy && (
-                    <div className="text-xs font-bold text-slate-500">
-                      Processing...
-                    </div>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Link
+                      href={`/driver/missions/${m.id}/map`}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Route className="h-4 w-4" />
+                      Carte live
+                    </Link>
+
+                    <Link
+                      href={`/driver/missions/${m.id}/history`}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <History className="h-4 w-4" />
+                      Historique
+                    </Link>
+                  </div>
                 </div>
               </div>
             );

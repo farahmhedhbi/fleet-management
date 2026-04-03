@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Driver } from "@/types/driver";
 import type { Vehicle } from "@/types/vehicle";
 import type { Mission, MissionDTO } from "@/types/mission";
+import type { PlaceSuggestion } from "@/lib/services/placeService";
 import { Plus, RefreshCcw, Search, Trash2, XCircle } from "lucide-react";
 
 function statusBadge(status?: string) {
@@ -52,6 +53,12 @@ interface Props {
   onSubmitCreate: () => void;
   onDeleteMission: (id: number) => void;
   onCancelMission: (id: number) => void;
+  departureSuggestions: PlaceSuggestion[];
+  destinationSuggestions: PlaceSuggestion[];
+  loadingDepartureSuggestions: boolean;
+  loadingDestinationSuggestions: boolean;
+  onPickDeparture: (value: string) => void;
+  onPickDestination: (value: string) => void;
 }
 
 export default function MissionsView({
@@ -73,6 +80,12 @@ export default function MissionsView({
   onSubmitCreate,
   onDeleteMission,
   onCancelMission,
+  departureSuggestions,
+  destinationSuggestions,
+  loadingDepartureSuggestions,
+  loadingDestinationSuggestions,
+  onPickDeparture,
+  onPickDestination,
 }: Props) {
   return (
     <div className="space-y-6 p-6 md:p-10">
@@ -140,18 +153,65 @@ export default function MissionsView({
           />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <input
-              value={form.departure}
-              onChange={(e) => setForm((p) => ({ ...p, departure: e.target.value }))}
-              placeholder="Departure"
-              className="w-full rounded-xl border p-3"
-            />
-            <input
-              value={form.destination}
-              onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
-              placeholder="Destination"
-              className="w-full rounded-xl border p-3"
-            />
+            <div className="relative">
+              <input
+                value={form.departure}
+                onChange={(e) => setForm((p) => ({ ...p, departure: e.target.value }))}
+                placeholder="Departure"
+                className="w-full rounded-xl border p-3"
+                autoComplete="off"
+              />
+
+              {(loadingDepartureSuggestions || departureSuggestions.length > 0) && (
+                <div className="absolute z-[1000] mt-1 max-h-56 w-full overflow-auto rounded-xl border bg-white shadow-lg">
+                  {loadingDepartureSuggestions && (
+                    <div className="p-3 text-sm text-slate-500">Recherche...</div>
+                  )}
+
+                  {!loadingDepartureSuggestions &&
+                    departureSuggestions.map((item) => (
+                      <button
+                        type="button"
+                        key={item.placeId}
+                        onClick={() => onPickDeparture(item.value)}
+                        className="block w-full border-b px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <input
+                value={form.destination}
+                onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
+                placeholder="Destination"
+                className="w-full rounded-xl border p-3"
+                autoComplete="off"
+              />
+
+              {(loadingDestinationSuggestions || destinationSuggestions.length > 0) && (
+                <div className="absolute z-[1000] mt-1 max-h-56 w-full overflow-auto rounded-xl border bg-white shadow-lg">
+                  {loadingDestinationSuggestions && (
+                    <div className="p-3 text-sm text-slate-500">Recherche...</div>
+                  )}
+
+                  {!loadingDestinationSuggestions &&
+                    destinationSuggestions.map((item) => (
+                      <button
+                        type="button"
+                        key={item.placeId}
+                        onClick={() => onPickDestination(item.value)}
+                        className="block w-full border-b px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { Mission, MissionDTO } from "@/types/mission";
+import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 
 function toLocalDateTime(v?: string | null) {
   if (!v) return undefined;
@@ -9,6 +10,25 @@ function toLocalDateTime(v?: string | null) {
 export const missionService = {
   async getAll(): Promise<Mission[]> {
     const res = await api.get<Mission[]>("/api/missions");
+    return res.data;
+  },
+
+  async getById(id: number): Promise<Mission> {
+    const res = await api.get<Mission>(`/api/missions/${id}`);
+    return res.data;
+  },
+
+  async getLive(id: number): Promise<VehicleLiveStatusDTO> {
+    const res = await api.get<VehicleLiveStatusDTO>(`/api/missions/${id}/live`);
+    return res.data;
+  },
+
+  async getHistory(id: number, from?: string, to?: string): Promise<GpsData[]> {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+
+    const res = await api.get<GpsData[]>(`/api/missions/${id}/history`, { params });
     return res.data;
   },
 
