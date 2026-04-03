@@ -417,4 +417,115 @@ public class GpsService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return earthRadius * c;
     }
+
+    public VehicleLiveStatusDTO getMissionLiveSecured(Long missionId, Authentication auth) {
+        Mission mission = missionService.getAuthorizedMission(missionId, auth);
+
+        if (mission.getVehicle() == null) {
+            throw new ResourceNotFoundException("No vehicle assigned to this mission");
+        }
+
+        Vehicle vehicle = mission.getVehicle();
+
+        Optional<GpsData> lastGpsOpt = gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicle.getId());
+
+        boolean missionActive = mission.getStatus() == Mission.MissionStatus.IN_PROGRESS;
+        Long currentMissionId = mission.getId();
+
+        String currentDriverName = null;
+        if (mission.getDriver() != null) {
+            String firstName = mission.getDriver().getFirstName() != null ? mission.getDriver().getFirstName() : "";
+            String lastName = mission.getDriver().getLastName() != null ? mission.getDriver().getLastName() : "";
+            currentDriverName = (firstName + " " + lastName).trim();
+            if (currentDriverName.isBlank()) {
+                currentDriverName = mission.getDriver().getEmail();
+            }
+        }
+
+        List<MissionRoutePointDTO> missionRoute = parseMissionRoute(mission.getRouteJson());
+
+        if (lastGpsOpt.isEmpty()) {
+            return new VehicleLiveStatusDTO(
+                    vehicle.getId(),
+                    resolveVehicleName(vehicle),
+                    null,
+                    null,
+                    0.0,
+                    false,
+                    null,
+                    LiveStatus.NO_DATA.name(),
+                    missionActive,
+                    currentMissionId,
+                    currentDriverName,
+                    null,
+                    null,
+                    missionRoute
+            );
+        }
+
+        GpsData lastGps = lastGpsOpt.get();
+        boolean missionCompleted = mission.getStatus() == Mission.MissionStatus.COMPLETED;
+        LiveStatus liveStatus = computeLiveStatus(lastGps, missionActive, false, missionCompleted);
+
+        return new VehicleLiveStatusDTO(
+                vehicle.getId(),
+                resolveVehicleName(vehicle),
+                lastGps.getLatitude(),
+                lastGps.getLongitude(),
+                lastGps.getSpeed(),
+                lastGps.isEngineOn(),
+                lastGps.getTimestamp(),
+                liveStatus.name(),
+                missionActive,
+                currentMissionId,
+                currentDriverName,
+                lastGps.getRouteId(),
+                lastGps.getRouteSource(),
+                missionRoute
+        );
+    }
+
+    public List<GpsPointDTO> getMissionHistorySecured(Long missionId,
+                                                      LocalDateTime from,
+                                                      LocalDateTime to,
+                                                      Authentication auth) {
+        Mission mission = missionService.getAuthorizedMission(missionId, auth);
+
+        if (mission.getVehicle() == null) {
+            throw new ResourceNotFoundException("No vehicle assigned to this mission");
+        }
+
+        LocalDateTime effectiveFrom = from;
+        LocalDateTime effectiveTo = to;
+
+        if (effectiveFrom == null) {
+            effectiveFrom = mission.getStartedAt() != null ? mission.getStartedAt() : mission.getStartDate();
+        }
+
+        if (effectiveTo == null) {
+            if (mission.getFinishedAt() != null) {
+                effectiveTo = mission.getFinishedAt();
+            } else {
+                effectiveTo = LocalDateTime.now();
+            }
+        }
+
+        if (effectiveFrom == null) {
+            effectiveFrom = mission.getCreatedAt() != null ? mission.getCreatedAt() : LocalDateTime.now().minusDays(1);
+        }
+
+        if (effectiveTo.isBefore(effectiveFrom)) {
+            effectiveTo = effectiveFrom.plusMinutes(1);
+        }
+
+        return gpsDataRepository
+                .findByVehicleIdAndTimestampBetweenOrderByTimestampAsc(
+                        mission.getVehicle().getId(),
+                        effectiveFrom,
+                        effectiveTo
+                )
+                .stream()
+                .map(this::toGpsPointDTO)
+                .toList();
+    }
 }

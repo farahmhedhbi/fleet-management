@@ -24,8 +24,8 @@ import java.util.stream.Collectors;
 @Transactional
 public class MissionService {
 
-    private static final long MIN_DURATION_SECONDS = 300; // 5 min
-    private static final long EXTRA_MARGIN_SECONDS = 300; // 5 min
+    private static final long MIN_DURATION_SECONDS = 300;
+    private static final long EXTRA_MARGIN_SECONDS = 300;
 
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
@@ -56,6 +56,7 @@ public class MissionService {
         if (AuthUtil.hasRole(auth, "OWNER")) {
             User owner = userRepository.findByEmail(auth.getName())
                     .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+
             return missionRepository.findByOwner_Id(owner.getId())
                     .stream()
                     .map(MissionDTO::new)
@@ -65,10 +66,53 @@ public class MissionService {
         if (AuthUtil.hasRole(auth, "DRIVER")) {
             Driver driver = driverRepository.findByEmail(auth.getName())
                     .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
+
             return missionRepository.findByDriver_Id(driver.getId())
                     .stream()
                     .map(MissionDTO::new)
                     .collect(Collectors.toList());
+        }
+
+        throw new AccessDeniedException("Forbidden");
+    }
+
+    public MissionDTO getMissionById(Long missionId, Authentication auth) {
+        Mission mission = getAuthorizedMission(missionId, auth);
+        return new MissionDTO(mission);
+    }
+
+    public Mission getAuthorizedMission(Long missionId, Authentication auth) {
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + missionId));
+
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Unauthorized");
+        }
+
+        if (AuthUtil.hasRole(auth, "ADMIN")) {
+            return mission;
+        }
+
+        if (AuthUtil.hasRole(auth, "OWNER")) {
+            User owner = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+
+            if (mission.getOwner() == null || !mission.getOwner().getId().equals(owner.getId())) {
+                throw new AccessDeniedException("Not your mission");
+            }
+
+            return mission;
+        }
+
+        if (AuthUtil.hasRole(auth, "DRIVER")) {
+            Driver driver = driverRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
+
+            if (mission.getDriver() == null || !mission.getDriver().getId().equals(driver.getId())) {
+                throw new AccessDeniedException("Not your mission");
+            }
+
+            return mission;
         }
 
         throw new AccessDeniedException("Forbidden");
@@ -170,6 +214,10 @@ public class MissionService {
             throw new IllegalArgumentException("Only planned missions can be started");
         }
 
+        if (mission.getVehicle() == null) {
+            throw new IllegalArgumentException("Mission vehicle is missing");
+        }
+
         if (missionRepository.existsByVehicleIdAndStatus(
                 mission.getVehicle().getId(),
                 Mission.MissionStatus.IN_PROGRESS)) {
@@ -183,13 +231,12 @@ public class MissionService {
         }
 
         mission.setStatus(Mission.MissionStatus.IN_PROGRESS);
+
         if (mission.getStartedAt() == null) {
             mission.setStartedAt(LocalDateTime.now());
         }
 
-        if (mission.getVehicle() != null) {
-            setVehicleInUse(mission.getVehicle());
-        }
+        setVehicleInUse(mission.getVehicle());
 
         Mission saved = missionRepository.save(mission);
         return new MissionDTO(saved);
@@ -215,6 +262,7 @@ public class MissionService {
         }
 
         mission.setStatus(Mission.MissionStatus.COMPLETED);
+
         if (mission.getFinishedAt() == null) {
             mission.setFinishedAt(LocalDateTime.now());
         }
@@ -254,7 +302,7 @@ public class MissionService {
 
     public void cancelMission(Long missionId, Authentication auth) {
         Mission mission = missionRepository.findById(missionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + missionId));
 
         if (!AuthUtil.hasRole(auth, "OWNER") && !AuthUtil.hasRole(auth, "ADMIN")) {
             throw new AccessDeniedException("Forbidden");
@@ -263,21 +311,28 @@ public class MissionService {
         if (AuthUtil.hasRole(auth, "OWNER")) {
             User owner = userRepository.findByEmail(auth.getName())
                     .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+
             if (mission.getOwner() == null || !mission.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("Forbidden");
+                throw new AccessDeniedException("Not your mission");
             }
         }
 
+        if (mission.getStatus() == Mission.MissionStatus.COMPLETED) {
+            throw new IllegalArgumentException("Completed mission cannot be canceled");
+        }
+
         mission.setStatus(Mission.MissionStatus.CANCELED);
+
         if (mission.getVehicle() != null) {
             setVehicleAvailable(mission.getVehicle());
         }
+
         missionRepository.save(mission);
     }
 
     public void deleteMission(Long missionId, Authentication auth) {
         Mission mission = missionRepository.findById(missionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + missionId));
 
         if (!AuthUtil.hasRole(auth, "OWNER") && !AuthUtil.hasRole(auth, "ADMIN")) {
             throw new AccessDeniedException("Forbidden");
@@ -286,8 +341,9 @@ public class MissionService {
         if (AuthUtil.hasRole(auth, "OWNER")) {
             User owner = userRepository.findByEmail(auth.getName())
                     .orElseThrow(() -> new ResourceNotFoundException("Owner not found"));
+
             if (mission.getOwner() == null || !mission.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("Forbidden");
+                throw new AccessDeniedException("Not your mission");
             }
         }
 

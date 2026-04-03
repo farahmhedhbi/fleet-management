@@ -57,6 +57,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/api/gps/ingest").permitAll()
                         .requestMatchers("/api/simulator/**").permitAll()
+                        .requestMatchers("/api/places/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 

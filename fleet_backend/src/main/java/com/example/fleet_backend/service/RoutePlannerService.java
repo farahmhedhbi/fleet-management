@@ -24,22 +24,46 @@ public class RoutePlannerService {
     }
 
     public RoutePlanResult buildRoutePlan(String departure, String destination) {
-        GeoPoint from = geocode(departure);
-        GeoPoint to = geocode(destination);
+        GeoPoint from = geocodeWithFallback(departure);
+        GeoPoint to = geocodeWithFallback(destination);
 
         return fetchDrivingRoute(from, to, departure, destination);
     }
 
-    private GeoPoint geocode(String query) {
+    private GeoPoint geocodeWithFallback(String rawQuery) {
+        String normalized = normalizePlace(rawQuery);
+
+        GeoPoint exact = tryGeocode(normalized);
+        if (exact != null) {
+            return exact;
+        }
+
+        String simplified = firstToken(normalized);
+        if (!simplified.equalsIgnoreCase(normalized)) {
+            GeoPoint retry = tryGeocode(simplified);
+            if (retry != null) {
+                return retry;
+            }
+        }
+
+        throw new IllegalArgumentException("Lieu introuvable : " + rawQuery);
+    }
+
+    private GeoPoint tryGeocode(String query) {
         try {
-            String encoded = URLEncoder.encode(query + ", Tunisia", StandardCharsets.UTF_8);
+            String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+
             String url = "https://nominatim.openstreetmap.org/search?q="
                     + encoded
-                    + "&format=jsonv2&limit=1";
+                    + "&format=jsonv2"
+                    + "&limit=1"
+                    + "&accept-language=fr"
+                    + "&countrycodes=tn";
 
             HttpHeaders headers = new HttpHeaders();
             headers.setAccept(List.of(MediaType.APPLICATION_JSON));
             headers.set("User-Agent", "fleet-backend/1.0");
+            headers.set("Accept-Language", "fr");
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
@@ -53,17 +77,25 @@ public class RoutePlannerService {
             JsonNode root = objectMapper.readTree(response.getBody());
 
             if (!root.isArray() || root.isEmpty()) {
-                throw new IllegalArgumentException("Lieu introuvable : " + query);
+                return null;
             }
 
             JsonNode first = root.get(0);
 
-            double lat = Double.parseDouble(first.get("lat").asText());
-            double lon = Double.parseDouble(first.get("lon").asText());
+            String latText = first.path("lat").asText(null);
+            String lonText = first.path("lon").asText(null);
+
+            if (latText == null || lonText == null) {
+                return null;
+            }
+
+            double lat = Double.parseDouble(latText);
+            double lon = Double.parseDouble(lonText);
 
             return new GeoPoint(lat, lon);
+
         } catch (Exception e) {
-            throw new RuntimeException("Erreur de géocodage pour : " + query, e);
+            return null;
         }
     }
 
@@ -99,7 +131,7 @@ public class RoutePlannerService {
 
             if (!routes.isArray() || routes.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Impossible de calculer le trajet réel entre " + departure + " et " + destination
+                        "Impossible de calculer le trajet entre " + departure + " et " + destination
                 );
             }
 
@@ -122,13 +154,33 @@ public class RoutePlannerService {
 
             long durationSeconds = Math.round(firstRoute.path("duration").asDouble(0));
             double distanceMeters = firstRoute.path("distance").asDouble(0);
-
             String routeJson = objectMapper.writeValueAsString(points);
 
             return new RoutePlanResult(routeJson, durationSeconds, distanceMeters);
+
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Erreur récupération itinéraire OSRM", e);
+            throw new RuntimeException(
+                    "Erreur calcul trajet réel entre " + departure + " et " + destination,
+                    e
+            );
         }
+    }
+
+    private String normalizePlace(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim();
+    }
+
+    private String firstToken(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String[] parts = value.split(",");
+        return parts.length > 0 ? parts[0].trim() : value.trim();
     }
 
     private record GeoPoint(double latitude, double longitude) {}
