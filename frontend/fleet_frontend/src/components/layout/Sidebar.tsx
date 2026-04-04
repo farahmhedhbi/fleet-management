@@ -76,7 +76,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard, show: isAdmin },
     { name: "Payments", href: "/admin/payments", icon: CreditCard, show: isAdmin },
-    { name: "Suivi GPS", href: "/admin/gps", icon: MapPinned, show: isAdmin },
+    
 
     // commun
     { name: "Schedule", href: "/schedule", icon: Calendar, show: true },

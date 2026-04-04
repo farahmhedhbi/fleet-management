@@ -12,9 +12,25 @@ import type { Vehicle } from "@/types/vehicle";
 import type { Driver } from "@/types/driver";
 import MissionsView from "./MissionsView";
 
+type MissionStatusFilter =
+  | "ALL"
+  | "PLANNED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELED";
+
 function minNowLocal() {
   const d = new Date();
   d.setSeconds(0, 0);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function toInputDateTime(value?: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
   const offset = d.getTimezoneOffset();
   const local = new Date(d.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
@@ -37,8 +53,12 @@ export default function MissionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editingMissionId, setEditingMissionId] = useState<number | null>(null);
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<MissionStatusFilter>("ALL");
   const [form, setForm] = useState<MissionDTO>(emptyForm);
 
   const [departureSuggestions, setDepartureSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -78,14 +98,20 @@ export default function MissionsPage() {
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) return missions;
 
-    return missions.filter((m) =>
-      `${m.title} ${m.description ?? ""} ${m.departure} ${m.destination} ${m.status} ${m.driverName ?? ""} ${m.vehicleRegistrationNumber ?? ""}`
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [missions, q]);
+    return missions.filter((m) => {
+      const matchesStatus =
+        statusFilter === "ALL" ? true : m.status === statusFilter;
+
+      const matchesSearch = !query
+        ? true
+        : `${m.title} ${m.description ?? ""} ${m.departure} ${m.destination} ${m.status} ${m.driverName ?? ""} ${m.vehicleRegistrationNumber ?? ""}`
+            .toLowerCase()
+            .includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [missions, q, statusFilter]);
 
   const stats = useMemo(() => {
     return {
@@ -101,6 +127,7 @@ export default function MissionsPage() {
     setForm(emptyForm);
     setDepartureSuggestions([]);
     setDestinationSuggestions([]);
+    setEditingMissionId(null);
   };
 
   const submitCreate = async () => {
@@ -128,6 +155,55 @@ export default function MissionsPage() {
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const startEdit = (mission: Mission) => {
+    if (mission.status !== "PLANNED") {
+      toast.warn("Only planned missions can be edited");
+      return;
+    }
+
+    setEditingMissionId(mission.id);
+    setForm({
+      title: mission.title || "",
+      description: mission.description || "",
+      departure: mission.departure || "",
+      destination: mission.destination || "",
+      startDate: toInputDateTime(mission.startDate),
+      vehicleId: mission.vehicleId || 0,
+      driverId: mission.driverId || 0,
+    });
+    setOpenEdit(true);
+    setOpenCreate(false);
+  };
+
+  const submitUpdate = async () => {
+    if (!editingMissionId) return toast.warn("No mission selected");
+    if (!form.title.trim()) return toast.warn("Title is required");
+    if (!form.departure.trim()) return toast.warn("Departure is required");
+    if (!form.destination.trim()) return toast.warn("Destination is required");
+    if (!form.startDate) return toast.warn("Start date is required");
+    if (!form.vehicleId) return toast.warn("Vehicle is required");
+    if (!form.driverId) return toast.warn("Driver is required");
+
+    setUpdating(true);
+    try {
+      await missionService.update(editingMissionId, form);
+      toast.success("Mission updated successfully");
+      setOpenEdit(false);
+      resetForm();
+      await loadAll();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Update failed"
+      );
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -170,7 +246,7 @@ export default function MissionsPage() {
   useEffect(() => {
     const query = form.departure?.trim();
 
-    if (!openCreate || !query || query.length < 2) {
+    if ((!openCreate && !openEdit) || !query || query.length < 2) {
       setDepartureSuggestions([]);
       return;
     }
@@ -189,12 +265,12 @@ export default function MissionsPage() {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [form.departure, openCreate]);
+  }, [form.departure, openCreate, openEdit]);
 
   useEffect(() => {
     const query = form.destination?.trim();
 
-    if (!openCreate || !query || query.length < 2) {
+    if ((!openCreate && !openEdit) || !query || query.length < 2) {
       setDestinationSuggestions([]);
       return;
     }
@@ -213,7 +289,7 @@ export default function MissionsPage() {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [form.destination, openCreate]);
+  }, [form.destination, openCreate, openEdit]);
 
   return (
     <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
@@ -225,16 +301,27 @@ export default function MissionsPage() {
         loading={loading}
         refreshing={refreshing}
         creating={creating}
+        updating={updating}
         openCreate={openCreate}
+        openEdit={openEdit}
         setOpenCreate={setOpenCreate}
+        setOpenEdit={(value) => {
+          setOpenEdit(value);
+          if (!value) resetForm();
+        }}
         q={q}
         setQ={setQ}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
         form={form}
         setForm={setForm}
         stats={stats}
         minDateTime={minNowLocal()}
+        editingMissionId={editingMissionId}
         onRefresh={loadAll}
         onSubmitCreate={submitCreate}
+        onSubmitUpdate={submitUpdate}
+        onStartEdit={startEdit}
         onDeleteMission={deleteMission}
         onCancelMission={cancelMission}
         departureSuggestions={departureSuggestions}
