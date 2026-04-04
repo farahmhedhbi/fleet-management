@@ -60,4 +60,38 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     boolean existsDriverOverlap(@Param("driverId") Long driverId,
                                 @Param("startDate") LocalDateTime startDate,
                                 @Param("endDate") LocalDateTime endDate);
+
+    @Query("""
+    SELECT COUNT(m) > 0
+    FROM Mission m
+    WHERE m.vehicle.id = :vehicleId
+      AND m.id <> :missionId
+      AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+      AND (
+          :startDate < m.endDate AND :endDate > m.startDate
+      )
+""")
+    boolean existsVehicleOverlapExcludingMission(
+            @Param("vehicleId") Long vehicleId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("missionId") Long missionId
+    );
+
+    @Query("""
+    SELECT COUNT(m) > 0
+    FROM Mission m
+    WHERE m.driver.id = :driverId
+      AND m.id <> :missionId
+      AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+      AND (
+          :startDate < m.endDate AND :endDate > m.startDate
+      )
+""")
+    boolean existsDriverOverlapExcludingMission(
+            @Param("driverId") Long driverId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("missionId") Long missionId
+    );
 }

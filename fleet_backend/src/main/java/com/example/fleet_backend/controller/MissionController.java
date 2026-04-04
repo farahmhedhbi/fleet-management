@@ -3,6 +3,7 @@ package com.example.fleet_backend.controller;
 import com.example.fleet_backend.dto.GpsPointDTO;
 import com.example.fleet_backend.dto.MissionDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
+import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.service.GpsService;
 import com.example.fleet_backend.service.MissionService;
 import jakarta.validation.Valid;
@@ -81,5 +82,13 @@ public class MissionController {
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         missionService.deleteMission(id, auth);
         return ResponseEntity.noContent().build();
+    }
+    @PutMapping("/{id}")
+    public ResponseEntity<MissionDTO> updateMission(
+            @PathVariable Long id,
+            @RequestBody MissionDTO dto,
+            Authentication auth
+    ) {
+        return ResponseEntity.ok(missionService.updateMission(id, dto, auth));
     }
 }
