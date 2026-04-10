@@ -14,6 +14,12 @@ function formatDateTime(value?: string) {
   return d.toLocaleString();
 }
 
+function toTimestamp(value?: string) {
+  if (!value) return 0;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 export default function MyMissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +56,31 @@ export default function MyMissionsPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const sortedMissions = useMemo(() => {
+    return [...missions].sort((a, b) => {
+      const aInProgress = a.status === "IN_PROGRESS" ? 1 : 0;
+      const bInProgress = b.status === "IN_PROGRESS" ? 1 : 0;
+
+      if (aInProgress !== bInProgress) {
+        return bInProgress - aInProgress;
+      }
+
+      const aPlanned = a.status === "PLANNED" ? 1 : 0;
+      const bPlanned = b.status === "PLANNED" ? 1 : 0;
+
+      if (aPlanned !== bPlanned) {
+        return bPlanned - aPlanned;
+      }
+
+      return toTimestamp(b.startDate) - toTimestamp(a.startDate);
+    });
+  }, [missions]);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) return missions;
+    if (!query) return sortedMissions;
 
-    return missions.filter((m) => {
+    return sortedMissions.filter((m) => {
       const text = [
         m.title,
         m.description,
@@ -70,22 +96,39 @@ export default function MyMissionsPage() {
 
       return text.includes(query);
     });
-  }, [missions, q]);
+  }, [sortedMissions, q]);
 
-  const canStartMission = useCallback((mission: Mission) => {
-    return mission.status === "PLANNED";
-  }, []);
+  const canStartMission = useCallback(
+    (mission: Mission) => {
+      if (mission.status !== "PLANNED") return false;
+
+      const startTime = toTimestamp(mission.startDate);
+      if (!startTime) return true;
+
+      return now >= startTime;
+    },
+    [now]
+  );
 
   const canFinishMission = useCallback((mission: Mission) => {
     return mission.status === "IN_PROGRESS";
   }, []);
 
-  const getStartBlockedMessage = useCallback((mission: Mission) => {
-    if (mission.status !== "PLANNED") {
-      return "Only a planned mission can be started";
-    }
-    return null;
-  }, []);
+  const getStartBlockedMessage = useCallback(
+    (mission: Mission) => {
+      if (mission.status !== "PLANNED") {
+        return "Only a planned mission can be started";
+      }
+
+      const startTime = toTimestamp(mission.startDate);
+      if (startTime && now < startTime) {
+        return `Mission can start at ${formatDateTime(mission.startDate)}`;
+      }
+
+      return null;
+    },
+    [now]
+  );
 
   const getFinishBlockedMessage = useCallback((mission: Mission) => {
     if (mission.status !== "IN_PROGRESS") {
@@ -139,7 +182,7 @@ export default function MyMissionsPage() {
   return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
-        missions={missions}
+        missions={sortedMissions}
         filtered={filtered}
         loading={loading}
         refreshing={refreshing}

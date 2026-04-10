@@ -1,11 +1,18 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  Popup,
+  Polyline,
+  TileLayer,
+  useMap,
+} from "react-leaflet";
 import L, { type LatLngTuple } from "leaflet";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 const gpsMarkerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -17,7 +24,11 @@ const gpsMarkerIcon = new L.Icon({
 
 function MapResizeController({ center }: { center: LatLngTuple }) {
   const map = useMap();
-  map.setView(center);
+
+  useEffect(() => {
+    map.setView(center);
+  }, [map, center]);
+
   return null;
 }
 
@@ -28,6 +39,54 @@ interface FleetLiveMapProps {
   history: GpsData[];
 }
 
+function isValidCoordinate(lat?: number | null, lng?: number | null) {
+  return (
+    lat !== null &&
+    lng !== null &&
+    lat !== undefined &&
+    lng !== undefined &&
+    !Number.isNaN(lat) &&
+    !Number.isNaN(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+function simplifyPositions(points: LatLngTuple[], maxPoints = 500): LatLngTuple[] {
+  if (points.length <= maxPoints) return points;
+
+  const step = Math.ceil(points.length / maxPoints);
+  const reduced = points.filter((_, index) => index % step === 0);
+
+  const last = points[points.length - 1];
+  const lastReduced = reduced[reduced.length - 1];
+
+  if (!lastReduced || lastReduced[0] !== last[0] || lastReduced[1] !== last[1]) {
+    reduced.push(last);
+  }
+
+  return reduced;
+}
+
+function removeConsecutiveDuplicates(points: LatLngTuple[]): LatLngTuple[] {
+  if (points.length <= 1) return points;
+
+  const result: LatLngTuple[] = [points[0]];
+
+  for (let i = 1; i < points.length; i++) {
+    const prev = result[result.length - 1];
+    const curr = points[i];
+
+    if (prev[0] !== curr[0] || prev[1] !== curr[1]) {
+      result.push(curr);
+    }
+  }
+
+  return result;
+}
+
 export default function FleetLiveMap({
   vehicles,
   selectedVehicleId,
@@ -36,13 +95,7 @@ export default function FleetLiveMap({
 }: FleetLiveMapProps) {
   const validVehicles = useMemo(
     () =>
-      vehicles.filter(
-        (v) =>
-          v.latitude !== null &&
-          v.longitude !== null &&
-          !Number.isNaN(v.latitude) &&
-          !Number.isNaN(v.longitude)
-      ),
+      vehicles.filter((v) => isValidCoordinate(v.latitude, v.longitude)),
     [vehicles]
   );
 
@@ -57,27 +110,28 @@ export default function FleetLiveMap({
     ? [validVehicles[0].latitude!, validVehicles[0].longitude!]
     : defaultCenter;
 
-  const historyPositions: LatLngTuple[] = history
-    .filter(
-      (item) =>
-        item.latitude !== null &&
-        item.longitude !== null &&
-        !Number.isNaN(item.latitude) &&
-        !Number.isNaN(item.longitude)
-    )
-    .map((item): LatLngTuple => [item.latitude, item.longitude]);
+  const historyPositions = useMemo<LatLngTuple[]>(() => {
+    const points = history
+      .filter((item) => isValidCoordinate(item.latitude, item.longitude))
+      .map((item): LatLngTuple => [item.latitude!, item.longitude!]);
 
-  const missionRoutePositions: LatLngTuple[] = selectedVehicle
-    ? selectedVehicle.missionRoute.map(
-        (point): LatLngTuple => [point.latitude, point.longitude]
-      )
-    : [];
+    return simplifyPositions(removeConsecutiveDuplicates(points), 400);
+  }, [history]);
+
+  const missionRoutePositions = useMemo<LatLngTuple[]>(() => {
+    if (!selectedVehicle?.missionRoute?.length) return [];
+
+    const points = selectedVehicle.missionRoute
+      .filter((point) => isValidCoordinate(point.latitude, point.longitude))
+      .map((point): LatLngTuple => [point.latitude, point.longitude]);
+
+    return simplifyPositions(removeConsecutiveDuplicates(points), 400);
+  }, [selectedVehicle]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="h-[540px] w-full">
         <MapContainer
-          key={`${selectedVehicleId ?? "all"}-${validVehicles.length}`}
           center={center}
           zoom={12}
           scrollWheelZoom
@@ -130,12 +184,12 @@ export default function FleetLiveMap({
             </Marker>
           ))}
 
-          {missionRoutePositions.length > 0 && (
-            <Polyline positions={missionRoutePositions} />
+          {missionRoutePositions.length > 1 && (
+            <Polyline positions={missionRoutePositions} smoothFactor={0} />
           )}
 
           {historyPositions.length > 1 && (
-            <Polyline positions={historyPositions} />
+            <Polyline positions={historyPositions} smoothFactor={0} />
           )}
         </MapContainer>
       </div>

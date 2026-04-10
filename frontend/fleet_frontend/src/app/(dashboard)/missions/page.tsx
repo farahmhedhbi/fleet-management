@@ -292,7 +292,7 @@ export default function MissionsPage() {
   }, [form.destination, openCreate, openEdit]);
 
   return (
-    <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
+    <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
       <MissionsView
         missions={missions}
         vehicles={vehicles}

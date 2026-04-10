@@ -11,7 +11,6 @@ import {
   ChevronDown,
   Settings,
   LayoutDashboard,
-  ShieldCheck,
   Check,
   AlertTriangle,
   Clock3,
@@ -73,12 +72,41 @@ function formatDateTime(value?: string | null) {
   return d.toLocaleString();
 }
 
+function toTs(value?: string | null) {
+  if (!value) return 0;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function isDriverLateAlert(notification: Notification) {
   return notification?.title?.trim().toLowerCase() === "retard de mission";
 }
 
 function isOwnerLateStartNotification(notification: Notification) {
   return notification?.title?.trim().toLowerCase() === "mission démarrée en retard";
+}
+
+function sortByNewest(list: Notification[]) {
+  return [...list].sort((a, b) => toTs(b.createdAt) - toTs(a.createdAt));
+}
+
+function getLatestDriverLateUnread(list: Notification[]) {
+  const lateUnread = list.filter(
+    (n) => isDriverLateAlert(n) && !n.read && typeof n.id === "number"
+  );
+  const sorted = sortByNewest(lateUnread);
+  return sorted[0] ?? null;
+}
+
+function getLatestOwnerLateUnread(list: Notification[]) {
+  const lateUnread = list.filter(
+    (n) =>
+      isOwnerLateStartNotification(n) &&
+      !n.read &&
+      typeof n.id === "number"
+  );
+  const sorted = sortByNewest(lateUnread);
+  return sorted[0] ?? null;
 }
 
 export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
@@ -90,8 +118,6 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // popup flottante seulement pour le driver en retard
   const [floatingAlert, setFloatingAlert] = useState<Notification | null>(null);
 
   const isMountedRef = useRef(true);
@@ -150,14 +176,18 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
   const processSpecialNotifications = useCallback(
     (list: Notification[]) => {
-      const driverLateUnread = list.filter((n) => isDriverLateAlert(n) && !n.read);
+      const latestDriverLate = getLatestDriverLateUnread(list);
 
-      // popup flottante pour le driver
-      setFloatingAlert(driverLateUnread.length > 0 ? driverLateUnread[0] : null);
+      setFloatingAlert(latestDriverLate);
 
-      // son + toast une seule fois pour alerte driver
-      const newDriverLateUnread = driverLateUnread.filter(
-        (n) => typeof n.id === "number" && !alreadyPlayedIdsRef.current.has(n.id)
+      const newDriverLateUnread = sortByNewest(
+        list.filter(
+          (n) =>
+            isDriverLateAlert(n) &&
+            !n.read &&
+            typeof n.id === "number" &&
+            !alreadyPlayedIdsRef.current.has(n.id)
+        )
       );
 
       if (newDriverLateUnread.length > 0) {
@@ -170,19 +200,20 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
         });
       }
 
-      // toast orange pour owner : mission démarrée en retard
-      const ownerLateStartUnread = list.filter(
-        (n) =>
-          isOwnerLateStartNotification(n) &&
-          !n.read &&
-          typeof n.id === "number" &&
-          !alreadyPlayedIdsRef.current.has(n.id)
+      const newOwnerLateUnread = sortByNewest(
+        list.filter(
+          (n) =>
+            isOwnerLateStartNotification(n) &&
+            !n.read &&
+            typeof n.id === "number" &&
+            !alreadyPlayedIdsRef.current.has(n.id)
+        )
       );
 
-      if (ownerLateStartUnread.length > 0) {
-        ownerLateStartUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
+      if (newOwnerLateUnread.length > 0) {
+        newOwnerLateUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
 
-        const latest = ownerLateStartUnread[0];
+        const latest = newOwnerLateUnread[0];
         toast.warn(latest.message || "Mission démarrée en retard", {
           autoClose: 6000,
         });
@@ -223,7 +254,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
       try {
         const list = await notificationService.list();
-        const safeList = Array.isArray(list) ? list : [];
+        const safeList = Array.isArray(list) ? sortByNewest(list) : [];
 
         if (!isMountedRef.current) return;
 
@@ -260,31 +291,32 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       return;
     }
 
-    loadUnreadCount();
-    loadNotifications(false);
+    void loadUnreadCount();
+    void loadNotifications(false);
 
-    const timer = setInterval(() => {
-      loadUnreadCount();
-      loadNotifications(false);
+    const timer = window.setInterval(() => {
+      void loadUnreadCount();
+      void loadNotifications(false);
     }, 15000);
 
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [canSeeNotifs, loadUnreadCount, loadNotifications]);
 
-  // popup driver toutes les 60 secondes tant qu'elle est non lue
   useEffect(() => {
     if (!canSeeNotifs) return;
 
-    const timer = setInterval(() => {
-      const lateUnread = notifications.filter((n) => isDriverLateAlert(n) && !n.read);
+    const timer = window.setInterval(() => {
+      const latestLateUnread = getLatestDriverLateUnread(notifications);
 
-      if (lateUnread.length > 0) {
-        setFloatingAlert(lateUnread[0]);
+      if (latestLateUnread) {
+        setFloatingAlert(latestLateUnread);
         playLateAlertSound();
+      } else {
+        setFloatingAlert(null);
       }
     }, 60000);
 
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [notifications, canSeeNotifs, playLateAlertSound]);
 
   const markRead = async (id: number) => {
@@ -318,433 +350,311 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       setUnreadCount(0);
       setFloatingAlert(null);
 
-      toast.success("All notifications marked as read ✅");
+      await loadNotifications(false);
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Mark all failed");
+      toast.error(e?.response?.data?.message || e?.message || "Mark all read failed");
     }
   };
 
-  const hasUnreadDriverLateAlert = useMemo(() => {
-    return notifications.some((n) => isDriverLateAlert(n) && !n.read);
-  }, [notifications]);
-
   return (
     <>
-      {floatingAlert && (
-        <div className="fixed right-4 top-20 z-[70] w-[380px] max-w-[calc(100vw-2rem)] animate-in slide-in-from-top-3 duration-300">
-          <div className="overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
-            <div className="bg-gradient-to-r from-red-600 to-rose-600 px-4 py-3 text-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full bg-white/20 p-2">
-                    <AlertTriangle size={18} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-extrabold">Alerte critique</p>
-                    <p className="text-xs font-semibold text-white/90">
-                      Mission en retard
-                    </p>
-                  </div>
-                </div>
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="flex h-16 items-center justify-between px-4 md:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 lg:hidden"
+              type="button"
+            >
+              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
 
-                <button
-                  onClick={() => setFloatingAlert(null)}
-                  className="rounded-full p-1 text-white/90 transition hover:bg-white/10 hover:text-white"
-                  type="button"
-                  aria-label="Fermer l'alerte"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">Fleet Management</p>
+              <p className="text-xs text-slate-500">Dashboard</p>
             </div>
+          </div>
 
-            <div className="space-y-3 px-4 py-4">
-              <div>
-                <p className="text-sm font-extrabold text-red-700">
-                  {floatingAlert.title}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-700">
-                  {floatingAlert.message}
-                </p>
+          <div className="flex items-center gap-3">
+            {canSeeNotifs && (
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => {
+                    setNotifOpen((v) => !v);
+                    if (!notifOpen) void loadNotifications(true);
+                  }}
+                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  type="button"
+                >
+                  <Bell size={18} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notifOpen && (
+                  <div className="absolute right-0 mt-2 w-[380px] max-w-[92vw] rounded-3xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-900">Notifications</p>
+                        <p className="text-xs font-semibold text-slate-500">
+                          {unreadCount} non lue(s)
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={markAllRead}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                        type="button"
+                      >
+                        Tout lire
+                      </button>
+                    </div>
+
+                    <div className="max-h-[420px] overflow-auto p-2">
+                      {notifLoading ? (
+                        <div className="p-3 text-sm font-semibold text-slate-600">
+                          Loading...
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-6 text-sm font-semibold text-slate-600">
+                          No notifications.
+                        </div>
+                      ) : (
+                        notifications.map((n) => {
+                          const isDriverLate = isDriverLateAlert(n);
+                          const isOwnerLate = isOwnerLateStartNotification(n);
+
+                          return (
+                            <div
+                              key={n.id}
+                              className={cn(
+                                "mb-2 flex gap-3 rounded-2xl px-3 py-3 transition hover:bg-slate-50",
+                                isDriverLate && !n.read && "border border-red-200 bg-red-50",
+                                isDriverLate && n.read && "border border-red-100 bg-red-50/50",
+                                isOwnerLate && !n.read && "border border-amber-200 bg-amber-50",
+                                isOwnerLate && n.read && "border border-amber-100 bg-amber-50/50",
+                                !isDriverLate && !isOwnerLate && !n.read && "bg-blue-50/40"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "mt-1 flex h-7 w-7 items-center justify-center rounded-full",
+                                  isDriverLate && "bg-red-100 text-red-600",
+                                  isOwnerLate && "bg-amber-100 text-amber-600",
+                                  !isDriverLate && !isOwnerLate && "bg-slate-100 text-slate-500"
+                                )}
+                              >
+                                {isDriverLate ? (
+                                  <AlertTriangle size={14} />
+                                ) : isOwnerLate ? (
+                                  <Clock3 size={14} />
+                                ) : (
+                                  <Bell size={14} />
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p
+                                    className={cn(
+                                      "truncate text-sm font-extrabold",
+                                      isDriverLate && "text-red-700",
+                                      isOwnerLate && "text-amber-700",
+                                      !isDriverLate && !isOwnerLate && "text-slate-900"
+                                    )}
+                                  >
+                                    {n.title}
+                                  </p>
+
+                                  {!n.read && !isDriverLate && (
+                                    <button
+                                      onClick={() => markRead(n.id)}
+                                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
+                                      title="Mark as read"
+                                      type="button"
+                                    >
+                                      <Check size={12} />
+                                      Read
+                                    </button>
+                                  )}
+                                </div>
+
+                                <p
+                                  className={cn(
+                                    "mt-1 text-sm font-semibold",
+                                    isDriverLate && "text-red-700",
+                                    isOwnerLate && "text-amber-700",
+                                    !isDriverLate && !isOwnerLate && "text-slate-600"
+                                  )}
+                                >
+                                  {n.message}
+                                </p>
+
+                                {isDriverLate && (
+                                  <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-extrabold text-red-700">
+                                    <AlertTriangle size={12} />
+                                    Alerte de retard
+                                  </div>
+                                )}
+
+                                {isOwnerLate && (
+                                  <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-700">
+                                    <Clock3 size={12} />
+                                    Démarrage tardif
+                                  </div>
+                                )}
+
+                                <div className="mt-2 flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-slate-500">
+                                    {formatDateTime(n.createdAt)}
+                                  </span>
+
+                                  {n.missionId && (
+                                    <button
+                                      onClick={() => {
+                                        setNotifOpen(false);
+                                        router.push(openAllRoute());
+                                      }}
+                                      className={cn(
+                                        "rounded-full px-3 py-1 text-[11px] font-extrabold text-white",
+                                        isDriverLate
+                                          ? "bg-red-600 hover:bg-red-700"
+                                          : isOwnerLate
+                                          ? "bg-amber-600 hover:bg-amber-700"
+                                          : "bg-slate-900 hover:bg-slate-800"
+                                      )}
+                                      type="button"
+                                    >
+                                      Open
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              <div className="rounded-2xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
-                {formatDateTime(floatingAlert.createdAt)}
-              </div>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50"
+                type="button"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-extrabold text-white">
+                  {initials(user?.firstName, user?.lastName)}
+                </div>
+                <div className="hidden text-left md:block">
+                  <p className="text-sm font-extrabold text-slate-900">{displayName}</p>
+                  <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold", badge)}>
+                    {roleLabel(roleName)}
+                  </span>
+                </div>
+                <ChevronDown size={16} className="text-slate-500" />
+              </button>
 
-              <div className="flex items-center gap-2">
-                {floatingAlert.missionId && (
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-3xl border border-slate-200 bg-white p-2 shadow-2xl">
                   <button
                     onClick={() => {
-                      setFloatingAlert(null);
-                      setNotifOpen(false);
-                      router.push(openAllRoute());
+                      setMenuOpen(false);
+                      router.push("/");
                     }}
-                    className="flex-1 rounded-2xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-red-700"
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
                     type="button"
                   >
-                    Voir mission
+                    <LayoutDashboard size={16} />
+                    Dashboard
                   </button>
-                )}
 
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/profile");
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    type="button"
+                  >
+                    <User size={16} />
+                    Profile
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/settings");
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    type="button"
+                  >
+                    <Settings size={16} />
+                    Settings
+                  </button>
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                    type="button"
+                  >
+                    <LogOut size={16} />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {floatingAlert && isDriver && (
+        <div className="fixed bottom-5 right-5 z-[60] w-[360px] max-w-[92vw] rounded-3xl border border-red-200 bg-white p-4 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertTriangle size={18} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-red-700">{floatingAlert.title}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">{floatingAlert.message}</p>
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                {formatDateTime(floatingAlert.createdAt)}
+              </p>
+
+              <div className="mt-3 flex gap-2">
                 <button
-                  onClick={() => setFloatingAlert(null)}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
+                  onClick={() => {
+                    setFloatingAlert(null);
+                    router.push("/my-missions");
+                  }}
+                  className="rounded-xl bg-red-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-red-700"
                   type="button"
                 >
-                  Fermer
+                  Ouvrir
+                </button>
+
+                <button
+                  onClick={async () => {
+                    await markRead(floatingAlert.id);
+                    setFloatingAlert(null);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                  type="button"
+                >
+                  Marquer comme lu
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-
-      <nav className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white/75 backdrop-blur-xl lg:pl-64">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-500/25 to-transparent" />
-
-        <div className="px-3 py-3 lg:px-6 lg:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white/80 p-2.5 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500/20 lg:hidden"
-                aria-label="Toggle sidebar"
-                type="button"
-              >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-
-              <div
-                className="flex cursor-pointer items-center gap-3"
-                onClick={() => router.push("/dashboard")}
-                role="button"
-                aria-label="Go to dashboard"
-              >
-                <div className="relative grid h-10 w-10 place-items-center rounded-2xl bg-slate-900 text-white shadow-sm">
-                  <span className="text-base font-extrabold">F</span>
-                  <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
-                </div>
-
-                <div className="hidden leading-tight sm:block">
-                  <p className="text-base font-extrabold tracking-tight text-slate-900">
-                    FleetIQ
-                  </p>
-                  <p className="text-xs font-semibold text-slate-600">
-                    Fleet Management • IA • GPS
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {canSeeNotifs && (
-                <div className="relative" ref={notifRef}>
-                  <button
-                    onClick={async () => {
-                      const next = !notifOpen;
-                      setNotifOpen(next);
-                      setMenuOpen(false);
-
-                      if (next) {
-                        await loadNotifications(true);
-                      }
-                    }}
-                    className={cn(
-                      "relative inline-flex items-center justify-center rounded-2xl border bg-white/80 p-2.5 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md focus:outline-none focus:ring-2",
-                      hasUnreadDriverLateAlert
-                        ? "border-red-300 ring-red-500/20"
-                        : "border-slate-200 focus:ring-sky-500/20"
-                    )}
-                    aria-label="Notifications"
-                    type="button"
-                  >
-                    {hasUnreadDriverLateAlert ? (
-                      <AlertTriangle size={18} className="text-red-600" />
-                    ) : (
-                      <Bell size={18} />
-                    )}
-
-                    {unreadCount > 0 && (
-                      <span
-                        className={cn(
-                          "absolute -right-1 -top-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-xs font-extrabold text-white",
-                          hasUnreadDriverLateAlert ? "bg-red-600" : "bg-rose-600"
-                        )}
-                      >
-                        {unreadCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {notifOpen && (
-                    <div className="absolute right-0 mt-3 w-[360px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-                      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                        <p className="text-sm font-extrabold text-slate-900">
-                          Notifications
-                        </p>
-
-                        <button
-                          onClick={markAllRead}
-                          className="text-xs font-extrabold text-slate-700 hover:text-slate-900"
-                          type="button"
-                        >
-                          Mark all read
-                        </button>
-                      </div>
-
-                      <div className="max-h-[420px] overflow-auto p-2">
-                        {notifLoading ? (
-                          <div className="p-3 text-sm font-semibold text-slate-600">
-                            Loading...
-                          </div>
-                        ) : notifications.length === 0 ? (
-                          <div className="p-6 text-sm font-semibold text-slate-600">
-                            No notifications.
-                          </div>
-                        ) : (
-                          notifications.map((n) => {
-                            const isDriverLate = isDriverLateAlert(n);
-                            const isOwnerLate = isOwnerLateStartNotification(n);
-
-                            return (
-                              <div
-                                key={n.id}
-                                className={cn(
-                                  "mb-2 flex gap-3 rounded-2xl px-3 py-3 transition hover:bg-slate-50",
-                                  isDriverLate && !n.read && "border border-red-200 bg-red-50",
-                                  isDriverLate && n.read && "border border-red-100 bg-red-50/50",
-                                  isOwnerLate && !n.read && "border border-amber-200 bg-amber-50",
-                                  isOwnerLate && n.read && "border border-amber-100 bg-amber-50/50",
-                                  !isDriverLate && !isOwnerLate && !n.read && "bg-blue-50/40"
-                                )}
-                              >
-                                <div
-                                  className={cn(
-                                    "mt-1 flex h-7 w-7 items-center justify-center rounded-full",
-                                    isDriverLate && "bg-red-100 text-red-600",
-                                    isOwnerLate && "bg-amber-100 text-amber-600",
-                                    !isDriverLate && !isOwnerLate && "bg-slate-100 text-slate-500"
-                                  )}
-                                >
-                                  {isDriverLate ? (
-                                    <AlertTriangle size={14} />
-                                  ) : isOwnerLate ? (
-                                    <Clock3 size={14} />
-                                  ) : (
-                                    <Bell size={14} />
-                                  )}
-                                </div>
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <p
-                                      className={cn(
-                                        "truncate text-sm font-extrabold",
-                                        isDriverLate && "text-red-700",
-                                        isOwnerLate && "text-amber-700",
-                                        !isDriverLate && !isOwnerLate && "text-slate-900"
-                                      )}
-                                    >
-                                      {n.title}
-                                    </p>
-
-                                    {!n.read && !isDriverLate && (
-                                      <button
-                                        onClick={() => markRead(n.id)}
-                                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-extrabold text-slate-700 hover:bg-slate-50"
-                                        title="Mark as read"
-                                        type="button"
-                                      >
-                                        <Check size={12} />
-                                        Read
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <p
-                                    className={cn(
-                                      "mt-1 text-sm font-semibold",
-                                      isDriverLate && "text-red-700",
-                                      isOwnerLate && "text-amber-700",
-                                      !isDriverLate && !isOwnerLate && "text-slate-600"
-                                    )}
-                                  >
-                                    {n.message}
-                                  </p>
-
-                                  {isDriverLate && (
-                                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-extrabold text-red-700">
-                                      <AlertTriangle size={12} />
-                                      Alerte de retard
-                                    </div>
-                                  )}
-
-                                  {isOwnerLate && (
-                                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-700">
-                                      <Clock3 size={12} />
-                                      Démarrage tardif
-                                    </div>
-                                  )}
-
-                                  <div className="mt-2 flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-500">
-                                      {formatDateTime(n.createdAt)}
-                                    </span>
-
-                                    {n.missionId && (
-                                      <button
-                                        onClick={() => {
-                                          setNotifOpen(false);
-                                          router.push(openAllRoute());
-                                        }}
-                                        className={cn(
-                                          "rounded-full px-3 py-1 text-[11px] font-extrabold text-white",
-                                          isDriverLate
-                                            ? "bg-red-600 hover:bg-red-700"
-                                            : isOwnerLate
-                                            ? "bg-amber-600 hover:bg-amber-700"
-                                            : "bg-slate-900 hover:bg-slate-800"
-                                        )}
-                                        type="button"
-                                      >
-                                        Open
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      <div className="border-t border-slate-200 px-4 py-3">
-                        <button
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                          onClick={() => {
-                            setNotifOpen(false);
-                            router.push(openAllRoute());
-                          }}
-                          type="button"
-                        >
-                          Voir tout
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => {
-                    setMenuOpen((v) => !v);
-                    setNotifOpen(false);
-                  }}
-                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                  aria-label="User menu"
-                  type="button"
-                >
-                  <div className="relative grid h-9 w-9 place-items-center rounded-2xl bg-slate-900 text-white">
-                    <span className="text-xs font-extrabold">
-                      {initials(user?.firstName, user?.lastName)}
-                    </span>
-                  </div>
-
-                  <div className="hidden text-left leading-tight md:block">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      {displayName}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[11px] font-extrabold capitalize",
-                          badge
-                        )}
-                      >
-                        {roleLabel(roleName || user?.role)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <ChevronDown
-                    size={16}
-                    className={cn("text-slate-500 transition", menuOpen && "rotate-180")}
-                  />
-                </button>
-
-                {menuOpen && (
-                  <div className="absolute right-0 mt-3 w-[280px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-                    <div className="border-b border-slate-200 px-4 py-4">
-                      <p className="text-sm font-extrabold text-slate-900">
-                        {displayName}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-slate-600">
-                        {user?.email}
-                      </p>
-
-                      <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">
-                        <ShieldCheck size={14} />
-                        Session active
-                      </div>
-                    </div>
-
-                    <div className="p-2">
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push("/dashboard");
-                        }}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
-                        type="button"
-                      >
-                        <LayoutDashboard size={16} className="text-slate-500" />
-                        Dashboard
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push("/profile");
-                        }}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
-                        type="button"
-                      >
-                        <User size={16} className="text-slate-500" />
-                        Profil
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push("/settings");
-                        }}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-extrabold text-slate-800 transition hover:bg-slate-50"
-                        type="button"
-                      >
-                        <Settings size={16} className="text-slate-500" />
-                        Paramètres
-                      </button>
-                    </div>
-
-                    <div className="border-t border-slate-200 p-2">
-                      <button
-                        onClick={handleLogout}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-extrabold text-rose-700 transition hover:bg-rose-50"
-                        type="button"
-                      >
-                        <LogOut size={16} />
-                        Se déconnecter
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
     </>
   );
 }
