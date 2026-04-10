@@ -32,17 +32,20 @@ public class MissionService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final RoutePlannerService routePlannerService;
+    private final NotificationService notificationService;
 
     public MissionService(MissionRepository missionRepository,
                           VehicleRepository vehicleRepository,
                           DriverRepository driverRepository,
                           UserRepository userRepository,
-                          RoutePlannerService routePlannerService) {
+                          RoutePlannerService routePlannerService,
+                          NotificationService notificationService) {
         this.missionRepository = missionRepository;
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
         this.routePlannerService = routePlannerService;
+        this.notificationService = notificationService;
     }
 
     public List<MissionDTO> getMissions(Authentication auth) {
@@ -192,6 +195,9 @@ public class MissionService {
         mission.setLateAlertSent(false);
 
         Mission saved = missionRepository.save(mission);
+
+        notifyDriverAssigned(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -230,15 +236,23 @@ public class MissionService {
             throw new IllegalArgumentException("This driver already has an active mission");
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        boolean startedLate = mission.getStartDate() != null && now.isAfter(mission.getStartDate());
+
         mission.setStatus(Mission.MissionStatus.IN_PROGRESS);
 
         if (mission.getStartedAt() == null) {
-            mission.setStartedAt(LocalDateTime.now());
+            mission.setStartedAt(now);
         }
 
         setVehicleInUse(mission.getVehicle());
+        mission.setLateAlertSent(false);
 
         Mission saved = missionRepository.save(mission);
+
+        clearDriverLateAlert(saved);
+        notifyOwnerMissionStarted(saved, driver, startedLate);
+
         return new MissionDTO(saved);
     }
 
@@ -271,7 +285,13 @@ public class MissionService {
             setVehicleAvailable(mission.getVehicle());
         }
 
+        mission.setLateAlertSent(false);
+
         Mission saved = missionRepository.save(mission);
+
+        clearDriverLateAlert(saved);
+        notifyOwnerMissionFinished(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -297,7 +317,14 @@ public class MissionService {
             setVehicleAvailable(managed.getVehicle());
         }
 
-        return missionRepository.save(managed);
+        managed.setLateAlertSent(false);
+
+        Mission saved = missionRepository.save(managed);
+
+        clearDriverLateAlert(saved);
+        notifyOwnerMissionFinished(saved);
+
+        return saved;
     }
 
     public void cancelMission(Long missionId, Authentication auth) {
@@ -327,7 +354,12 @@ public class MissionService {
             setVehicleAvailable(mission.getVehicle());
         }
 
-        missionRepository.save(mission);
+        mission.setLateAlertSent(false);
+
+        Mission saved = missionRepository.save(mission);
+
+        clearDriverLateAlert(saved);
+        notifyDriverCanceled(saved);
     }
 
     public void deleteMission(Long missionId, Authentication auth) {
@@ -351,23 +383,8 @@ public class MissionService {
             throw new IllegalArgumentException("Cannot delete an in-progress mission");
         }
 
+        clearDriverLateAlert(mission);
         missionRepository.delete(mission);
-    }
-
-    private void setVehicleInUse(Vehicle vehicle) {
-        try {
-            vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
-            vehicleRepository.save(vehicle);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void setVehicleAvailable(Vehicle vehicle) {
-        try {
-            vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
-            vehicleRepository.save(vehicle);
-        } catch (Exception ignored) {
-        }
     }
 
     public MissionDTO updateMission(Long missionId, MissionDTO dto, Authentication auth) {
@@ -450,7 +467,145 @@ public class MissionService {
         mission.setRouteJson(plan.getRouteJson());
 
         Mission saved = missionRepository.save(mission);
+
+        notifyDriverUpdated(saved);
+
         return new MissionDTO(saved);
     }
 
+    private void setVehicleInUse(Vehicle vehicle) {
+        try {
+            vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
+            vehicleRepository.save(vehicle);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void setVehicleAvailable(Vehicle vehicle) {
+        try {
+            vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
+            vehicleRepository.save(vehicle);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void notifyDriverAssigned(Mission mission) {
+        User driverUser = findDriverUser(mission);
+        if (driverUser == null) return;
+
+        notificationService.createUniqueForUser(
+                driverUser.getId(),
+                NotificationService.DRIVER_ASSIGNED_TITLE,
+                "Une nouvelle mission vous a été assignée : " + safeMissionTitle(mission),
+                mission.getId()
+        );
+    }
+
+    private void notifyDriverUpdated(Mission mission) {
+        User driverUser = findDriverUser(mission);
+        if (driverUser == null) return;
+
+        notificationService.createForUser(
+                driverUser.getId(),
+                NotificationService.DRIVER_UPDATED_TITLE,
+                "La mission a été modifiée : " + safeMissionTitle(mission),
+                mission.getId()
+        );
+    }
+
+    private void notifyDriverCanceled(Mission mission) {
+        User driverUser = findDriverUser(mission);
+        if (driverUser == null) return;
+
+        notificationService.createForUser(
+                driverUser.getId(),
+                NotificationService.DRIVER_CANCELED_TITLE,
+                "La mission a été annulée : " + safeMissionTitle(mission),
+                mission.getId()
+        );
+    }
+
+    private void notifyOwnerMissionStarted(Mission mission, Driver driver, boolean startedLate) {
+        if (mission.getOwner() == null) return;
+
+        notificationService.createForUser(
+                mission.getOwner().getId(),
+                NotificationService.OWNER_STARTED_TITLE,
+                "La mission a démarré : " + safeMissionTitle(mission),
+                mission.getId()
+        );
+
+        if (startedLate) {
+            notificationService.createUniqueForUser(
+                    mission.getOwner().getId(),
+                    NotificationService.OWNER_LATE_START_TITLE,
+                    "Le driver " + buildDriverName(driver) + " a démarré en retard la mission : " + safeMissionTitle(mission),
+                    mission.getId()
+            );
+        }
+    }
+
+    private void notifyOwnerMissionFinished(Mission mission) {
+        if (mission.getOwner() == null) return;
+
+        notificationService.createForUser(
+                mission.getOwner().getId(),
+                NotificationService.OWNER_FINISHED_TITLE,
+                "La mission est terminée : " + safeMissionTitle(mission),
+                mission.getId()
+        );
+    }
+
+    private void clearDriverLateAlert(Mission mission) {
+        User driverUser = findDriverUser(mission);
+        if (driverUser == null || mission.getId() == null) return;
+
+        notificationService.clearNotificationByTitle(
+                driverUser.getId(),
+                mission.getId(),
+                NotificationService.DRIVER_LATE_ALERT_TITLE
+        );
+    }
+
+    private User findDriverUser(Mission mission) {
+        if (mission == null || mission.getDriver() == null) return null;
+
+        String email = mission.getDriver().getEmail();
+        if (email == null || email.isBlank()) return null;
+
+        return userRepository.findByEmail(email).orElse(null);
+    }
+
+    private String safeMissionTitle(Mission mission) {
+        if (mission == null) return "Mission";
+        if (mission.getTitle() != null && !mission.getTitle().isBlank()) {
+            return mission.getTitle();
+        }
+        return "Mission #" + mission.getId();
+    }
+
+    private String buildDriverName(Driver driver) {
+        if (driver == null) return "Driver";
+
+        String firstName = null;
+        String lastName = null;
+
+        try {
+            firstName = driver.getFirstName();
+            lastName = driver.getLastName();
+        } catch (Exception ignored) {
+        }
+
+        String fullName = ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
+
+        if (!fullName.isBlank()) {
+            return fullName;
+        }
+
+        if (driver.getEmail() != null && !driver.getEmail().isBlank()) {
+            return driver.getEmail();
+        }
+
+        return "Driver";
+    }
 }

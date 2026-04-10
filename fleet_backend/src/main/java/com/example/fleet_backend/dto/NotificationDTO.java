@@ -13,8 +13,6 @@ public class NotificationDTO {
     private LocalDateTime createdAt;
     private Long missionId;
 
-
-
     public NotificationDTO(Notification n) {
         this.id = n.getId();
         this.title = n.getTitle();
@@ -24,9 +22,6 @@ public class NotificationDTO {
         this.missionId = n.getMissionId();
     }
 
-    // =========================
-    // GETTERS & SETTERS
-    // =========================
     public Long getId() {
         return id;
     }

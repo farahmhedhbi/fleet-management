@@ -57,7 +57,7 @@ public class MissionLateAlertScheduler {
                     ? mission.getTitle()
                     : "Mission #" + mission.getId();
 
-            notificationService.createForUser(
+            notificationService.createUniqueForUser(
                     driverUser.getId(),
                     NotificationService.DRIVER_LATE_ALERT_TITLE,
                     "Vous êtes en retard pour démarrer la mission : " + missionTitle,

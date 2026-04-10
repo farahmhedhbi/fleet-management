@@ -19,6 +19,12 @@ import java.util.stream.Collectors;
 public class NotificationService {
 
     public static final String DRIVER_LATE_ALERT_TITLE = "Retard de mission";
+    public static final String OWNER_LATE_START_TITLE = "Mission démarrée en retard";
+    public static final String DRIVER_ASSIGNED_TITLE = "Nouvelle mission assignée";
+    public static final String DRIVER_UPDATED_TITLE = "Mission modifiée";
+    public static final String DRIVER_CANCELED_TITLE = "Mission annulée";
+    public static final String OWNER_STARTED_TITLE = "Mission démarrée";
+    public static final String OWNER_FINISHED_TITLE = "Mission terminée";
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -41,6 +47,14 @@ public class NotificationService {
         notification.setRead(false);
 
         notificationRepository.save(notification);
+    }
+
+    public void createUniqueForUser(Long userId, String title, String message, Long missionId) {
+        if (missionId != null &&
+                notificationRepository.existsByRecipientIdAndMissionIdAndTitle(userId, missionId, title)) {
+            return;
+        }
+        createForUser(userId, title, message, missionId);
     }
 
     public List<NotificationDTO> myNotifications(Authentication auth) {
@@ -79,8 +93,10 @@ public class NotificationService {
         notificationRepository.saveAll(notifications);
     }
 
-
     public void clearNotificationByTitle(Long recipientId, Long missionId, String title) {
+        if (recipientId == null || missionId == null || title == null || title.isBlank()) {
+            return;
+        }
         notificationRepository.deleteByRecipientIdAndMissionIdAndTitle(recipientId, missionId, title);
     }
 }
