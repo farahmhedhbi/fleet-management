@@ -57,7 +57,7 @@ export default function OwnerGpsPage() {
     setHistoryLoading(true);
     try {
       const [h, events] = await Promise.all([
-        gpsService.getHistory(vehicleId),
+        gpsService.getVehicleHistory(vehicleId),
         gpsService.getVehicleEvents(vehicleId),
       ]);
       setHistory(h);
@@ -79,7 +79,7 @@ export default function OwnerGpsPage() {
     loadFleet();
     const timer = window.setInterval(() => {
       loadFleet();
-    }, 5000);
+    }, 3000);
 
     return () => window.clearInterval(timer);
   }, [loadFleet]);
@@ -126,7 +126,7 @@ export default function OwnerGpsPage() {
   const eventsToShow = eventMode === "vehicle" ? vehicleEvents : globalEvents;
 
   return (
-    <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
+    <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
       <div className="p-6 md:p-10 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -192,6 +192,12 @@ export default function OwnerGpsPage() {
                             <p className="text-xs text-slate-500">
                               Driver: {vehicle.currentDriverName || "Aucun"}
                             </p>
+                            <p className="text-xs text-slate-500">
+                              Mission ID: {vehicle.missionId ?? "-"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Mission status: {vehicle.missionStatus || "-"}
+                            </p>
                           </div>
 
                           <span className="rounded-full border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700">
@@ -241,9 +247,37 @@ export default function OwnerGpsPage() {
                       </div>
 
                       <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Mission</p>
+                        <p className="text-xs font-bold text-slate-500">Mission active</p>
                         <p className="mt-1 font-bold text-slate-900">
                           {selectedVehicle.missionActive ? "Active" : "Inactive"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold text-slate-500">Mission ID</p>
+                        <p className="mt-1 font-bold text-slate-900">
+                          {selectedVehicle.missionId ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold text-slate-500">Mission status</p>
+                        <p className="mt-1 font-bold text-slate-900">
+                          {selectedVehicle.missionStatus || "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold text-slate-500">Driver ID</p>
+                        <p className="mt-1 font-bold text-slate-900">
+                          {selectedVehicle.driverId ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold text-slate-500">Driver</p>
+                        <p className="mt-1 font-bold text-slate-900">
+                          {selectedVehicle.currentDriverName || "-"}
                         </p>
                       </div>
 

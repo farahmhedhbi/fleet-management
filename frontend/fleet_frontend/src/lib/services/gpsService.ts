@@ -16,12 +16,10 @@ export const gpsService = {
     }
   },
 
-  async getHistory(vehicleId: number, from?: string, to?: string): Promise<GpsData[]> {
+  async getVehicleHistory(vehicleId: number, from?: string, to?: string): Promise<GpsData[]> {
     const params: Record<string, string> = {};
-    if (from && to) {
-      params.from = from;
-      params.to = to;
-    }
+    if (from) params.from = from;
+    if (to) params.to = to;
 
     const res = await api.get<GpsData[]>(`/api/gps/vehicle/${vehicleId}/history`, {
       params,

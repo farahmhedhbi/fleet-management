@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
 import type { Mission } from "@/types/mission";
+import type { VehicleLiveStatusDTO } from "@/types/gps";
 import { toast } from "react-toastify";
 import MyMissionsView from "./MyMissionsView";
 
@@ -20,6 +21,24 @@ function toTimestamp(value?: string) {
   return Number.isNaN(t) ? 0 : t;
 }
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadius = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadius * c;
+}
+
+const FINISH_RADIUS_METERS = 30;
+
 export default function MyMissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,12 +46,32 @@ export default function MyMissionsPage() {
   const [q, setQ] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [liveByMissionId, setLiveByMissionId] = useState<Record<number, VehicleLiveStatusDTO>>({});
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
       const ms = await missionService.getAll();
       setMissions(ms);
+
+      const inProgress = ms.filter((m) => m.status === "IN_PROGRESS");
+
+      const liveEntries = await Promise.allSettled(
+        inProgress.map(async (m) => ({
+          missionId: m.id,
+          live: await missionService.getLive(m.id),
+        }))
+      );
+
+      const nextLiveMap: Record<number, VehicleLiveStatusDTO> = {};
+
+      for (const entry of liveEntries) {
+        if (entry.status === "fulfilled") {
+          nextLiveMap[entry.value.missionId] = entry.value.live;
+        }
+      }
+
+      setLiveByMissionId(nextLiveMap);
     } catch (e: any) {
       console.error("Failed to load missions:", e);
       toast.error(
@@ -49,6 +88,12 @@ export default function MyMissionsPage() {
 
   useEffect(() => {
     load();
+
+    const interval = window.setInterval(() => {
+      load();
+    }, 3000);
+
+    return () => window.clearInterval(interval);
   }, [load]);
 
   useEffect(() => {
@@ -110,9 +155,29 @@ export default function MyMissionsPage() {
     [now]
   );
 
-  const canFinishMission = useCallback((mission: Mission) => {
-    return mission.status === "IN_PROGRESS";
-  }, []);
+  const canFinishMission = useCallback(
+    (mission: Mission) => {
+      if (mission.status !== "IN_PROGRESS") return false;
+
+      const live = liveByMissionId[mission.id];
+      if (!live) return false;
+      if (live.latitude == null || live.longitude == null) return false;
+      if (!live.missionRoute || live.missionRoute.length === 0) return false;
+
+      const lastPoint = live.missionRoute[live.missionRoute.length - 1];
+      if (lastPoint.latitude == null || lastPoint.longitude == null) return false;
+
+      const distance = haversineMeters(
+        live.latitude,
+        live.longitude,
+        lastPoint.latitude,
+        lastPoint.longitude
+      );
+
+      return distance <= FINISH_RADIUS_METERS;
+    },
+    [liveByMissionId]
+  );
 
   const getStartBlockedMessage = useCallback(
     (mission: Mission) => {
@@ -130,12 +195,45 @@ export default function MyMissionsPage() {
     [now]
   );
 
-  const getFinishBlockedMessage = useCallback((mission: Mission) => {
-    if (mission.status !== "IN_PROGRESS") {
-      return "Only a mission in progress can be finished";
-    }
-    return null;
-  }, []);
+  const getFinishBlockedMessage = useCallback(
+    (mission: Mission) => {
+      if (mission.status !== "IN_PROGRESS") {
+        return "Only a mission in progress can be finished";
+      }
+
+      const live = liveByMissionId[mission.id];
+      if (!live) {
+        return "Live position unavailable";
+      }
+
+      if (live.latitude == null || live.longitude == null) {
+        return "Current vehicle position unavailable";
+      }
+
+      if (!live.missionRoute || live.missionRoute.length === 0) {
+        return "Mission route unavailable";
+      }
+
+      const lastPoint = live.missionRoute[live.missionRoute.length - 1];
+      if (lastPoint.latitude == null || lastPoint.longitude == null) {
+        return "Mission destination unavailable";
+      }
+
+      const distance = haversineMeters(
+        live.latitude,
+        live.longitude,
+        lastPoint.latitude,
+        lastPoint.longitude
+      );
+
+      if (distance > FINISH_RADIUS_METERS) {
+        return `Vehicle is still ${Math.round(distance)} m away from destination`;
+      }
+
+      return null;
+    },
+    [liveByMissionId]
+  );
 
   const handleStart = useCallback(
     async (mission: Mission) => {
@@ -182,7 +280,7 @@ export default function MyMissionsPage() {
   return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
-        missions={sortedMissions}
+        missions={missions}
         filtered={filtered}
         loading={loading}
         refreshing={refreshing}
