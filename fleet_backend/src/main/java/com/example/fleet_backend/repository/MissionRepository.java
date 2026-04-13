@@ -21,6 +21,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     List<Mission> findByDriver_Id(Long driverId);
     List<Mission> findByVehicle_Id(Long vehicleId);
 
+
     List<Mission> findByStatusAndStartDateBefore(Mission.MissionStatus status, LocalDateTime now);
 
     Optional<Mission> findFirstByVehicleIdAndStatus(Long vehicleId, Mission.MissionStatus status);

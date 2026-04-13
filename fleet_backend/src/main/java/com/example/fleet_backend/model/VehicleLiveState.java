@@ -37,13 +37,23 @@ public class VehicleLiveState {
     @Column(name = "mission_id")
     private Long missionId;
 
+    @Column(name = "mission_status", length = 50)
+    private String missionStatus;
+
+    @Column(name = "driver_id")
+    private Long driverId;
+
+    @Column(name = "driver_name")
+    private String driverName;
+
     @Column(name = "route_id")
     private String routeId;
 
     @Column(name = "route_source")
     private String routeSource;
 
-    public VehicleLiveState() {}
+    public VehicleLiveState() {
+    }
 
     public Long getId() {
         return id;
@@ -111,6 +121,30 @@ public class VehicleLiveState {
 
     public void setMissionId(Long missionId) {
         this.missionId = missionId;
+    }
+
+    public String getMissionStatus() {
+        return missionStatus;
+    }
+
+    public void setMissionStatus(String missionStatus) {
+        this.missionStatus = missionStatus;
+    }
+
+    public Long getDriverId() {
+        return driverId;
+    }
+
+    public void setDriverId(Long driverId) {
+        this.driverId = driverId;
+    }
+
+    public String getDriverName() {
+        return driverName;
+    }
+
+    public void setDriverName(String driverName) {
+        this.driverName = driverName;
     }
 
     public String getRouteId() {

@@ -1,22 +1,28 @@
 package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.MissionDTO;
+import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.model.VehicleLiveState;
 import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.UserRepository;
+import com.example.fleet_backend.repository.VehicleLiveStateRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.security.AuthUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,8 +30,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class MissionService {
 
+
     private static final long MIN_DURATION_SECONDS = 300;
     private static final long EXTRA_MARGIN_SECONDS = 300;
+    private static final double FINISH_RADIUS_METERS = 30.0;
 
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
@@ -33,19 +41,25 @@ public class MissionService {
     private final UserRepository userRepository;
     private final RoutePlannerService routePlannerService;
     private final NotificationService notificationService;
+    private final VehicleLiveStateRepository vehicleLiveStateRepository;
+    private final ObjectMapper objectMapper;
 
     public MissionService(MissionRepository missionRepository,
                           VehicleRepository vehicleRepository,
                           DriverRepository driverRepository,
                           UserRepository userRepository,
                           RoutePlannerService routePlannerService,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          VehicleLiveStateRepository vehicleLiveStateRepository,
+                          ObjectMapper objectMapper) {
         this.missionRepository = missionRepository;
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
         this.routePlannerService = routePlannerService;
         this.notificationService = notificationService;
+        this.vehicleLiveStateRepository = vehicleLiveStateRepository;
+        this.objectMapper = objectMapper;
     }
 
     public List<MissionDTO> getMissions(Authentication auth) {
@@ -273,6 +287,37 @@ public class MissionService {
 
         if (mission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
             throw new IllegalArgumentException("Only missions in progress can be finished");
+        }
+
+        if (mission.getVehicle() == null) {
+            throw new IllegalArgumentException("Mission vehicle is missing");
+        }
+
+        VehicleLiveState liveState = vehicleLiveStateRepository.findByVehicleId(mission.getVehicle().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Live GPS position not found for this vehicle"));
+
+        List<MissionRoutePointDTO> route = parseMissionRoute(mission.getRouteJson());
+        if (route.isEmpty()) {
+            throw new IllegalArgumentException("Mission route is missing");
+        }
+
+        MissionRoutePointDTO lastPoint = route.get(route.size() - 1);
+        if (lastPoint.getLatitude() == null || lastPoint.getLongitude() == null) {
+            throw new IllegalArgumentException("Mission destination coordinates are invalid");
+        }
+
+        double remainingDistance = distanceMeters(
+                liveState.getLatitude(),
+                liveState.getLongitude(),
+                lastPoint.getLatitude(),
+                lastPoint.getLongitude()
+        );
+
+        if (remainingDistance > FINISH_RADIUS_METERS) {
+            throw new IllegalArgumentException(
+                    "Impossible de terminer la mission : destination non atteinte (" +
+                            Math.round(remainingDistance) + " m restants)"
+            );
         }
 
         mission.setStatus(Mission.MissionStatus.COMPLETED);
@@ -607,5 +652,31 @@ public class MissionService {
         }
 
         return "Driver";
+    }
+
+    private List<MissionRoutePointDTO> parseMissionRoute(String routeJson) {
+        if (routeJson == null || routeJson.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        try {
+            return objectMapper.readValue(routeJson, new TypeReference<List<MissionRoutePointDTO>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+        double earthRadius = 6371000.0;
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadius * c;
     }
 }
