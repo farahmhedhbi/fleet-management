@@ -1,54 +1,104 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
-import L from "leaflet";
+import {
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  useMap,
+} from "react-leaflet";
+import type { LatLngTuple } from "leaflet";
+import { useEffect, useMemo } from "react";
 import type { GpsData } from "@/types/gps";
-
-const markerIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
 
 interface Props {
   history: GpsData[];
 }
 
+function FitBounds({ points }: { points: LatLngTuple[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const t1 = window.setTimeout(() => {
+      map.invalidateSize();
+
+      if (points.length > 1) {
+        map.fitBounds(points, { padding: [30, 30] });
+      } else if (points.length === 1) {
+        map.setView(points[0], 14, { animate: false });
+      }
+    }, 100);
+
+    const t2 = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [map, points]);
+
+  return null;
+}
+
+function isValidLatLng(lat?: number | null, lng?: number | null) {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    !Number.isNaN(lat) &&
+    !Number.isNaN(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
 export default function VehicleHistoryMap({ history }: Props) {
-  const validHistory = history.filter(
-    (h) => typeof h.latitude === "number" && typeof h.longitude === "number"
+  const validHistory = useMemo(
+    () =>
+      history.filter((h) => isValidLatLng(h.latitude, h.longitude)),
+    [history]
   );
 
   if (validHistory.length === 0) {
-    return <div className="rounded-xl border bg-white p-4">Aucun historique disponible.</div>;
+    return (
+      <div className="rounded-xl border bg-white p-4">
+        Aucun historique disponible.
+      </div>
+    );
   }
 
-  const center: [number, number] = [
-    validHistory[0].latitude,
-    validHistory[0].longitude,
-  ];
-
-  const positions = validHistory.map(
-    (item) => [item.latitude, item.longitude] as [number, number]
+  const positions: LatLngTuple[] = validHistory.map(
+    (item) => [item.latitude, item.longitude] as LatLngTuple
   );
 
+  const center: LatLngTuple = positions[0];
   const startPoint = validHistory[0];
   const endPoint = validHistory[validHistory.length - 1];
 
   return (
     <div className="h-[400px] overflow-hidden rounded-2xl border bg-white">
       <MapContainer center={center} zoom={12} scrollWheelZoom className="h-full w-full">
+        <FitBounds points={positions} />
+
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <Polyline positions={positions} pathOptions={{ color: "green" }} />
+        {positions.length > 1 && (
+          <Polyline positions={positions} pathOptions={{ color: "green", weight: 4 }} />
+        )}
 
-        <Marker position={[startPoint.latitude, startPoint.longitude]} icon={markerIcon}>
+        <Marker
+          position={[startPoint.latitude, startPoint.longitude]}
+          icon={gpsMarkerIcon}
+        >
           <Popup>
             <div>
               <strong>Début du trajet</strong>
@@ -57,7 +107,10 @@ export default function VehicleHistoryMap({ history }: Props) {
           </Popup>
         </Marker>
 
-        <Marker position={[endPoint.latitude, endPoint.longitude]} icon={markerIcon}>
+        <Marker
+          position={[endPoint.latitude, endPoint.longitude]}
+          icon={gpsMarkerIcon}
+        >
           <Popup>
             <div>
               <strong>Dernière position</strong>

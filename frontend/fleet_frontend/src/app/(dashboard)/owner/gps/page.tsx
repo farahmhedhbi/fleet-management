@@ -37,7 +37,9 @@ export default function OwnerGpsPage() {
 
       setSelectedVehicleId((prev) => {
         if (fleet.length === 0) return null;
-        if (prev && fleet.some((vehicle) => vehicle.vehicleId === prev)) return prev;
+        if (prev && fleet.some((vehicle) => vehicle.vehicleId === prev)) {
+          return prev;
+        }
         return fleet[0].vehicleId;
       });
     } catch (e: any) {
@@ -53,30 +55,47 @@ export default function OwnerGpsPage() {
     }
   }, []);
 
-  const loadVehicleDetails = useCallback(async (vehicleId: number) => {
-    setHistoryLoading(true);
-    try {
-      const [h, events] = await Promise.all([
-        gpsService.getVehicleHistory(vehicleId),
-        gpsService.getVehicleEvents(vehicleId),
-      ]);
-      setHistory(h);
-      setVehicleEvents(events);
-    } catch (e: any) {
-      console.error("Erreur lors du chargement du détail véhicule:", e);
-      toast.error(
-        e?.response?.data?.message ||
-          e?.response?.data?.error ||
-          e?.message ||
-          "Erreur lors du chargement du détail véhicule"
-      );
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
+  const loadVehicleDetails = useCallback(
+    async (vehicleId: number) => {
+      setHistoryLoading(true);
+
+      try {
+        const vehicle = vehicles.find((v) => v.vehicleId === vehicleId);
+
+        const eventsPromise = gpsService.getVehicleEvents(vehicleId);
+
+        let historyPromise: Promise<GpsData[]>;
+
+        if (vehicle?.missionActive && vehicle.missionId) {
+          historyPromise = gpsService.getMissionHistory(vehicle.missionId);
+        } else {
+          historyPromise = Promise.resolve([]);
+        }
+
+        const [h, events] = await Promise.all([historyPromise, eventsPromise]);
+
+        setHistory(h);
+        setVehicleEvents(events);
+      } catch (e: any) {
+        console.error("Erreur lors du chargement du détail véhicule:", e);
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Erreur lors du chargement du détail véhicule"
+        );
+        setHistory([]);
+        setVehicleEvents([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [vehicles]
+  );
 
   useEffect(() => {
     loadFleet();
+
     const timer = window.setInterval(() => {
       loadFleet();
     }, 3000);
@@ -127,8 +146,8 @@ export default function OwnerGpsPage() {
 
   return (
     <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
-      <div className="p-6 md:p-10 space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="space-y-6 p-6 md:p-10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
               Suivi GPS temps réel
@@ -143,10 +162,10 @@ export default function OwnerGpsPage() {
               <button
                 key={f}
                 onClick={() => setStatusFilter(f)}
-                className={`rounded-xl px-4 py-2 text-sm font-bold border transition ${
+                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
                   statusFilter === f
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
                 {f}
@@ -156,7 +175,7 @@ export default function OwnerGpsPage() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-slate-500">
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm">
             Chargement...
           </div>
         ) : (
@@ -182,7 +201,7 @@ export default function OwnerGpsPage() {
                       <button
                         key={vehicle.vehicleId}
                         onClick={() => setSelectedVehicleId(vehicle.vehicleId)}
-                        className={`w-full border-b border-slate-100 px-5 py-4 text-left hover:bg-slate-50 transition ${
+                        className={`w-full border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50 ${
                           selectedVehicleId === vehicle.vehicleId ? "bg-sky-50" : "bg-white"
                         }`}
                       >
@@ -340,7 +359,7 @@ export default function OwnerGpsPage() {
                 </div>
 
                 {historyLoading ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm text-sm text-slate-500">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
                     Loading history...
                   </div>
                 ) : null}

@@ -48,8 +48,10 @@ export default function MyMissionsPage() {
   const [now, setNow] = useState(Date.now());
   const [liveByMissionId, setLiveByMissionId] = useState<Record<number, VehicleLiveStatusDTO>>({});
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (initial = false) => {
+    if (initial) setLoading(true);
     setRefreshing(true);
+
     try {
       const ms = await missionService.getAll();
       setMissions(ms);
@@ -87,10 +89,10 @@ export default function MyMissionsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    load(true);
 
     const interval = window.setInterval(() => {
-      load();
+      load(false);
     }, 3000);
 
     return () => window.clearInterval(interval);
@@ -241,7 +243,7 @@ export default function MyMissionsPage() {
         setActingId(mission.id);
         await missionService.start(mission.id);
         toast.success("Mission démarrée");
-        await load();
+        await load(false);
       } catch (e: any) {
         toast.error(
           e?.response?.data?.message ||
@@ -262,7 +264,7 @@ export default function MyMissionsPage() {
         setActingId(mission.id);
         await missionService.finish(mission.id);
         toast.success("Mission terminée");
-        await load();
+        await load(false);
       } catch (e: any) {
         toast.error(
           e?.response?.data?.message ||
@@ -288,7 +290,7 @@ export default function MyMissionsPage() {
         setQ={setQ}
         actingId={actingId}
         now={now}
-        onRefresh={load}
+        onRefresh={() => load(false)}
         onStart={handleStart}
         onFinish={handleFinish}
         canStartMission={canStartMission}

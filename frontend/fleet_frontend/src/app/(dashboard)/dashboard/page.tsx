@@ -29,6 +29,8 @@ import {
   Settings,
   Car,
   Shield,
+  Users,
+  Wrench,
 } from "lucide-react";
 
 function calcFleetHealth(
@@ -74,7 +76,6 @@ export default function Page() {
     setIsRefreshing(true);
 
     try {
-      // OWNER expiré => dashboard limité
       if (isOwner && !ownerActive) {
         setStats({
           totalDrivers: 0,
@@ -94,7 +95,6 @@ export default function Page() {
       const now = new Date();
       const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      // ADMIN
       if (isAdmin) {
         const a = await adminStatsService.get();
         setAdminStats(a);
@@ -118,7 +118,6 @@ export default function Page() {
         return;
       }
 
-      // DRIVER
       if (isDriver) {
         await driverService.me();
 
@@ -138,7 +137,6 @@ export default function Page() {
         return;
       }
 
-      // OWNER
       if (isOwner) {
         const vehicles = await vehicleService.getAll();
 
@@ -178,11 +176,10 @@ export default function Page() {
 
         setAdminStats(null);
         setRecentDrivers([]);
-        setRecentVehicles((vehicles as any[]).slice(0, 8));
+        setRecentVehicles([]); // important: ne plus afficher les voitures
         return;
       }
 
-      // fallback
       setStats((prev) => ({ ...prev, fleetHealth: 100 }));
       setAdminStats(null);
       setRecentDrivers([]);
@@ -209,8 +206,9 @@ export default function Page() {
           title: "My Session",
           description: "Status, access & account actions",
           icon: Shield,
-          color: "bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900",
-          hoverColor: "hover:shadow-lg hover:shadow-slate-900/20",
+          color:
+            "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950",
+          hoverColor: "hover:shadow-slate-900/20",
           action: () => router.push("/my-missions"),
         },
       ];
@@ -222,8 +220,9 @@ export default function Page() {
           title: "Reports",
           description: "View analytics and KPIs",
           icon: BarChart3,
-          color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
-          hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
+          color:
+            "bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600",
+          hoverColor: "hover:shadow-purple-500/25",
           action: () => router.push("/reports"),
         },
       ];
@@ -233,18 +232,19 @@ export default function Page() {
       return [
         {
           title: "Activate Subscription",
-          description: "Follow payment steps to unlock features",
+          description: "Unlock the full dashboard and owner features",
           icon: BarChart3,
-          color: "bg-gradient-to-r from-red-500 via-rose-500 to-red-600",
-          hoverColor: "hover:shadow-lg hover:shadow-red-500/25",
+          color: "bg-gradient-to-br from-rose-500 via-red-500 to-red-700",
+          hoverColor: "hover:shadow-red-500/25",
           action: () => router.push("/owner/billing"),
         },
         {
           title: "Billing",
-          description: "Offline payment instructions",
+          description: "Check your payment instructions",
           icon: Settings,
-          color: "bg-gradient-to-r from-slate-800 via-slate-900 to-black",
-          hoverColor: "hover:shadow-lg hover:shadow-black/25",
+          color:
+            "bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950",
+          hoverColor: "hover:shadow-black/25",
           action: () => router.push("/owner/billing"),
         },
       ];
@@ -252,36 +252,39 @@ export default function Page() {
 
     return [
       {
-        title: "Dispatch Vehicle",
-        description: "Assign mission to driver",
+        title: "Manage Missions",
+        description: "Create and assign missions quickly",
         icon: Route,
-        color: "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700",
-        hoverColor: "hover:shadow-lg hover:shadow-blue-500/25",
+        color: "bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600",
+        hoverColor: "hover:shadow-blue-500/25",
         action: () => router.push("/missions"),
       },
       {
-        title: "Add Vehicle",
-        description: "Register new fleet vehicle",
-        icon: Car,
-        color: "bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600",
-        hoverColor: "hover:shadow-lg hover:shadow-green-500/25",
-        action: () => router.push("/vehicles/create"),
+        title: "Drivers",
+        description: "Manage your drivers and access",
+        icon: Users,
+        color:
+          "bg-gradient-to-br from-emerald-600 via-green-600 to-teal-600",
+        hoverColor: "hover:shadow-green-500/25",
+        action: () => router.push("/drivers"),
       },
       {
-        title: "Schedule Maintenance",
-        description: "Plan vehicle service",
-        icon: Settings,
-        color: "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600",
-        hoverColor: "hover:shadow-lg hover:shadow-amber-500/25",
+        title: "Maintenance",
+        description: "Follow maintenance schedules and alerts",
+        icon: Wrench,
+        color:
+          "bg-gradient-to-br from-amber-500 via-orange-500 to-yellow-500",
+        hoverColor: "hover:shadow-amber-500/25",
         action: () => router.push("/maintenance"),
       },
       {
-        title: "Fleet Analytics",
-        description: "Reports and KPIs",
-        icon: BarChart3,
-        color: "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-600",
-        hoverColor: "hover:shadow-lg hover:shadow-purple-500/25",
-        action: () => router.push("/analytics"),
+        title: "Vehicles",
+        description: "Open vehicle management page",
+        icon: Car,
+        color:
+          "bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900",
+        hoverColor: "hover:shadow-slate-700/25",
+        action: () => router.push("/vehicles"),
       },
     ];
   }, [isDriver, isAdmin, isOwner, ownerActive, router]);

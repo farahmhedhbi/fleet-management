@@ -27,6 +27,17 @@ export const gpsService = {
     return res.data;
   },
 
+  async getMissionHistory(missionId: number, from?: string, to?: string): Promise<GpsData[]> {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+
+    const res = await api.get<GpsData[]>(`/api/missions/${missionId}/history`, {
+      params,
+    });
+    return res.data;
+  },
+
   async getLatestEvents(): Promise<VehicleEventDTO[]> {
     const res = await api.get<VehicleEventDTO[]>("/api/events/live");
     return res.data;

@@ -19,12 +19,18 @@ function formatDateTime(value?: string) {
 export default function DriverMissionHistoryPage() {
   const params = useParams<{ id: string }>();
   const missionId = Number(params.id);
+  const isValidMissionId = Number.isFinite(missionId) && missionId > 0;
 
   const [mission, setMission] = useState<Mission | null>(null);
   const [history, setHistory] = useState<GpsData[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!isValidMissionId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const [missionData, historyData] = await Promise.all([
         missionService.getById(missionId),
@@ -44,11 +50,23 @@ export default function DriverMissionHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [missionId]);
+  }, [missionId, isValidMissionId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  if (!isValidMissionId) {
+    return (
+      <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
+        <div className="p-6 md:p-10">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
+            ID mission invalide.
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   if (loading) {
     return (
@@ -64,7 +82,7 @@ export default function DriverMissionHistoryPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h1 className="text-2xl font-extrabold text-slate-900">Historique trajet</h1>
           <p className="mt-1 text-slate-600">
-            {mission?.title || "Mission"} — {mission?.departure} → {mission?.destination}
+            {mission?.title || "Mission"} — {mission?.departure || "—"} → {mission?.destination || "—"}
           </p>
 
           <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-2">

@@ -21,6 +21,7 @@ function formatDateTime(value?: string) {
 export default function DriverMissionMapPage() {
   const params = useParams<{ id: string }>();
   const missionId = Number(params.id);
+  const isValidMissionId = Number.isFinite(missionId) && missionId > 0;
 
   const [mission, setMission] = useState<Mission | null>(null);
   const [live, setLive] = useState<VehicleLiveStatusDTO | null>(null);
@@ -28,8 +29,7 @@ export default function DriverMissionMapPage() {
   const [loading, setLoading] = useState(true);
 
   const loadMissionMap = useCallback(async () => {
-    if (!missionId || Number.isNaN(missionId)) {
-      toast.error("ID mission invalide");
+    if (!isValidMissionId) {
       setLoading(false);
       return;
     }
@@ -55,14 +55,14 @@ export default function DriverMissionMapPage() {
     } finally {
       setLoading(false);
     }
-  }, [missionId]);
+  }, [missionId, isValidMissionId]);
 
   useEffect(() => {
     loadMissionMap();
   }, [loadMissionMap]);
 
   useEffect(() => {
-    if (!missionId || Number.isNaN(missionId)) return;
+    if (!isValidMissionId) return;
 
     const interval = window.setInterval(async () => {
       try {
@@ -79,11 +79,23 @@ export default function DriverMissionMapPage() {
     }, 10000);
 
     return () => window.clearInterval(interval);
-  }, [missionId]);
+  }, [missionId, isValidMissionId]);
 
   const vehicles = useMemo(() => {
     return live ? [live] : [];
   }, [live]);
+
+  if (!isValidMissionId) {
+    return (
+      <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
+        <div className="p-6 md:p-10">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
+            ID mission invalide.
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   if (loading) {
     return (

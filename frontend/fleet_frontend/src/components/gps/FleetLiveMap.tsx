@@ -9,24 +9,28 @@ import {
   TileLayer,
   useMap,
 } from "react-leaflet";
-import L, { type LatLngTuple } from "leaflet";
+import type { LatLngTuple } from "leaflet";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
 import { useEffect, useMemo } from "react";
-
-const gpsMarkerIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
 
 function MapResizeController({ center }: { center: LatLngTuple }) {
   const map = useMap();
 
   useEffect(() => {
-    map.setView(center);
+    const runFix = () => {
+      map.invalidateSize();
+      map.setView(center);
+    };
+
+    const t1 = window.setTimeout(runFix, 100);
+    const t2 = window.setTimeout(runFix, 300);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [map, center]);
 
   return null;
@@ -94,8 +98,7 @@ export default function FleetLiveMap({
   history,
 }: FleetLiveMapProps) {
   const validVehicles = useMemo(
-    () =>
-      vehicles.filter((v) => isValidCoordinate(v.latitude, v.longitude)),
+    () => vehicles.filter((v) => isValidCoordinate(v.latitude, v.longitude)),
     [vehicles]
   );
 
@@ -107,8 +110,8 @@ export default function FleetLiveMap({
   const center: LatLngTuple = selectedVehicle
     ? [selectedVehicle.latitude!, selectedVehicle.longitude!]
     : validVehicles.length > 0
-    ? [validVehicles[0].latitude!, validVehicles[0].longitude!]
-    : defaultCenter;
+      ? [validVehicles[0].latitude!, validVehicles[0].longitude!]
+      : defaultCenter;
 
   const historyPositions = useMemo<LatLngTuple[]>(() => {
     const points = history

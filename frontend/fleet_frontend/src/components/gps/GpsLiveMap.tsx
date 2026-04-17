@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { Dispatch, SetStateAction } from "react";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 
 const GpsLiveMapClient = dynamic(() => import("./GpsLiveMapClient"), {
@@ -10,6 +11,7 @@ const GpsLiveMapClient = dynamic(() => import("./GpsLiveMapClient"), {
 interface GpsLiveMapProps {
   vehicles: VehicleLiveStatusDTO[];
   selectedVehicleId: number | null;
+  setSelectedVehicleId: Dispatch<SetStateAction<number | null>>;
   history: GpsData[];
 }
 
