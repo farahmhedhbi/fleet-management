@@ -49,6 +49,8 @@ public class SimulatorVehicleService {
     }
 
     private List<Vehicle> getAuthorizedVehicles(Authentication auth) {
+        // MODE TEST / SPRINT 2 :
+        // si pas authentifié, on laisse le simulateur local récupérer les véhicules
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return vehicleRepository.findAll();
         }

@@ -327,22 +327,66 @@ public class GpsService {
         }
 
         if (effectiveFrom == null) {
-            effectiveFrom = mission.getCreatedAt() != null ? mission.getCreatedAt() : LocalDateTime.now().minusDays(1);
+            effectiveFrom = mission.getCreatedAt() != null
+                    ? mission.getCreatedAt()
+                    : LocalDateTime.now().minusDays(1);
         }
 
         if (effectiveTo.isBefore(effectiveFrom)) {
             effectiveTo = effectiveFrom.plusMinutes(1);
         }
 
-        return gpsDataRepository
+        String expectedMissionRouteId = "mission-" + mission.getId();
+
+        List<GpsData> rawPoints = gpsDataRepository
                 .findByVehicleIdAndTimestampBetweenOrderByTimestampAsc(
                         mission.getVehicle().getId(),
                         effectiveFrom,
                         effectiveTo
-                )
-                .stream()
+                );
+
+        List<GpsData> missionTaggedPoints = rawPoints.stream()
+                .filter(this::isValidMissionGpsPoint)
+                .filter(gps -> "MISSION".equalsIgnoreCase(safe(gps.getRouteSource())))
+                .filter(gps -> {
+                    String routeId = safe(gps.getRouteId());
+                    return routeId.isBlank() || expectedMissionRouteId.equals(routeId);
+                })
+                .toList();
+
+        if (!missionTaggedPoints.isEmpty()) {
+            return missionTaggedPoints.stream()
+                    .map(this::toGpsPointDTO)
+                    .toList();
+        }
+
+        return rawPoints.stream()
+                .filter(this::isValidMissionGpsPoint)
                 .map(this::toGpsPointDTO)
                 .toList();
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean isValidMissionGpsPoint(GpsData gps) {
+        if (gps == null) {
+            return false;
+        }
+
+        Double lat = gps.getLatitude();
+        Double lng = gps.getLongitude();
+
+        if (lat == null || lng == null) {
+            return false;
+        }
+
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return false;
+        }
+
+        return true;
     }
 
     private List<Vehicle> getAuthorizedVehicles(Authentication auth) {
@@ -530,7 +574,6 @@ public class GpsService {
         if (route == null || route.isEmpty() || lat == null || lng == null) {
             return false;
         }
-
 
         MissionRoutePointDTO last = route.get(route.size() - 1);
         if (last.getLatitude() == null || last.getLongitude() == null) {
