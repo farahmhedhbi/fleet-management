@@ -118,7 +118,7 @@ public class TelemetryProcessingService {
         VehicleObdLiveDTO dto = new VehicleObdLiveDTO();
         dto.setVehicleId(liveState.getVehicle().getId());
         dto.setRegistrationNumber(liveState.getVehicle().getRegistrationNumber());
-        dto.setEngineOn(liveState.getEngineOn());
+        dto.setEngineOn(liveState.getCheckEngineOn());
         dto.setEngineRpm(liveState.getEngineRpm());
         dto.setFuelLevel(liveState.getFuelLevel());
         dto.setEngineTemperature(liveState.getEngineTemperature());

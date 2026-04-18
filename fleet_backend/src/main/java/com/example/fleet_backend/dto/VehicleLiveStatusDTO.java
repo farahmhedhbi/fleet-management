@@ -191,4 +191,5 @@ public class VehicleLiveStatusDTO {
     public void setMissionRoute(List<MissionRoutePointDTO> missionRoute) {
         this.missionRoute = missionRoute;
     }
+
 }
