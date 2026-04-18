@@ -21,7 +21,6 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     List<Mission> findByDriver_Id(Long driverId);
     List<Mission> findByVehicle_Id(Long vehicleId);
 
-
     List<Mission> findByStatusAndStartDateBefore(Mission.MissionStatus status, LocalDateTime now);
 
     Optional<Mission> findFirstByVehicleIdAndStatus(Long vehicleId, Mission.MissionStatus status);
@@ -63,15 +62,15 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
                                 @Param("endDate") LocalDateTime endDate);
 
     @Query("""
-    SELECT COUNT(m) > 0
-    FROM Mission m
-    WHERE m.vehicle.id = :vehicleId
-      AND m.id <> :missionId
-      AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
-      AND (
-          :startDate < m.endDate AND :endDate > m.startDate
-      )
-""")
+        SELECT COUNT(m) > 0
+        FROM Mission m
+        WHERE m.vehicle.id = :vehicleId
+          AND m.id <> :missionId
+          AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+          AND (
+              :startDate < m.endDate AND :endDate > m.startDate
+          )
+    """)
     boolean existsVehicleOverlapExcludingMission(
             @Param("vehicleId") Long vehicleId,
             @Param("startDate") LocalDateTime startDate,
@@ -80,19 +79,24 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     );
 
     @Query("""
-    SELECT COUNT(m) > 0
-    FROM Mission m
-    WHERE m.driver.id = :driverId
-      AND m.id <> :missionId
-      AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
-      AND (
-          :startDate < m.endDate AND :endDate > m.startDate
-      )
-""")
+        SELECT COUNT(m) > 0
+        FROM Mission m
+        WHERE m.driver.id = :driverId
+          AND m.id <> :missionId
+          AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+          AND (
+              :startDate < m.endDate AND :endDate > m.startDate
+          )
+    """)
     boolean existsDriverOverlapExcludingMission(
             @Param("driverId") Long driverId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("missionId") Long missionId
+    );
+
+    Optional<Mission> findFirstByVehicleIdAndStatusOrderByStartDateDesc(
+            Long vehicleId,
+            Mission.MissionStatus status
     );
 }
