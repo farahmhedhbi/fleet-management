@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { RefObject } from "react";
 import { Vehicle } from "@/types/vehicle";
 import {
@@ -490,8 +491,6 @@ export default function VehiclesView({
                       </div>
                     </div>
 
-                   
-
                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1">
@@ -512,6 +511,7 @@ export default function VehiclesView({
                         >
                           <Edit className="h-4 w-4" />
                         </button>
+
                         <button
                           onClick={() => setShowDeleteModal(vehicle.id)}
                           className="p-2 bg-white border border-slate-300 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all shadow-sm"
@@ -519,6 +519,7 @@ export default function VehiclesView({
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
+
                         <button
                           onClick={() => setSelectedVehicle(vehicle)}
                           className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all shadow-md"
@@ -526,6 +527,15 @@ export default function VehiclesView({
                         >
                           <Eye className="h-4 w-4" />
                         </button>
+
+                        <Link
+                          href={`/vehicles/${vehicle.id}/obd`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition-all hover:bg-emerald-100 hover:shadow-sm"
+                          title="Voir OBD"
+                        >
+                          <Gauge className="h-4 w-4" />
+                          <span className="hidden sm:inline">OBD</span>
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -625,6 +635,7 @@ export default function VehiclesView({
                             >
                               <Edit size={16} />
                             </button>
+
                             <button
                               onClick={() => setShowDeleteModal(vehicle.id)}
                               className="p-2 bg-white border border-slate-300 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors shadow-sm"
@@ -632,6 +643,7 @@ export default function VehiclesView({
                             >
                               <Trash2 size={16} />
                             </button>
+
                             <button
                               onClick={() => setSelectedVehicle(vehicle)}
                               className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all shadow-md"
@@ -639,6 +651,15 @@ export default function VehiclesView({
                             >
                               <Eye size={16} />
                             </button>
+
+                            <Link
+                              href={`/vehicles/${vehicle.id}/obd`}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition-all hover:bg-emerald-100 hover:shadow-sm"
+                              title="Voir OBD"
+                            >
+                              <Gauge size={16} />
+                              <span>OBD</span>
+                            </Link>
                           </div>
                         </td>
                       </tr>
