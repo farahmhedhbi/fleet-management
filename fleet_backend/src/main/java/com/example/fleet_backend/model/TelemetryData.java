@@ -1,9 +1,24 @@
-package com.example.fleet_backend.dto;
+package com.example.fleet_backend.model;
 
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-public class TelemetryMessage {
-    private Long vehicleId;
+@Entity
+@Table(name = "telemetry_data")
+public class TelemetryData {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_id")
+    private Vehicle vehicle;
+
+    @Column(name = "mission_id")
+    private Long missionId;
+
+    @Column(nullable = false)
     private LocalDateTime timestamp;
 
     private Double latitude;
@@ -18,12 +33,27 @@ public class TelemetryMessage {
     private Double engineLoad;
     private Boolean checkEngineOn;
 
-    public Long getVehicleId() {
-        return vehicleId;
+    private String routeId;
+    private String routeSource;
+
+    public Long getId() {
+        return id;
     }
 
-    public void setVehicleId(Long vehicleId) {
-        this.vehicleId = vehicleId;
+    public Vehicle getVehicle() {
+        return vehicle;
+    }
+
+    public void setVehicle(Vehicle vehicle) {
+        this.vehicle = vehicle;
+    }
+
+    public Long getMissionId() {
+        return missionId;
+    }
+
+    public void setMissionId(Long missionId) {
+        this.missionId = missionId;
     }
 
     public LocalDateTime getTimestamp() {
@@ -112,5 +142,21 @@ public class TelemetryMessage {
 
     public void setCheckEngineOn(Boolean checkEngineOn) {
         this.checkEngineOn = checkEngineOn;
+    }
+
+    public String getRouteId() {
+        return routeId;
+    }
+
+    public void setRouteId(String routeId) {
+        this.routeId = routeId;
+    }
+
+    public String getRouteSource() {
+        return routeSource;
+    }
+
+    public void setRouteSource(String routeSource) {
+        this.routeSource = routeSource;
     }
 }

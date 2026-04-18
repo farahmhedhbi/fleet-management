@@ -2,21 +2,18 @@ package com.example.fleet_backend.dto;
 
 import java.time.LocalDateTime;
 
-public class TelemetryMessage {
+public class VehicleObdLiveDTO {
     private Long vehicleId;
-    private LocalDateTime timestamp;
-
-    private Double latitude;
-    private Double longitude;
-    private Double speed;
+    private String registrationNumber;
     private Boolean engineOn;
-
     private Integer engineRpm;
     private Double fuelLevel;
     private Double engineTemperature;
     private Double batteryVoltage;
     private Double engineLoad;
     private Boolean checkEngineOn;
+    private String obdStatus;
+    private LocalDateTime timestamp;
 
     public Long getVehicleId() {
         return vehicleId;
@@ -26,36 +23,12 @@ public class TelemetryMessage {
         this.vehicleId = vehicleId;
     }
 
-    public LocalDateTime getTimestamp() {
-        return timestamp;
+    public String getRegistrationNumber() {
+        return registrationNumber;
     }
 
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public Double getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(Double latitude) {
-        this.latitude = latitude;
-    }
-
-    public Double getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(Double longitude) {
-        this.longitude = longitude;
-    }
-
-    public Double getSpeed() {
-        return speed;
-    }
-
-    public void setSpeed(Double speed) {
-        this.speed = speed;
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
     }
 
     public Boolean getEngineOn() {
@@ -112,5 +85,21 @@ public class TelemetryMessage {
 
     public void setCheckEngineOn(Boolean checkEngineOn) {
         this.checkEngineOn = checkEngineOn;
+    }
+
+    public String getObdStatus() {
+        return obdStatus;
+    }
+
+    public void setObdStatus(String obdStatus) {
+        this.obdStatus = obdStatus;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
     }
 }
