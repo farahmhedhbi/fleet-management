@@ -95,6 +95,12 @@ public class GpsService {
         gpsData.setTimestamp(dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now());
         gpsData.setRouteId(dto.getRouteId());
         gpsData.setRouteSource(dto.getRouteSource());
+        gpsData.setEngineRpm(dto.getEngineRpm());
+        gpsData.setFuelLevel(dto.getFuelLevel());
+        gpsData.setEngineTemperature(dto.getEngineTemperature());
+        gpsData.setBatteryVoltage(dto.getBatteryVoltage());
+        gpsData.setEngineLoad(dto.getEngineLoad());
+        gpsData.setCheckEngineOn(dto.getCheckEngineOn());
 
         gpsDataRepository.save(gpsData);
 
@@ -524,7 +530,30 @@ public class GpsService {
         state.setRouteId(gpsData.getRouteId());
         state.setRouteSource(gpsData.getRouteSource());
 
+        state.setEngineRpm(gpsData.getEngineRpm());
+        state.setFuelLevel(gpsData.getFuelLevel());
+        state.setEngineTemperature(gpsData.getEngineTemperature());
+        state.setBatteryVoltage(gpsData.getBatteryVoltage());
+        state.setEngineLoad(gpsData.getEngineLoad());
+        state.setCheckEngineOn(gpsData.getCheckEngineOn());
+
         vehicleLiveStateRepository.save(state);
+
+        String obdStatus = "OK";
+
+        if (gpsData.getFuelLevel() != null && gpsData.getFuelLevel() < 10) {
+            obdStatus = "WARNING";
+        }
+
+        if (gpsData.getEngineTemperature() != null && gpsData.getEngineTemperature() > 110) {
+            obdStatus = "CRITICAL";
+        }
+
+        if (Boolean.TRUE.equals(gpsData.getCheckEngineOn())) {
+            obdStatus = "CRITICAL";
+        }
+
+        state.setObdStatus(obdStatus);
     }
 
     private VehicleLiveStatusDTO toVehicleLiveStatusDTO(Vehicle vehicle,

@@ -35,6 +35,60 @@ public class GpsData {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "vehicle_id")
     private Vehicle vehicle;
+    private Integer engineRpm;
+    private Double fuelLevel;
+    private Double engineTemperature;
+    private Double batteryVoltage;
+    private Double engineLoad;
+    private Boolean checkEngineOn;
+
+    public Integer getEngineRpm() {
+        return engineRpm;
+    }
+
+    public void setEngineRpm(Integer engineRpm) {
+        this.engineRpm = engineRpm;
+    }
+
+    public Double getFuelLevel() {
+        return fuelLevel;
+    }
+
+    public void setFuelLevel(Double fuelLevel) {
+        this.fuelLevel = fuelLevel;
+    }
+
+    public Double getEngineTemperature() {
+        return engineTemperature;
+    }
+
+    public void setEngineTemperature(Double engineTemperature) {
+        this.engineTemperature = engineTemperature;
+    }
+
+    public Double getBatteryVoltage() {
+        return batteryVoltage;
+    }
+
+    public void setBatteryVoltage(Double batteryVoltage) {
+        this.batteryVoltage = batteryVoltage;
+    }
+
+    public Double getEngineLoad() {
+        return engineLoad;
+    }
+
+    public void setEngineLoad(Double engineLoad) {
+        this.engineLoad = engineLoad;
+    }
+
+    public Boolean getCheckEngineOn() {
+        return checkEngineOn;
+    }
+
+    public void setCheckEngineOn(Boolean checkEngineOn) {
+        this.checkEngineOn = checkEngineOn;
+    }
 
     public GpsData() {}
 
