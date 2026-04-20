@@ -11,3 +11,25 @@ export interface VehicleObdLiveDTO {
   obdStatus: string;
   timestamp: string;
 }
+export interface ObdHistoryItem {
+  id: number;
+  vehicleId: number;
+  engineRpm: number | null;
+  fuelLevel: number | null;
+  engineTemperature: number | null;
+  batteryVoltage: number | null;
+  engineLoad: number | null;
+  checkEngine: boolean | null;
+  timestamp: string;
+}
+export interface ObdHistoryItem {
+  id: number;
+  vehicleId: number;
+  engineRpm: number | null;
+  fuelLevel: number | null;
+  engineTemperature: number | null;
+  batteryVoltage: number | null;
+  engineLoad: number | null;
+  checkEngine: boolean | null;
+  timestamp: string;
+}

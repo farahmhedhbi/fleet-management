@@ -503,7 +503,7 @@ export default function VehiclesView({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           onClick={() => onEdit(vehicle.id)}
                           className="p-2 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all shadow-sm"
@@ -535,6 +535,15 @@ export default function VehiclesView({
                         >
                           <Gauge className="h-4 w-4" />
                           <span className="hidden sm:inline">OBD</span>
+                        </Link>
+
+                        <Link
+                          href={`/vehicles/${vehicle.id}/obd/history`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-sm"
+                          title="Voir historique OBD"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Historique OBD</span>
                         </Link>
                       </div>
                     </div>
@@ -627,7 +636,7 @@ export default function VehiclesView({
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => onEdit(vehicle.id)}
                               className="p-2 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors shadow-sm"
@@ -659,6 +668,15 @@ export default function VehiclesView({
                             >
                               <Gauge size={16} />
                               <span>OBD</span>
+                            </Link>
+
+                            <Link
+                              href={`/vehicles/${vehicle.id}/obd/history`}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-sm"
+                              title="Voir historique OBD"
+                            >
+                              <BarChart3 size={16} />
+                              <span>Historique OBD</span>
                             </Link>
                           </div>
                         </td>
