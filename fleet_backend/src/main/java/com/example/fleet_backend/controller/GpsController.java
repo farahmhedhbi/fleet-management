@@ -24,10 +24,11 @@ public class GpsController {
         this.gpsService = gpsService;
     }
 
+
     @PostMapping("/ingest")
-    public ResponseEntity<Void> ingest(@RequestBody GpsIncomingDTO dto) {
+    public ResponseEntity<String> ingest(@RequestBody GpsIncomingDTO dto) {
         gpsService.processIncomingGps(dto);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok("GPS + OBD ingested successfully");
     }
 
     @GetMapping("/live")

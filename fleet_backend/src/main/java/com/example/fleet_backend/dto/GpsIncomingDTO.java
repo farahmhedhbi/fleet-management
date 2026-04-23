@@ -3,6 +3,7 @@ package com.example.fleet_backend.dto;
 import java.time.LocalDateTime;
 
 public class GpsIncomingDTO {
+
     private Long vehicleId;
     private Double latitude;
     private Double longitude;
@@ -12,7 +13,6 @@ public class GpsIncomingDTO {
     private String routeId;
     private String routeSource;
 
-    // OBD fields
     private Integer engineRpm;
     private Double fuelLevel;
     private Double engineTemperature;
@@ -22,115 +22,45 @@ public class GpsIncomingDTO {
 
     public GpsIncomingDTO() {}
 
-    public Long getVehicleId() {
-        return vehicleId;
-    }
+    public Long getVehicleId() { return vehicleId; }
+    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
 
-    public void setVehicleId(Long vehicleId) {
-        this.vehicleId = vehicleId;
-    }
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
 
-    public Double getLatitude() {
-        return latitude;
-    }
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
 
-    public void setLatitude(Double latitude) {
-        this.latitude = latitude;
-    }
+    public Double getSpeed() { return speed; }
+    public void setSpeed(Double speed) { this.speed = speed; }
 
-    public Double getLongitude() {
-        return longitude;
-    }
+    public boolean isEngineOn() { return engineOn; }
+    public void setEngineOn(boolean engineOn) { this.engineOn = engineOn; }
 
-    public void setLongitude(Double longitude) {
-        this.longitude = longitude;
-    }
+    public LocalDateTime getTimestamp() { return timestamp; }
+    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
 
-    public Double getSpeed() {
-        return speed;
-    }
+    public String getRouteId() { return routeId; }
+    public void setRouteId(String routeId) { this.routeId = routeId; }
 
-    public void setSpeed(Double speed) {
-        this.speed = speed;
-    }
+    public String getRouteSource() { return routeSource; }
+    public void setRouteSource(String routeSource) { this.routeSource = routeSource; }
 
-    public boolean isEngineOn() {
-        return engineOn;
-    }
+    public Integer getEngineRpm() { return engineRpm; }
+    public void setEngineRpm(Integer engineRpm) { this.engineRpm = engineRpm; }
 
-    public void setEngineOn(boolean engineOn) {
-        this.engineOn = engineOn;
-    }
+    public Double getFuelLevel() { return fuelLevel; }
+    public void setFuelLevel(Double fuelLevel) { this.fuelLevel = fuelLevel; }
 
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
+    public Double getEngineTemperature() { return engineTemperature; }
+    public void setEngineTemperature(Double engineTemperature) { this.engineTemperature = engineTemperature; }
 
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
-    }
+    public Double getBatteryVoltage() { return batteryVoltage; }
+    public void setBatteryVoltage(Double batteryVoltage) { this.batteryVoltage = batteryVoltage; }
 
-    public String getRouteId() {
-        return routeId;
-    }
+    public Double getEngineLoad() { return engineLoad; }
+    public void setEngineLoad(Double engineLoad) { this.engineLoad = engineLoad; }
 
-    public void setRouteId(String routeId) {
-        this.routeId = routeId;
-    }
-
-    public String getRouteSource() {
-        return routeSource;
-    }
-
-    public void setRouteSource(String routeSource) {
-        this.routeSource = routeSource;
-    }
-
-    public Integer getEngineRpm() {
-        return engineRpm;
-    }
-
-    public void setEngineRpm(Integer engineRpm) {
-        this.engineRpm = engineRpm;
-    }
-
-    public Double getFuelLevel() {
-        return fuelLevel;
-    }
-
-    public void setFuelLevel(Double fuelLevel) {
-        this.fuelLevel = fuelLevel;
-    }
-
-    public Double getEngineTemperature() {
-        return engineTemperature;
-    }
-
-    public void setEngineTemperature(Double engineTemperature) {
-        this.engineTemperature = engineTemperature;
-    }
-
-    public Double getBatteryVoltage() {
-        return batteryVoltage;
-    }
-
-    public void setBatteryVoltage(Double batteryVoltage) {
-        this.batteryVoltage = batteryVoltage;
-    }
-
-    public Double getEngineLoad() {
-        return engineLoad;
-    }
-
-    public void setEngineLoad(Double engineLoad) {
-        this.engineLoad = engineLoad;
-    }
-
-    public Boolean getCheckEngineOn() {
-        return checkEngineOn;
-    }
-
-    public void setCheckEngineOn(Boolean checkEngineOn) {
-        this.checkEngineOn = checkEngineOn;
-    }
+    public Boolean getCheckEngineOn() { return checkEngineOn; }
+    public void setCheckEngineOn(Boolean checkEngineOn) { this.checkEngineOn = checkEngineOn; }
 }

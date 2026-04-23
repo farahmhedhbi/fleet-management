@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public class GpsPointDTO {
     private Long id;
     private Long vehicleId;
+    private Long missionId;
     private Double latitude;
     private Double longitude;
     private Double speed;
@@ -13,13 +14,19 @@ public class GpsPointDTO {
     private String routeId;
     private String routeSource;
 
-    public GpsPointDTO() {}
-
-    public GpsPointDTO(Long id, Long vehicleId, Double latitude, Double longitude,
-                       Double speed, boolean engineOn, LocalDateTime timestamp,
-                       String routeId, String routeSource) {
+    public GpsPointDTO(Long id,
+                       Long vehicleId,
+                       Long missionId,
+                       Double latitude,
+                       Double longitude,
+                       Double speed,
+                       boolean engineOn,
+                       LocalDateTime timestamp,
+                       String routeId,
+                       String routeSource) {
         this.id = id;
         this.vehicleId = vehicleId;
+        this.missionId = missionId;
         this.latitude = latitude;
         this.longitude = longitude;
         this.speed = speed;
@@ -29,39 +36,14 @@ public class GpsPointDTO {
         this.routeSource = routeSource;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public Long getVehicleId() {
-        return vehicleId;
-    }
-
-    public Double getLatitude() {
-        return latitude;
-    }
-
-    public Double getLongitude() {
-        return longitude;
-    }
-
-    public Double getSpeed() {
-        return speed;
-    }
-
-    public boolean isEngineOn() {
-        return engineOn;
-    }
-
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-
-    public String getRouteId() {
-        return routeId;
-    }
-
-    public String getRouteSource() {
-        return routeSource;
-    }
+    public Long getId() { return id; }
+    public Long getVehicleId() { return vehicleId; }
+    public Long getMissionId() { return missionId; }
+    public Double getLatitude() { return latitude; }
+    public Double getLongitude() { return longitude; }
+    public Double getSpeed() { return speed; }
+    public boolean isEngineOn() { return engineOn; }
+    public LocalDateTime getTimestamp() { return timestamp; }
+    public String getRouteId() { return routeId; }
+    public String getRouteSource() { return routeSource; }
 }

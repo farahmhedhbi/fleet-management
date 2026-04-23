@@ -14,9 +14,6 @@ import java.util.Optional;
 
 public interface MissionRepository extends JpaRepository<Mission, Long> {
 
-    List<Mission> findByOwnerId(Long ownerId);
-    List<Mission> findByDriverId(Long driverId);
-
     List<Mission> findByOwner_Id(Long ownerId);
     List<Mission> findByDriver_Id(Long driverId);
     List<Mission> findByVehicle_Id(Long vehicleId);
@@ -67,9 +64,8 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
         WHERE m.vehicle.id = :vehicleId
           AND m.id <> :missionId
           AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
-          AND (
-              :startDate < m.endDate AND :endDate > m.startDate
-          )
+          AND :startDate < m.endDate
+          AND :endDate > m.startDate
     """)
     boolean existsVehicleOverlapExcludingMission(
             @Param("vehicleId") Long vehicleId,
@@ -84,9 +80,8 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
         WHERE m.driver.id = :driverId
           AND m.id <> :missionId
           AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
-          AND (
-              :startDate < m.endDate AND :endDate > m.startDate
-          )
+          AND :startDate < m.endDate
+          AND :endDate > m.startDate
     """)
     boolean existsDriverOverlapExcludingMission(
             @Param("driverId") Long driverId,
