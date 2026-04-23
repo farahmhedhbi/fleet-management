@@ -20,8 +20,7 @@ import java.time.LocalDateTime;
 @Service
 public class MissionPlanningService {
 
-    private static final long MIN_DURATION_SECONDS = 300;
-    private static final long EXTRA_MARGIN_SECONDS = 300;
+    private static final long MIN_DURATION_SECONDS = 120;
 
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
@@ -68,7 +67,8 @@ public class MissionPlanningService {
                 dto.getDestination().trim()
         );
 
-        long estimatedSeconds = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds()) + EXTRA_MARGIN_SECONDS;
+        long baseDuration = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds());
+        long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
         LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
 
         if (missionRepository.existsVehicleOverlap(vehicle.getId(), dto.getStartDate(), estimatedEndDate)) {
@@ -129,7 +129,8 @@ public class MissionPlanningService {
                 dto.getDestination().trim()
         );
 
-        long estimatedSeconds = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds()) + EXTRA_MARGIN_SECONDS;
+        long baseDuration = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds());
+        long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
         LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
 
         if (missionRepository.existsVehicleOverlapExcludingMission(

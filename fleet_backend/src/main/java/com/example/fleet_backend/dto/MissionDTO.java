@@ -32,6 +32,10 @@ public class MissionDTO {
     public MissionDTO() {}
 
     public MissionDTO(Mission mission) {
+        if (mission == null) {
+            return;
+        }
+
         this.id = mission.getId();
         this.title = mission.getTitle();
         this.description = mission.getDescription();
@@ -51,11 +55,12 @@ public class MissionDTO {
         Driver driver = mission.getDriver();
         if (driver != null) {
             this.driverId = driver.getId();
-            this.driverName = ((driver.getFirstName() != null ? driver.getFirstName() : "") + " "
-                    + (driver.getLastName() != null ? driver.getLastName() : "")).trim();
-            if (this.driverName.isBlank()) {
-                this.driverName = driver.getEmail();
-            }
+
+            String firstName = driver.getFirstName() != null ? driver.getFirstName() : "";
+            String lastName = driver.getLastName() != null ? driver.getLastName() : "";
+            String fullName = (firstName + " " + lastName).trim();
+
+            this.driverName = !fullName.isBlank() ? fullName : driver.getEmail();
         }
 
         Vehicle vehicle = mission.getVehicle();

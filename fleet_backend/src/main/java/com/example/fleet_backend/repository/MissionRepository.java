@@ -94,4 +94,6 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             Long vehicleId,
             Mission.MissionStatus status
     );
+
+
 }

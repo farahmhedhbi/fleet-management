@@ -12,11 +12,13 @@ import com.example.fleet_backend.security.AuthUtil;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class MissionService {
 
     private final MissionRepository missionRepository;
@@ -44,9 +46,17 @@ public class MissionService {
         this.missionNotificationService = missionNotificationService;
     }
 
+    @Transactional(readOnly = true)
     public List<MissionDTO> getMissions(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Unauthorized");
+        }
+
         if (AuthUtil.hasRole(auth, "ADMIN")) {
-            return missionRepository.findAll().stream().map(MissionDTO::new).collect(Collectors.toList());
+            return missionRepository.findAll()
+                    .stream()
+                    .map(MissionDTO::new)
+                    .collect(Collectors.toList());
         }
 
         if (AuthUtil.hasRole(auth, "OWNER")) {
@@ -72,11 +82,13 @@ public class MissionService {
         throw new AccessDeniedException("Forbidden");
     }
 
+    @Transactional(readOnly = true)
     public MissionDTO getMissionById(Long missionId, Authentication auth) {
         Mission mission = missionAccessService.getAuthorizedMission(missionId, auth);
         return new MissionDTO(mission);
     }
 
+    @Transactional(readOnly = true)
     public Mission getAuthorizedMission(Long missionId, Authentication auth) {
         return missionAccessService.getAuthorizedMission(missionId, auth);
     }
@@ -109,7 +121,8 @@ public class MissionService {
         Driver driver = driverRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        boolean startedLate = mission.getStartDate() != null && java.time.LocalDateTime.now().isAfter(mission.getStartDate());
+        boolean startedLate = mission.getStartDate() != null
+                && java.time.LocalDateTime.now().isAfter(mission.getStartDate());
 
         Mission saved = missionLifecycleService.startMission(mission, auth);
         missionNotificationService.clearDriverLateAlert(saved);
