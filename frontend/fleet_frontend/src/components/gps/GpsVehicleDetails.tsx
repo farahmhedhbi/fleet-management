@@ -84,6 +84,11 @@ export default function GpsVehicleDetails({
         </div>
 
         <div className="rounded-xl border border-gray-200 p-4">
+          <p className="text-sm text-gray-500">Mission status</p>
+          <p className="font-semibold text-gray-900">{vehicle.missionStatus || "-"}</p>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Historique points</p>
           <p className="font-semibold text-gray-900">
             {loadingHistory ? "Chargement..." : history.length}

@@ -36,26 +36,21 @@ export const missionService = {
     const fixed: MissionDTO = {
       ...payload,
       startDate: toLocalDateTime(payload.startDate),
-      endDate: undefined,
-      routeJson: undefined,
     };
 
     const res = await api.post<Mission>("/api/missions", fixed);
     return res.data;
   },
 
+  async update(id: number, payload: MissionDTO): Promise<Mission> {
+    const fixed: MissionDTO = {
+      ...payload,
+      startDate: toLocalDateTime(payload.startDate),
+    };
 
-   async update(id: number, payload: MissionDTO): Promise<Mission> {
-  const fixed: MissionDTO = {
-    ...payload,
-    startDate: toLocalDateTime(payload.startDate),
-    endDate: undefined,
-    routeJson: undefined,
-  };
-
-  const res = await api.put<Mission>(`/api/missions/${id}`, fixed);
-  return res.data;
-},
+    const res = await api.put<Mission>(`/api/missions/${id}`, fixed);
+    return res.data;
+  },
 
   async start(id: number): Promise<Mission> {
     const res = await api.post<Mission>(`/api/missions/${id}/start`);

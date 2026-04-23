@@ -34,8 +34,6 @@ export interface MissionDTO {
   departure: string;
   destination: string;
   startDate?: string;
-  endDate?: string;
   driverId: number;
   vehicleId: number;
-  routeJson?: string;
 }

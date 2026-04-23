@@ -8,6 +8,13 @@ interface Props {
   data: VehicleObdLiveDTO;
 }
 
+function formatTimestamp(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
+}
+
 export default function ObdLiveCard({ data }: Props) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -17,7 +24,7 @@ export default function ObdLiveCard({ data }: Props) {
             État OBD — {data.registrationNumber}
           </h2>
           <p className="text-sm text-slate-500">
-            Dernière mise à jour : {new Date(data.timestamp).toLocaleString()}
+            Dernière mise à jour : {formatTimestamp(data.timestamp)}
           </p>
         </div>
 
@@ -42,7 +49,7 @@ export default function ObdLiveCard({ data }: Props) {
         engineTemperature={data.engineTemperature}
         batteryVoltage={data.batteryVoltage}
         engineLoad={data.engineLoad}
-        checkEngineOn={data.checkEngineOn}
+        checkEngineOn={Boolean(data.checkEngineOn)}
       />
     </div>
   );

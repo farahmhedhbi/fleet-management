@@ -40,7 +40,7 @@ export default function ObdHistoryTable({ data }: Props) {
               <td className="px-4 py-3">{formatValue(item.batteryVoltage, "V")}</td>
               <td className="px-4 py-3">{formatValue(item.engineLoad, "%")}</td>
               <td className="px-4 py-3">
-                {item.checkEngine ? (
+                {item.checkEngineOn ? (
                   <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
                     ON
                   </span>

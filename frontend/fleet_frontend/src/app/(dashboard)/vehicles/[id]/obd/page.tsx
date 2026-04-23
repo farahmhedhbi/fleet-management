@@ -41,7 +41,8 @@ export default function VehicleObdPage() {
   }
 
   useEffect(() => {
-    if (!vehicleId) return;
+    if (!vehicleId || Number.isNaN(vehicleId)) return;
+
     load();
     const interval = window.setInterval(load, 5000);
     return () => window.clearInterval(interval);

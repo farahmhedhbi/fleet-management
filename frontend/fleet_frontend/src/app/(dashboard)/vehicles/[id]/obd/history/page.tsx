@@ -108,45 +108,45 @@ export default function VehicleObdHistoryPage() {
 
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Température moyenne</p>
-          <p className="mt-2 text-2xl font-bold">
-            {stats.avgTemp.toFixed(1)} °C
-          </p>
+          <p className="mt-2 text-2xl font-bold">{stats.avgTemp.toFixed(1)}°C</p>
         </div>
 
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Carburant moyen</p>
-          <p className="mt-2 text-2xl font-bold">
-            {stats.avgFuel.toFixed(1)} %
-          </p>
+          <p className="mt-2 text-2xl font-bold">{stats.avgFuel.toFixed(1)}%</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="rounded-3xl border bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-4">
           <div>
-            <label className="mb-2 block text-sm font-medium">De</label>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              De
+            </label>
             <input
               type="datetime-local"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium">À</label>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              À
+            </label>
             <input
               type="datetime-local"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
             />
           </div>
 
           <div className="flex items-end">
             <button
               onClick={handleFilter}
-              className="w-full rounded-xl bg-slate-900 px-4 py-2 text-white hover:bg-slate-800"
+              className="w-full rounded-xl bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
             >
               Filtrer
             </button>
@@ -155,7 +155,7 @@ export default function VehicleObdHistoryPage() {
           <div className="flex items-end">
             <button
               onClick={handleReset}
-              className="w-full rounded-xl border px-4 py-2 hover:bg-slate-50"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-700 transition hover:bg-slate-50"
             >
               Réinitialiser
             </button>
@@ -164,11 +164,11 @@ export default function VehicleObdHistoryPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">
-          Chargement de l'historique OBD...
+        <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
+          Chargement de l&apos;historique OBD...
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm">
+        <div className="rounded-2xl border bg-white p-6 text-sm text-red-600 shadow-sm">
           {error}
         </div>
       ) : (

@@ -20,7 +20,6 @@ function formatLabel(value: unknown): string {
   if (!value) return "";
 
   const date = new Date(String(value));
-
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
