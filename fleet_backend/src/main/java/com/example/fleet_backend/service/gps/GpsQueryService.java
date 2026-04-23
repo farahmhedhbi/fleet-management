@@ -1,6 +1,7 @@
 package com.example.fleet_backend.service.gps;
 
 import com.example.fleet_backend.dto.GpsPointDTO;
+import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.GpsData;
@@ -16,6 +17,7 @@ import com.example.fleet_backend.service.MissionService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Transactional(readOnly = true)
 public class GpsQueryService {
 
     private final GpsDataRepository gpsDataRepository;
@@ -89,7 +92,7 @@ public class GpsQueryService {
             Mission activeMission = activeMissionOpt.orElse(null);
             boolean missionActive = activeMission != null;
 
-            List<com.example.fleet_backend.dto.MissionRoutePointDTO> missionRoute = activeMission != null
+            List<MissionRoutePointDTO> missionRoute = activeMission != null
                     ? routeParsingService.parseMissionRoute(activeMission.getRouteJson())
                     : Collections.emptyList();
 
@@ -105,7 +108,7 @@ public class GpsQueryService {
                         vehicle,
                         missionActive,
                         activeMission != null ? activeMission.getId() : null,
-                        activeMission != null ? activeMission.getStatus().name() : null,
+                        activeMission != null && activeMission.getStatus() != null ? activeMission.getStatus().name() : null,
                         activeMission != null && activeMission.getDriver() != null ? activeMission.getDriver().getId() : null,
                         buildDriverName(activeMission),
                         missionRoute
@@ -119,29 +122,37 @@ public class GpsQueryService {
     public VehicleLiveStatusDTO getMissionLiveSecured(Long missionId, Authentication auth) {
         Mission mission = missionService.getAuthorizedMission(missionId, auth);
 
-        if (mission.getVehicle() == null) {
-            throw new ResourceNotFoundException("No vehicle assigned to this mission");
+        if (mission == null) {
+            throw new ResourceNotFoundException("Mission not found: " + missionId);
         }
 
         Vehicle vehicle = mission.getVehicle();
+        if (vehicle == null) {
+            throw new ResourceNotFoundException("No vehicle assigned to this mission");
+        }
+
+        boolean missionActive = mission.getStatus() == Mission.MissionStatus.IN_PROGRESS;
+
+        List<MissionRoutePointDTO> missionRoute = routeParsingService.parseMissionRoute(mission.getRouteJson());
+
         Optional<VehicleLiveState> liveStateOpt = vehicleLiveStateRepository.findByVehicleId(vehicle.getId());
-        List<com.example.fleet_backend.dto.MissionRoutePointDTO> missionRoute =
-                routeParsingService.parseMissionRoute(mission.getRouteJson());
 
         if (liveStateOpt.isPresent()) {
+            VehicleLiveState liveState = liveStateOpt.get();
+
             return gpsMapperService.toVehicleLiveStatusDTO(
                     vehicle,
-                    liveStateOpt.get(),
-                    mission.getStatus() == Mission.MissionStatus.IN_PROGRESS,
+                    liveState,
+                    missionActive,
                     missionRoute
             );
         }
 
         return gpsMapperService.toNoDataVehicleLiveStatusDTO(
                 vehicle,
-                mission.getStatus() == Mission.MissionStatus.IN_PROGRESS,
+                missionActive,
                 mission.getId(),
-                mission.getStatus().name(),
+                mission.getStatus() != null ? mission.getStatus().name() : null,
                 mission.getDriver() != null ? mission.getDriver().getId() : null,
                 buildDriverName(mission),
                 missionRoute
@@ -167,9 +178,7 @@ public class GpsQueryService {
                 : (mission.getFinishedAt() != null ? mission.getFinishedAt() : LocalDateTime.now());
 
         if (effectiveFrom == null) {
-            effectiveFrom = mission.getCreatedAt() != null
-                    ? mission.getCreatedAt()
-                    : LocalDateTime.now().minusDays(1);
+            effectiveFrom = LocalDateTime.now().minusDays(1);
         }
 
         if (effectiveTo.isBefore(effectiveFrom)) {

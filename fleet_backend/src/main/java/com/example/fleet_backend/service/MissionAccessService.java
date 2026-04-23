@@ -11,8 +11,10 @@ import com.example.fleet_backend.security.AuthUtil;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class MissionAccessService {
 
     private final MissionRepository missionRepository;
