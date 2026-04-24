@@ -3,6 +3,7 @@ package com.example.fleet_backend.service.gps;
 import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.LiveStatus;
+import com.example.fleet_backend.service.ObdAnalysisService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,21 +16,17 @@ public class GpsStatusService {
 
     private final double finishRadiusMeters;
     private final long offlineThresholdMinutes;
-    private final double criticalEngineTemperature;
-    private final double warningFuelLevel;
-
     private final RouteDeviationService routeDeviationService;
+    private final ObdAnalysisService obdAnalysisService;
 
     public GpsStatusService(RouteDeviationService routeDeviationService,
+                            ObdAnalysisService obdAnalysisService,
                             @Value("${gps.finish-radius-meters:30}") double finishRadiusMeters,
-                            @Value("${gps.offline-threshold-minutes:5}") long offlineThresholdMinutes,
-                            @Value("${obd.critical-engine-temperature:110}") double criticalEngineTemperature,
-                            @Value("${obd.warning-fuel-level:10}") double warningFuelLevel) {
+                            @Value("${gps.offline-threshold-minutes:5}") long offlineThresholdMinutes) {
         this.routeDeviationService = routeDeviationService;
+        this.obdAnalysisService = obdAnalysisService;
         this.finishRadiusMeters = finishRadiusMeters;
         this.offlineThresholdMinutes = offlineThresholdMinutes;
-        this.criticalEngineTemperature = criticalEngineTemperature;
-        this.warningFuelLevel = warningFuelLevel;
     }
 
     public GpsStatusResult evaluate(GpsData gpsData,
@@ -46,10 +43,12 @@ public class GpsStatusService {
     }
 
     public String computeObdStatus(GpsData gpsData) {
-        if (Boolean.TRUE.equals(gpsData.getCheckEngineOn())) return "CRITICAL";
-        if (gpsData.getEngineTemperature() != null && gpsData.getEngineTemperature() > criticalEngineTemperature) return "CRITICAL";
-        if (gpsData.getFuelLevel() != null && gpsData.getFuelLevel() < warningFuelLevel) return "WARNING";
-        return "OK";
+        return obdAnalysisService.computeObdStatus(
+                gpsData.getFuelLevel(),
+                gpsData.getEngineTemperature(),
+                gpsData.getBatteryVoltage(),
+                gpsData.getCheckEngineOn()
+        );
     }
 
     private LiveStatus computeLiveStatus(GpsData gpsData,

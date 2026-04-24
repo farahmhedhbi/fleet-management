@@ -1,16 +1,11 @@
 package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.ObdHistoryDTO;
-import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.GpsDataRepository;
-import com.example.fleet_backend.repository.VehicleRepository;
-import com.example.fleet_backend.security.AuthUtil;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -20,19 +15,17 @@ import java.util.List;
 public class ObdHistoryService {
 
     private final GpsDataRepository gpsDataRepository;
-    private final VehicleRepository vehicleRepository;
+    private final VehicleAccessService vehicleAccessService;
 
     public ObdHistoryService(GpsDataRepository gpsDataRepository,
-                             VehicleRepository vehicleRepository) {
+                             VehicleAccessService vehicleAccessService) {
         this.gpsDataRepository = gpsDataRepository;
-        this.vehicleRepository = vehicleRepository;
+        this.vehicleAccessService = vehicleAccessService;
     }
 
+    @Transactional(readOnly = true)
     public List<ObdHistoryDTO> getVehicleHistory(Long vehicleId, LocalDateTime from, LocalDateTime to) {
-        Vehicle vehicle = vehicleRepository.findById(vehicleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + vehicleId));
-
-        checkVehicleAccess(vehicle);
+        Vehicle vehicle = vehicleAccessService.getAuthorizedVehicle(vehicleId);
 
         List<GpsData> data;
         if (from != null && to != null) {
@@ -71,35 +64,5 @@ public class ObdHistoryService {
                 gps.getCheckEngineOn(),
                 gps.getTimestamp()
         );
-    }
-
-    private void checkVehicleAccess(Vehicle vehicle) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new AccessDeniedException("Unauthorized access");
-        }
-
-        if (AuthUtil.isAdmin(auth)) return;
-
-        if (AuthUtil.hasRole(auth, "OWNER")) {
-            Long currentUserId = AuthUtil.userId(auth);
-
-            if (currentUserId == null) {
-                throw new AccessDeniedException("Unauthorized access");
-            }
-
-            if (vehicle.getOwner() == null || vehicle.getOwner().getId() == null) {
-                throw new AccessDeniedException("Vehicle has no owner");
-            }
-
-            if (!vehicle.getOwner().getId().equals(currentUserId)) {
-                throw new AccessDeniedException("You do not have access to this vehicle");
-            }
-
-            return;
-        }
-
-        throw new AccessDeniedException("Access denied");
     }
 }

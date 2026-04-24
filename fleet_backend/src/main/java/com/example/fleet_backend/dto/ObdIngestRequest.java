@@ -1,15 +1,14 @@
 package com.example.fleet_backend.dto;
 
 public class ObdIngestRequest {
+
     private Long vehicleId;
-    private Double engineRpm;
+    private Integer engineRpm;
     private Double fuelLevel;
     private Double engineTemperature;
     private Double batteryVoltage;
     private Double engineLoad;
-    private Boolean checkEngine;
-
-    // getters setters
+    private Boolean checkEngineOn;
 
     public Long getVehicleId() {
         return vehicleId;
@@ -19,11 +18,11 @@ public class ObdIngestRequest {
         this.vehicleId = vehicleId;
     }
 
-    public Double getEngineRpm() {
+    public Integer getEngineRpm() {
         return engineRpm;
     }
 
-    public void setEngineRpm(Double engineRpm) {
+    public void setEngineRpm(Integer engineRpm) {
         this.engineRpm = engineRpm;
     }
 
@@ -59,11 +58,11 @@ public class ObdIngestRequest {
         this.engineLoad = engineLoad;
     }
 
-    public Boolean getCheckEngine() {
-        return checkEngine;
+    public Boolean getCheckEngineOn() {
+        return checkEngineOn;
     }
 
-    public void setCheckEngine(Boolean checkEngine) {
-        this.checkEngine = checkEngine;
+    public void setCheckEngineOn(Boolean checkEngineOn) {
+        this.checkEngineOn = checkEngineOn;
     }
 }
