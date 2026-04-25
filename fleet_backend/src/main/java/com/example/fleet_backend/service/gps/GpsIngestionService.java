@@ -11,6 +11,7 @@ import com.example.fleet_backend.service.ObdEventService;
 import com.example.fleet_backend.service.VehicleEventService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +28,7 @@ public class GpsIngestionService {
     private final VehicleEventService vehicleEventService;
     private final ObdEventService obdEventService;
     private final MissionService missionService;
+    private final GpsWebSocketPublisher gpsWebSocketPublisher;
 
     public GpsIngestionService(GpsValidationService gpsValidationService,
                                VehicleRepository vehicleRepository,
@@ -36,7 +38,8 @@ public class GpsIngestionService {
                                LiveStateService liveStateService,
                                VehicleEventService vehicleEventService,
                                ObdEventService obdEventService,
-                               MissionService missionService) {
+                               MissionService missionService,
+                               GpsWebSocketPublisher gpsWebSocketPublisher) {
         this.gpsValidationService = gpsValidationService;
         this.vehicleRepository = vehicleRepository;
         this.gpsDataRepository = gpsDataRepository;
@@ -46,6 +49,7 @@ public class GpsIngestionService {
         this.vehicleEventService = vehicleEventService;
         this.obdEventService = obdEventService;
         this.missionService = missionService;
+        this.gpsWebSocketPublisher = gpsWebSocketPublisher;
     }
 
     public void processIncomingGps(GpsIncomingDTO dto) {
@@ -81,6 +85,12 @@ public class GpsIngestionService {
                 obdStatus
         );
 
+        gpsWebSocketPublisher.publishLiveUpdate(
+                vehicle,
+                gpsData,
+                statusResult.getLiveStatus(),
+                context
+        );
         vehicleEventService.analyzeAndCreateEvents(
                 vehicle,
                 previousGps,
