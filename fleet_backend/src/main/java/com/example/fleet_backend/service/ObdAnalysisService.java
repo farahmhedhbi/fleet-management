@@ -33,123 +33,90 @@ public class ObdAnalysisService {
         this.warningFuelLevel = warningFuelLevel;
     }
 
-    public String computeObdStatus(
-            Double fuelLevel,
-            Double engineTemperature,
-            Double batteryVoltage,
-            Boolean checkEngineOn
-    ) {
-        if (Boolean.TRUE.equals(checkEngineOn)) {
-            return "CRITICAL";
-        }
+    public String computeObdStatus(Double fuelLevel,
+                                   Double engineTemperature,
+                                   Double batteryVoltage,
+                                   Boolean checkEngineOn) {
+        if (Boolean.TRUE.equals(checkEngineOn)) return "CRITICAL";
 
-        if (engineTemperature != null && engineTemperature > criticalEngineTemperature) {
-            return "CRITICAL";
-        }
+        if (engineTemperature != null && engineTemperature >= criticalEngineTemperature) return "CRITICAL";
+        if (batteryVoltage != null && batteryVoltage <= criticalBatteryVoltage) return "CRITICAL";
+        if (fuelLevel != null && fuelLevel <= criticalFuelLevel) return "CRITICAL";
 
-        if (batteryVoltage != null && batteryVoltage < criticalBatteryVoltage) {
-            return "CRITICAL";
-        }
-
-        if (fuelLevel != null && fuelLevel < criticalFuelLevel) {
-            return "CRITICAL";
-        }
-
-        if (engineTemperature != null && engineTemperature > warningEngineTemperature) {
-            return "WARNING";
-        }
-
-        if (batteryVoltage != null && batteryVoltage < warningBatteryVoltage) {
-            return "WARNING";
-        }
-
-        if (fuelLevel != null && fuelLevel < warningFuelLevel) {
-            return "WARNING";
-        }
+        if (engineTemperature != null && engineTemperature >= warningEngineTemperature) return "WARNING";
+        if (batteryVoltage != null && batteryVoltage <= warningBatteryVoltage) return "WARNING";
+        if (fuelLevel != null && fuelLevel <= warningFuelLevel) return "WARNING";
 
         return "OK";
     }
 
-    public List<ObdAlertDTO> computeAlerts(
-            Double fuelLevel,
-            Double engineTemperature,
-            Double batteryVoltage,
-            Boolean checkEngineOn
-    ) {
+    public List<ObdAlertDTO> computeAlerts(Double fuelLevel,
+                                           Double engineTemperature,
+                                           Double batteryVoltage,
+                                           Boolean checkEngineOn) {
         List<ObdAlertDTO> alerts = new ArrayList<>();
 
-        if (fuelLevel != null && fuelLevel < criticalFuelLevel) {
-            alerts.add(new ObdAlertDTO(
-                    "LOW_FUEL_CRITICAL",
-                    "CRITICAL",
-                    "Niveau de carburant critique"
-            ));
-        } else if (fuelLevel != null && fuelLevel < warningFuelLevel) {
-            alerts.add(new ObdAlertDTO(
-                    "LOW_FUEL_WARNING",
-                    "WARNING",
-                    "Niveau de carburant faible"
-            ));
+        if (fuelLevel != null && fuelLevel <= criticalFuelLevel) {
+            alerts.add(new ObdAlertDTO("LOW_FUEL_CRITICAL", "CRITICAL",
+                    "Niveau de carburant critique : " + fuelLevel + "%"));
+        } else if (fuelLevel != null && fuelLevel <= warningFuelLevel) {
+            alerts.add(new ObdAlertDTO("LOW_FUEL_WARNING", "WARNING",
+                    "Niveau de carburant faible : " + fuelLevel + "%"));
         }
 
-        if (engineTemperature != null && engineTemperature > criticalEngineTemperature) {
-            alerts.add(new ObdAlertDTO(
-                    "HIGH_TEMP_CRITICAL",
-                    "CRITICAL",
-                    "Température moteur critique"
-            ));
-        } else if (engineTemperature != null && engineTemperature > warningEngineTemperature) {
-            alerts.add(new ObdAlertDTO(
-                    "HIGH_TEMP_WARNING",
-                    "WARNING",
-                    "Température moteur élevée"
-            ));
+        if (engineTemperature != null && engineTemperature >= criticalEngineTemperature) {
+            alerts.add(new ObdAlertDTO("HIGH_TEMP_CRITICAL", "CRITICAL",
+                    "Température moteur critique : " + engineTemperature + "°C"));
+        } else if (engineTemperature != null && engineTemperature >= warningEngineTemperature) {
+            alerts.add(new ObdAlertDTO("HIGH_TEMP_WARNING", "WARNING",
+                    "Température moteur élevée : " + engineTemperature + "°C"));
         }
 
-        if (batteryVoltage != null && batteryVoltage < criticalBatteryVoltage) {
-            alerts.add(new ObdAlertDTO(
-                    "LOW_BATTERY_CRITICAL",
-                    "CRITICAL",
-                    "Tension batterie critique"
-            ));
-        } else if (batteryVoltage != null && batteryVoltage < warningBatteryVoltage) {
-            alerts.add(new ObdAlertDTO(
-                    "LOW_BATTERY_WARNING",
-                    "WARNING",
-                    "Tension batterie faible"
-            ));
+        if (batteryVoltage != null && batteryVoltage <= criticalBatteryVoltage) {
+            alerts.add(new ObdAlertDTO("LOW_BATTERY_CRITICAL", "CRITICAL",
+                    "Tension batterie critique : " + batteryVoltage + "V"));
+        } else if (batteryVoltage != null && batteryVoltage <= warningBatteryVoltage) {
+            alerts.add(new ObdAlertDTO("LOW_BATTERY_WARNING", "WARNING",
+                    "Tension batterie faible : " + batteryVoltage + "V"));
         }
 
         if (Boolean.TRUE.equals(checkEngineOn)) {
-            alerts.add(new ObdAlertDTO(
-                    "CHECK_ENGINE_ON",
-                    "CRITICAL",
-                    "Voyant moteur activé"
-            ));
+            alerts.add(new ObdAlertDTO("CHECK_ENGINE_ON", "CRITICAL",
+                    "Voyant moteur activé"));
         }
 
         return alerts;
     }
 
-    public String buildMaintenanceHint(
-            Double fuelLevel,
-            Double engineTemperature,
-            Double batteryVoltage,
-            Boolean checkEngineOn
-    ) {
+    public String buildMaintenanceHint(Double fuelLevel,
+                                       Double engineTemperature,
+                                       Double batteryVoltage,
+                                       Boolean checkEngineOn) {
         if (Boolean.TRUE.equals(checkEngineOn)) {
             return "Inspection moteur recommandée immédiatement.";
         }
 
-        if (engineTemperature != null && engineTemperature > warningEngineTemperature) {
-            return "Contrôler le circuit de refroidissement.";
+        if (engineTemperature != null && engineTemperature >= criticalEngineTemperature) {
+            return "Arrêter le véhicule et contrôler immédiatement le circuit de refroidissement.";
         }
 
-        if (batteryVoltage != null && batteryVoltage < warningBatteryVoltage) {
+        if (engineTemperature != null && engineTemperature >= warningEngineTemperature) {
+            return "Surveiller la température moteur et vérifier le refroidissement.";
+        }
+
+        if (batteryVoltage != null && batteryVoltage <= criticalBatteryVoltage) {
+            return "Batterie critique : contrôler alternateur et batterie immédiatement.";
+        }
+
+        if (batteryVoltage != null && batteryVoltage <= warningBatteryVoltage) {
             return "Vérifier la batterie et le système de charge.";
         }
 
-        if (fuelLevel != null && fuelLevel < warningFuelLevel) {
+        if (fuelLevel != null && fuelLevel <= criticalFuelLevel) {
+            return "Carburant critique : ravitaillement urgent.";
+        }
+
+        if (fuelLevel != null && fuelLevel <= warningFuelLevel) {
             return "Prévoir un ravitaillement rapidement.";
         }
 

@@ -8,5 +8,10 @@ public enum VehicleEventType {
     OFF_ROUTE,
     MISSION_STARTED,
     MISSION_COMPLETED,
-    NO_SIGNAL
+    NO_SIGNAL,
+
+    OBD_LOW_FUEL,
+    OBD_HIGH_TEMP,
+    OBD_LOW_BATTERY,
+    OBD_CHECK_ENGINE
 }

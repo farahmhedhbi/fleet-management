@@ -18,11 +18,9 @@ public class ObdAlertService {
     private final ObdAnalysisService obdAnalysisService;
     private final VehicleAccessService vehicleAccessService;
 
-    public ObdAlertService(
-            VehicleLiveStateRepository vehicleLiveStateRepository,
-            ObdAnalysisService obdAnalysisService,
-            VehicleAccessService vehicleAccessService
-    ) {
+    public ObdAlertService(VehicleLiveStateRepository vehicleLiveStateRepository,
+                           ObdAnalysisService obdAnalysisService,
+                           VehicleAccessService vehicleAccessService) {
         this.vehicleLiveStateRepository = vehicleLiveStateRepository;
         this.obdAnalysisService = obdAnalysisService;
         this.vehicleAccessService = vehicleAccessService;
@@ -35,12 +33,7 @@ public class ObdAlertService {
         VehicleLiveState liveState = vehicleLiveStateRepository.findByVehicleId(vehicleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Live state not found for vehicle " + vehicleId));
 
-        List<ObdAlertDTO> alerts = obdAnalysisService.computeAlerts(
-                liveState.getFuelLevel(),
-                liveState.getEngineTemperature(),
-                liveState.getBatteryVoltage(),
-                liveState.getCheckEngineOn()
-        );
+        List<ObdAlertDTO> alerts = getAlertsFromLiveState(liveState);
 
         VehicleHealthSummaryDTO dto = new VehicleHealthSummaryDTO();
         dto.setVehicleId(vehicle.getId());
@@ -56,14 +49,12 @@ public class ObdAlertService {
         dto.setEngineTemperature(liveState.getEngineTemperature());
         dto.setBatteryVoltage(liveState.getBatteryVoltage());
         dto.setCheckEngineOn(Boolean.TRUE.equals(liveState.getCheckEngineOn()));
-        dto.setMaintenanceHint(
-                obdAnalysisService.buildMaintenanceHint(
-                        liveState.getFuelLevel(),
-                        liveState.getEngineTemperature(),
-                        liveState.getBatteryVoltage(),
-                        liveState.getCheckEngineOn()
-                )
-        );
+        dto.setMaintenanceHint(obdAnalysisService.buildMaintenanceHint(
+                liveState.getFuelLevel(),
+                liveState.getEngineTemperature(),
+                liveState.getBatteryVoltage(),
+                liveState.getCheckEngineOn()
+        ));
 
         return dto;
     }
@@ -75,6 +66,10 @@ public class ObdAlertService {
         VehicleLiveState liveState = vehicleLiveStateRepository.findByVehicleId(vehicleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Live state not found for vehicle " + vehicleId));
 
+        return getAlertsFromLiveState(liveState);
+    }
+
+    private List<ObdAlertDTO> getAlertsFromLiveState(VehicleLiveState liveState) {
         return obdAnalysisService.computeAlerts(
                 liveState.getFuelLevel(),
                 liveState.getEngineTemperature(),

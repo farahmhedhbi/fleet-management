@@ -1,7 +1,7 @@
 "use client";
 
 interface Props {
-  status: string;
+  status?: string | null;
 }
 
 export default function VehicleHealthBadge({ status }: Props) {
@@ -16,7 +16,9 @@ export default function VehicleHealthBadge({ status }: Props) {
 
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${styles[normalized] || styles.UNKNOWN}`}
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+        styles[normalized] || styles.UNKNOWN
+      }`}
     >
       {normalized}
     </span>

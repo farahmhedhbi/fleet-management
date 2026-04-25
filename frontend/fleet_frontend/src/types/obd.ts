@@ -9,7 +9,7 @@ export interface VehicleObdLiveDTO {
   engineLoad: number | null;
   checkEngineOn: boolean | null;
   obdStatus: string;
-  timestamp: string;
+  timestamp: string | null;
 }
 
 export interface ObdHistoryItem {

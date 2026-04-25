@@ -39,13 +39,15 @@ public class ObdLiveService {
         dto.setEngineTemperature(liveState.getEngineTemperature());
         dto.setBatteryVoltage(liveState.getBatteryVoltage());
         dto.setEngineLoad(liveState.getEngineLoad());
-        dto.setCheckEngineOn(liveState.getCheckEngineOn());
+        dto.setCheckEngineOn(Boolean.TRUE.equals(liveState.getCheckEngineOn()));
+
         dto.setObdStatus(obdAnalysisService.computeObdStatus(
                 liveState.getFuelLevel(),
                 liveState.getEngineTemperature(),
                 liveState.getBatteryVoltage(),
                 liveState.getCheckEngineOn()
         ));
+
         dto.setTimestamp(liveState.getLastTimestamp());
         return dto;
     }

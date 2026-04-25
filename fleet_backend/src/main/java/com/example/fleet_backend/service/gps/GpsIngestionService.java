@@ -7,6 +7,7 @@ import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.GpsDataRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.service.MissionService;
+import com.example.fleet_backend.service.ObdEventService;
 import com.example.fleet_backend.service.VehicleEventService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class GpsIngestionService {
     private final GpsStatusService gpsStatusService;
     private final LiveStateService liveStateService;
     private final VehicleEventService vehicleEventService;
+    private final ObdEventService obdEventService;
     private final MissionService missionService;
 
     public GpsIngestionService(GpsValidationService gpsValidationService,
@@ -33,6 +35,7 @@ public class GpsIngestionService {
                                GpsStatusService gpsStatusService,
                                LiveStateService liveStateService,
                                VehicleEventService vehicleEventService,
+                               ObdEventService obdEventService,
                                MissionService missionService) {
         this.gpsValidationService = gpsValidationService;
         this.vehicleRepository = vehicleRepository;
@@ -41,6 +44,7 @@ public class GpsIngestionService {
         this.gpsStatusService = gpsStatusService;
         this.liveStateService = liveStateService;
         this.vehicleEventService = vehicleEventService;
+        this.obdEventService = obdEventService;
         this.missionService = missionService;
     }
 
@@ -48,13 +52,16 @@ public class GpsIngestionService {
         gpsValidationService.validateIncoming(dto);
 
         Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + dto.getVehicleId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vehicle not found with id: " + dto.getVehicleId()
+                ));
 
         ActiveMissionContext context = missionTrackingService.getActiveMissionContext(vehicle);
 
-        GpsData previousGps = gpsDataRepository.findTopByVehicleIdOrderByTimestampDesc(vehicle.getId()).orElse(null);
+        GpsData previousGps = gpsDataRepository
+                .findTopByVehicleIdOrderByTimestampDesc(vehicle.getId())
+                .orElse(null);
 
-        // ✅ correction ici
         GpsData gpsData = buildGpsData(vehicle, dto, context);
         gpsDataRepository.save(gpsData);
 
@@ -84,6 +91,8 @@ public class GpsIngestionService {
                 statusResult.isMissionCompleted()
         );
 
+        obdEventService.generateEvents(gpsData);
+
         if (statusResult.isMissionCompleted() && context.getMission() != null) {
             missionService.completeMissionFromGps(context.getMission());
         }
@@ -91,21 +100,26 @@ public class GpsIngestionService {
 
     private GpsData buildGpsData(Vehicle vehicle, GpsIncomingDTO dto, ActiveMissionContext context) {
         GpsData gpsData = new GpsData();
+
         gpsData.setVehicle(vehicle);
         gpsData.setMissionId(context.getMissionId());
+
         gpsData.setLatitude(dto.getLatitude());
         gpsData.setLongitude(dto.getLongitude());
         gpsData.setSpeed(dto.getSpeed());
         gpsData.setEngineOn(dto.isEngineOn());
         gpsData.setTimestamp(dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now());
+
         gpsData.setRouteId(normalizeRouteId(dto.getRouteId()));
         gpsData.setRouteSource(normalizeRouteSource(dto.getRouteSource()));
+
         gpsData.setEngineRpm(dto.getEngineRpm());
         gpsData.setFuelLevel(dto.getFuelLevel());
         gpsData.setEngineTemperature(dto.getEngineTemperature());
         gpsData.setBatteryVoltage(dto.getBatteryVoltage());
         gpsData.setEngineLoad(dto.getEngineLoad());
         gpsData.setCheckEngineOn(dto.getCheckEngineOn());
+
         return gpsData;
     }
 
@@ -117,6 +131,7 @@ public class GpsIngestionService {
         if (routeSource == null || routeSource.isBlank()) {
             return null;
         }
+
         return routeSource.trim().toUpperCase();
     }
 }

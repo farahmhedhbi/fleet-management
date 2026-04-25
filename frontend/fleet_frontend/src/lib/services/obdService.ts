@@ -3,9 +3,12 @@ import type { ObdHistoryItem, VehicleObdLiveDTO } from "@/types/obd";
 
 export const obdService = {
   async getVehicleLive(vehicleId: number): Promise<VehicleObdLiveDTO> {
-    const res = await api.get<VehicleObdLiveDTO>(`/api/obd/vehicle/${vehicleId}/live`);
+    const res = await api.get<VehicleObdLiveDTO>(
+      `/api/obd/vehicle/${vehicleId}/live`
+    );
     return res.data;
   },
+
   async getVehicleHistory(
     vehicleId: number,
     from?: string,
@@ -21,6 +24,6 @@ export const obdService = {
       { params }
     );
 
-    return res.data;
+    return Array.isArray(res.data) ? res.data : [];
   },
 };

@@ -1,13 +1,13 @@
 export interface ObdAlertDTO {
   code: string;
-  severity: string;
+  severity: "OK" | "WARNING" | "CRITICAL" | string;
   message: string;
 }
 
 export interface VehicleHealthSummaryDTO {
   vehicleId: number;
   registrationNumber: string;
-  obdStatus: string;
+  obdStatus: "OK" | "WARNING" | "CRITICAL" | string;
   activeAlertsCount: number;
   fuelLevel: number | null;
   engineTemperature: number | null;

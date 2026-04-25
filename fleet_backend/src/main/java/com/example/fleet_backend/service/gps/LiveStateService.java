@@ -6,8 +6,10 @@ import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.model.VehicleLiveState;
 import com.example.fleet_backend.repository.VehicleLiveStateRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class LiveStateService {
 
     private final VehicleLiveStateRepository vehicleLiveStateRepository;
@@ -25,6 +27,7 @@ public class LiveStateService {
                 .orElseGet(VehicleLiveState::new);
 
         state.setVehicle(vehicle);
+
         state.setLatitude(gpsData.getLatitude());
         state.setLongitude(gpsData.getLongitude());
         state.setSpeed(gpsData.getSpeed());

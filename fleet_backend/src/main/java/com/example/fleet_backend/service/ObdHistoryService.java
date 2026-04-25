@@ -2,7 +2,6 @@ package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.ObdHistoryDTO;
 import com.example.fleet_backend.model.GpsData;
-import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.GpsDataRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,22 +24,32 @@ public class ObdHistoryService {
 
     @Transactional(readOnly = true)
     public List<ObdHistoryDTO> getVehicleHistory(Long vehicleId, LocalDateTime from, LocalDateTime to) {
-        Vehicle vehicle = vehicleAccessService.getAuthorizedVehicle(vehicleId);
+        vehicleAccessService.getAuthorizedVehicle(vehicleId);
 
-        List<GpsData> data;
-        if (from != null && to != null) {
-            data = gpsDataRepository.findByVehicleIdAndTimestampBetweenOrderByTimestampAsc(vehicleId, from, to);
-        } else {
-            data = gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicleId)
-                    .stream()
-                    .sorted(Comparator.comparing(GpsData::getTimestamp))
-                    .toList();
-        }
+        List<GpsData> data = gpsDataRepository.findByVehicleIdOrderByTimestampDesc(vehicleId)
+                .stream()
+                .filter(this::hasObdData)
+                .filter(gps -> isInsideRange(gps, from, to))
+                .sorted(Comparator.comparing(GpsData::getTimestamp))
+                .toList();
 
         return data.stream()
-                .filter(this::hasObdData)
                 .map(this::toDTO)
                 .toList();
+    }
+
+    private boolean isInsideRange(GpsData gps, LocalDateTime from, LocalDateTime to) {
+        if (gps.getTimestamp() == null) return false;
+
+        if (from != null && gps.getTimestamp().isBefore(from)) {
+            return false;
+        }
+
+        if (to != null && gps.getTimestamp().isAfter(to)) {
+            return false;
+        }
+
+        return true;
     }
 
     private boolean hasObdData(GpsData gps) {

@@ -7,6 +7,29 @@ interface Props {
   data: VehicleHealthSummaryDTO;
 }
 
+function ValueCard({
+  label,
+  value,
+  danger,
+}: {
+  label: string;
+  value: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-sm text-slate-500">{label}</p>
+      <p
+        className={`mt-1 text-xl font-bold ${
+          danger ? "text-red-600" : "text-slate-900"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export default function VehicleHealthSummaryCard({ data }: Props) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -18,32 +41,19 @@ export default function VehicleHealthSummaryCard({ data }: Props) {
         <VehicleHealthBadge status={data.obdStatus} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Alertes actives</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">{data.activeAlertsCount}</p>
-        </div>
-
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Carburant</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">
-            {data.fuelLevel ?? "--"}%
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Température</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">
-            {data.engineTemperature ?? "--"}°C
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Batterie</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">
-            {data.batteryVoltage ?? "--"}V
-          </p>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <ValueCard label="Alertes actives" value={String(data.activeAlertsCount)} />
+        <ValueCard label="Carburant" value={`${data.fuelLevel ?? "--"}%`} />
+        <ValueCard
+          label="Température"
+          value={`${data.engineTemperature ?? "--"}°C`}
+        />
+        <ValueCard label="Batterie" value={`${data.batteryVoltage ?? "--"}V`} />
+        <ValueCard
+          label="Check Engine"
+          value={data.checkEngineOn ? "ON" : "OFF"}
+          danger={data.checkEngineOn}
+        />
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
