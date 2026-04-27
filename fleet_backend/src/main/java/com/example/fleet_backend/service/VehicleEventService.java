@@ -8,12 +8,15 @@ import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.model.VehicleEvent;
 import com.example.fleet_backend.model.VehicleEventType;
 import com.example.fleet_backend.repository.VehicleEventRepository;
+import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Transactional
@@ -21,18 +24,24 @@ public class VehicleEventService {
 
     private static final double OVERSPEED_THRESHOLD = 100.0;
     private static final long EVENT_COOLDOWN_MINUTES = 10;
+    private static final long OBD_CRITICAL_COOLDOWN_MINUTES = 10;
     private static final long STOP_LONG_MINUTES = 2;
 
     private final VehicleEventRepository vehicleEventRepository;
     private final NotificationService notificationService;
     private final ObdAnalysisService obdAnalysisService;
+    private final GpsWebSocketPublisher gpsWebSocketPublisher;
+
+    private final Map<String, LocalDateTime> lastCriticalObdAlerts = new ConcurrentHashMap<>();
 
     public VehicleEventService(VehicleEventRepository vehicleEventRepository,
                                NotificationService notificationService,
-                               ObdAnalysisService obdAnalysisService) {
+                               ObdAnalysisService obdAnalysisService,
+                               GpsWebSocketPublisher gpsWebSocketPublisher) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.notificationService = notificationService;
         this.obdAnalysisService = obdAnalysisService;
+        this.gpsWebSocketPublisher = gpsWebSocketPublisher;
     }
 
     public void analyzeAndCreateEvents(Vehicle vehicle,
@@ -43,14 +52,17 @@ public class VehicleEventService {
                                        boolean offRoute,
                                        boolean missionCompleted) {
 
-        if (vehicle == null || currentGps == null) return;
+        if (vehicle == null || currentGps == null) {
+            return;
+        }
 
         handleEngineTransitions(vehicle, previousGps, currentGps, missionId, missionActive);
         handleOverspeed(vehicle, currentGps, missionId);
         handleOffRoute(vehicle, currentGps, missionId, offRoute);
         handleMissionCompleted(vehicle, currentGps, missionId, missionCompleted);
         handleStopLong(vehicle, previousGps, currentGps, missionActive, missionId);
-        handleObdEvents(vehicle, currentGps, missionId);
+
+        handleCriticalObdAlertsOnly(vehicle, currentGps, missionId);
     }
 
     private void handleEngineTransitions(Vehicle vehicle,
@@ -61,29 +73,53 @@ public class VehicleEventService {
         if (previousGps == null) return;
 
         if (!previousGps.isEngineOn() && currentGps.isEngineOn()) {
-            createEventIfAllowed(vehicle, missionId, VehicleEventType.ENGINE_ON,
-                    EventSeverity.INFO, "Moteur allumé", currentGps);
+            createEventIfAllowed(
+                    vehicle,
+                    missionId,
+                    VehicleEventType.ENGINE_ON,
+                    EventSeverity.INFO,
+                    "Moteur allumé",
+                    currentGps
+            );
 
             if (missionActive) {
-                createEventIfAllowed(vehicle, missionId, VehicleEventType.MISSION_STARTED,
-                        EventSeverity.INFO, "Mission démarrée", currentGps);
+                createEventIfAllowed(
+                        vehicle,
+                        missionId,
+                        VehicleEventType.MISSION_STARTED,
+                        EventSeverity.INFO,
+                        "Mission démarrée",
+                        currentGps
+                );
             }
         }
 
         if (previousGps.isEngineOn() && !currentGps.isEngineOn()) {
-            createEventIfAllowed(vehicle, missionId, VehicleEventType.ENGINE_OFF,
-                    EventSeverity.WARNING, "Moteur éteint", currentGps);
+            createEventIfAllowed(
+                    vehicle,
+                    missionId,
+                    VehicleEventType.ENGINE_OFF,
+                    EventSeverity.WARNING,
+                    "Moteur éteint",
+                    currentGps
+            );
         }
     }
 
-    private void handleOverspeed(Vehicle vehicle, GpsData currentGps, Long missionId) {
+    private void handleOverspeed(Vehicle vehicle,
+                                 GpsData currentGps,
+                                 Long missionId) {
         Double speed = currentGps.getSpeed();
 
         if (speed != null && speed > OVERSPEED_THRESHOLD) {
-            createEventIfAllowed(vehicle, missionId, VehicleEventType.OVERSPEED,
+            createEventIfAllowed(
+                    vehicle,
+                    missionId,
+                    VehicleEventType.OVERSPEED,
                     EventSeverity.CRITICAL,
-                    "Dépassement de vitesse détecté : " + speed + " km/h",
-                    currentGps);
+                    "Dépassement de vitesse détecté",
+                    currentGps
+            );
         }
     }
 
@@ -93,8 +129,14 @@ public class VehicleEventService {
                                 boolean offRoute) {
         if (!offRoute) return;
 
-        createEventIfAllowed(vehicle, missionId, VehicleEventType.OFF_ROUTE,
-                EventSeverity.CRITICAL, "Véhicule hors trajet prévu", currentGps);
+        createEventIfAllowed(
+                vehicle,
+                missionId,
+                VehicleEventType.OFF_ROUTE,
+                EventSeverity.CRITICAL,
+                "Véhicule hors trajet prévu",
+                currentGps
+        );
     }
 
     private void handleMissionCompleted(Vehicle vehicle,
@@ -103,8 +145,14 @@ public class VehicleEventService {
                                         boolean missionCompleted) {
         if (!missionCompleted) return;
 
-        createEventIfAllowed(vehicle, missionId, VehicleEventType.MISSION_COMPLETED,
-                EventSeverity.INFO, "Mission terminée", currentGps);
+        createEventIfAllowed(
+                vehicle,
+                missionId,
+                VehicleEventType.MISSION_COMPLETED,
+                EventSeverity.INFO,
+                "Mission terminée",
+                currentGps
+        );
     }
 
     private void handleStopLong(Vehicle vehicle,
@@ -114,26 +162,48 @@ public class VehicleEventService {
                                 Long missionId) {
         if (!missionActive || previousGps == null) return;
 
-        boolean currentStopped = currentGps.isEngineOn()
-                && currentGps.getSpeed() != null
-                && currentGps.getSpeed() <= 1.0;
+        boolean currentStopped =
+                currentGps.isEngineOn()
+                        && currentGps.getSpeed() != null
+                        && currentGps.getSpeed() <= 1.0;
 
-        boolean previousStopped = previousGps.isEngineOn()
-                && previousGps.getSpeed() != null
-                && previousGps.getSpeed() <= 1.0;
+        boolean previousStopped =
+                previousGps.isEngineOn()
+                        && previousGps.getSpeed() != null
+                        && previousGps.getSpeed() <= 1.0;
 
         if (!currentStopped || !previousStopped) return;
+
         if (currentGps.getTimestamp() == null || previousGps.getTimestamp() == null) return;
 
-        long minutes = Duration.between(previousGps.getTimestamp(), currentGps.getTimestamp()).toMinutes();
+        long minutes = Duration.between(
+                previousGps.getTimestamp(),
+                currentGps.getTimestamp()
+        ).toMinutes();
 
         if (minutes >= STOP_LONG_MINUTES) {
-            createEventIfAllowed(vehicle, missionId, VehicleEventType.STOP_LONG,
-                    EventSeverity.WARNING, "Arrêt prolongé en mission", currentGps);
+            createEventIfAllowed(
+                    vehicle,
+                    missionId,
+                    VehicleEventType.STOP_LONG,
+                    EventSeverity.WARNING,
+                    "Arrêt prolongé en mission",
+                    currentGps
+            );
         }
     }
 
-    private void handleObdEvents(Vehicle vehicle, GpsData currentGps, Long missionId) {
+    /**
+     * LOGIQUE OBD PROPRE :
+     * - On analyse OBD à chaque GPS.
+     * - On ignore les alertes OK / WARNING.
+     * - On affiche uniquement les dangers réels CRITICAL.
+     * - On bloque la répétition pendant 10 minutes par véhicule + type d'alerte.
+     * - On ne sauvegarde pas dans vehicle_events pour éviter la contrainte SQL OBD_*.
+     */
+    private void handleCriticalObdAlertsOnly(Vehicle vehicle,
+                                             GpsData currentGps,
+                                             Long missionId) {
         List<ObdAlertDTO> alerts = obdAnalysisService.computeAlerts(
                 currentGps.getFuelLevel(),
                 currentGps.getEngineTemperature(),
@@ -142,29 +212,81 @@ public class VehicleEventService {
         );
 
         for (ObdAlertDTO alert : alerts) {
-            VehicleEventType eventType = mapObdAlertToEventType(alert.getCode());
-            EventSeverity severity = EventSeverity.valueOf(alert.getSeverity());
 
-            createEventIfAllowed(
-                    vehicle,
+            if (!"CRITICAL".equalsIgnoreCase(alert.getSeverity())) {
+                continue;
+            }
+
+            if (shouldSkipCriticalObdAlert(vehicle.getId(), missionId, alert)) {
+                continue;
+            }
+
+            VehicleEventDTO dto = new VehicleEventDTO(
+                    null,
+                    vehicle.getId(),
                     missionId,
-                    eventType,
-                    severity,
+                    alert.getCode(),
+                    alert.getSeverity(),
                     alert.getMessage(),
-                    currentGps
+                    currentGps.getLatitude(),
+                    currentGps.getLongitude(),
+                    currentGps.getSpeed(),
+                    LocalDateTime.now(),
+                    false
             );
+
+            gpsWebSocketPublisher.publishEvent(dto);
+
+            if (vehicle.getOwner() != null) {
+                notificationService.createUniqueForUser(
+                        vehicle.getOwner().getId(),
+                        "Danger véhicule",
+                        alert.getMessage(),
+                        missionId
+                );
+            }
         }
     }
 
-    private VehicleEventType mapObdAlertToEventType(String code) {
-        if (code == null) return VehicleEventType.OBD_CHECK_ENGINE;
+    private boolean shouldSkipCriticalObdAlert(Long vehicleId,
+                                               Long missionId,
+                                               ObdAlertDTO alert) {
+        String key = buildCriticalObdKey(vehicleId, missionId, alert);
 
-        if (code.startsWith("LOW_FUEL")) return VehicleEventType.OBD_LOW_FUEL;
-        if (code.startsWith("HIGH_TEMP")) return VehicleEventType.OBD_HIGH_TEMP;
-        if (code.startsWith("LOW_BATTERY")) return VehicleEventType.OBD_LOW_BATTERY;
-        if (code.equals("CHECK_ENGINE_ON")) return VehicleEventType.OBD_CHECK_ENGINE;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime last = lastCriticalObdAlerts.get(key);
 
-        return VehicleEventType.OBD_CHECK_ENGINE;
+        if (last != null) {
+            long minutes = Duration.between(last, now).toMinutes();
+
+            if (minutes < OBD_CRITICAL_COOLDOWN_MINUTES) {
+                return true;
+            }
+        }
+
+        lastCriticalObdAlerts.put(key, now);
+        cleanupCriticalObdCache(now);
+
+        return false;
+    }
+
+    private String buildCriticalObdKey(Long vehicleId,
+                                       Long missionId,
+                                       ObdAlertDTO alert) {
+        return vehicleId
+                + "-"
+                + (missionId != null ? missionId : "NO_MISSION")
+                + "-"
+                + alert.getCode()
+                + "-"
+                + alert.getSeverity();
+    }
+
+    private void cleanupCriticalObdCache(LocalDateTime now) {
+        lastCriticalObdAlerts.entrySet().removeIf(entry ->
+                Duration.between(entry.getValue(), now).toMinutes()
+                        > OBD_CRITICAL_COOLDOWN_MINUTES * 2
+        );
     }
 
     private void createEventIfAllowed(Vehicle vehicle,
@@ -177,7 +299,10 @@ public class VehicleEventService {
         LocalDateTime now = LocalDateTime.now();
 
         var lastOpt = vehicleEventRepository
-                .findTopByVehicleIdAndEventTypeOrderByCreatedAtDesc(vehicle.getId(), eventType);
+                .findTopByVehicleIdAndEventTypeOrderByCreatedAtDesc(
+                        vehicle.getId(),
+                        eventType
+                );
 
         if (lastOpt.isPresent()) {
             VehicleEvent last = lastOpt.get();
@@ -188,7 +313,10 @@ public class VehicleEventService {
 
             boolean sameSeverity = last.getSeverity() == severity;
 
-            long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
+            long minutes = Duration.between(
+                    last.getCreatedAt(),
+                    now
+            ).toMinutes();
 
             if (sameMission && sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
                 return;
@@ -207,43 +335,23 @@ public class VehicleEventService {
         event.setCreatedAt(now);
         event.setAcknowledged(false);
 
-        vehicleEventRepository.save(event);
-        notifyOwnerIfCriticalObd(event);
-    }
+        VehicleEvent saved = vehicleEventRepository.save(event);
 
-    private void notifyOwnerIfCriticalObd(VehicleEvent event) {
-        if (event == null || event.getVehicle() == null) return;
-        if (event.getSeverity() != EventSeverity.CRITICAL) return;
-
-        VehicleEventType type = event.getEventType();
-
-        boolean isObdEvent =
-                type == VehicleEventType.OBD_LOW_FUEL ||
-                        type == VehicleEventType.OBD_HIGH_TEMP ||
-                        type == VehicleEventType.OBD_LOW_BATTERY ||
-                        type == VehicleEventType.OBD_CHECK_ENGINE;
-
-        if (!isObdEvent) return;
-        if (event.getVehicle().getOwner() == null) return;
-
-        notificationService.createUniqueForUser(
-                event.getVehicle().getOwner().getId(),
-                "ALERTE_OBD_CRITIQUE",
-                event.getMessage(),
-                event.getMissionId()
-        );
-    }
-
-    public List<VehicleEventDTO> getVehicleEvents(Long vehicleId) {
-        return vehicleEventRepository.findByVehicleIdOrderByCreatedAtDesc(vehicleId)
-                .stream()
-                .map(this::toDto)
-                .toList();
+        gpsWebSocketPublisher.publishEvent(toDto(saved));
     }
 
     public List<VehicleEventDTO> getLatestEvents() {
         return vehicleEventRepository.findTop50ByOrderByCreatedAtDesc()
                 .stream()
+                .filter(event -> event.getSeverity() == EventSeverity.CRITICAL)
+                .map(this::toDto)
+                .toList();
+    }
+
+    public List<VehicleEventDTO> getVehicleEvents(Long vehicleId) {
+        return vehicleEventRepository.findByVehicleIdOrderByCreatedAtDesc(vehicleId)
+                .stream()
+                .filter(event -> event.getSeverity() == EventSeverity.CRITICAL)
                 .map(this::toDto)
                 .toList();
     }
@@ -251,10 +359,10 @@ public class VehicleEventService {
     private VehicleEventDTO toDto(VehicleEvent event) {
         return new VehicleEventDTO(
                 event.getId(),
-                event.getVehicle().getId(),
+                event.getVehicle() != null ? event.getVehicle().getId() : null,
                 event.getMissionId(),
-                event.getEventType().name(),
-                event.getSeverity().name(),
+                event.getEventType() != null ? event.getEventType().name() : null,
+                event.getSeverity() != null ? event.getSeverity().name() : null,
                 event.getMessage(),
                 event.getLatitude(),
                 event.getLongitude(),
