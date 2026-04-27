@@ -29,8 +29,8 @@ public class GpsIngestionService {
     private final VehicleEventService vehicleEventService;
     private final ObdEventService obdEventService;
     private final VehicleHealthStateService vehicleHealthStateService;
-    private final GpsWebSocketPublisher gpsWebSocketPublisher;
     private final MissionService missionService;
+    private final GpsWebSocketPublisher gpsWebSocketPublisher;
 
     public GpsIngestionService(GpsValidationService gpsValidationService,
                                VehicleRepository vehicleRepository,
@@ -41,8 +41,8 @@ public class GpsIngestionService {
                                VehicleEventService vehicleEventService,
                                ObdEventService obdEventService,
                                VehicleHealthStateService vehicleHealthStateService,
-                               GpsWebSocketPublisher gpsWebSocketPublisher,
-                               MissionService missionService) {
+                               MissionService missionService,
+                               GpsWebSocketPublisher gpsWebSocketPublisher) {
         this.gpsValidationService = gpsValidationService;
         this.vehicleRepository = vehicleRepository;
         this.gpsDataRepository = gpsDataRepository;
@@ -52,8 +52,8 @@ public class GpsIngestionService {
         this.vehicleEventService = vehicleEventService;
         this.obdEventService = obdEventService;
         this.vehicleHealthStateService = vehicleHealthStateService;
-        this.gpsWebSocketPublisher = gpsWebSocketPublisher;
         this.missionService = missionService;
+        this.gpsWebSocketPublisher = gpsWebSocketPublisher;
     }
 
     public void processIncomingGps(GpsIncomingDTO dto) {
@@ -64,7 +64,8 @@ public class GpsIngestionService {
                         "Vehicle not found with id: " + dto.getVehicleId()
                 ));
 
-        ActiveMissionContext context = missionTrackingService.getActiveMissionContext(vehicle);
+        ActiveMissionContext context =
+                missionTrackingService.getActiveMissionContext(vehicle);
 
         GpsData previousGps = gpsDataRepository
                 .findTopByVehicleIdOrderByTimestampDesc(vehicle.getId())
@@ -82,7 +83,10 @@ public class GpsIngestionService {
         String obdStatus = gpsStatusService.computeObdStatus(gpsData);
 
         VehicleHealthStateService.VehicleHealthDecision healthDecision =
-                vehicleHealthStateService.evaluate(gpsData, context.isMissionActive());
+                vehicleHealthStateService.evaluate(
+                        gpsData,
+                        context.isMissionActive()
+                );
 
         liveStateService.updateLiveState(
                 vehicle,
@@ -122,7 +126,9 @@ public class GpsIngestionService {
         }
     }
 
-    private GpsData buildGpsData(Vehicle vehicle, GpsIncomingDTO dto, ActiveMissionContext context) {
+    private GpsData buildGpsData(Vehicle vehicle,
+                                 GpsIncomingDTO dto,
+                                 ActiveMissionContext context) {
         GpsData gpsData = new GpsData();
 
         gpsData.setVehicle(vehicle);
@@ -132,7 +138,9 @@ public class GpsIngestionService {
         gpsData.setLongitude(dto.getLongitude());
         gpsData.setSpeed(dto.getSpeed());
         gpsData.setEngineOn(dto.isEngineOn());
-        gpsData.setTimestamp(dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now());
+        gpsData.setTimestamp(
+                dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now()
+        );
 
         gpsData.setRouteId(normalizeRouteId(dto.getRouteId()));
         gpsData.setRouteSource(normalizeRouteSource(dto.getRouteSource()));
@@ -155,6 +163,7 @@ public class GpsIngestionService {
         if (routeSource == null || routeSource.isBlank()) {
             return null;
         }
+
         return routeSource.trim().toUpperCase();
     }
 }
