@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { gpsService } from "@/lib/services/gpsService";
 import type { GpsData, VehicleEventDTO, VehicleLiveStatusDTO } from "@/types/gps";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { toast } from "react-toastify";
+import {
+  subscribeGpsLive,
+  subscribeEventsLive,
+  unsubscribeGpsLive,
+  unsubscribeEventsLive,
+} from "@/lib/websocket";
 
 const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
   ssr: false,
@@ -14,16 +20,133 @@ const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
 type EventMode = "vehicle" | "global";
 type StatusFilter = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
 
+const EVENT_COOLDOWN_MS = 10 * 60 * 1000;
+
+function eventKey(event: VehicleEventDTO) {
+  return event.id != null
+    ? String(event.id)
+    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.createdAt}`;
+}
+
+function eventSpamKey(event: VehicleEventDTO) {
+  return `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}`;
+}
+
+function isDangerEvent(event: VehicleEventDTO) {
+  return event.severity === "CRITICAL";
+}
+
+function isObdEvent(event: VehicleEventDTO) {
+  return (
+    event.eventType.includes("FUEL") ||
+    event.eventType.includes("TEMP") ||
+    event.eventType.includes("BATTERY") ||
+    event.eventType.includes("ENGINE")
+  );
+}
+
+function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
+  if (live.latitude == null || live.longitude == null || !live.timestamp) {
+    return null;
+  }
+
+  return {
+    id: Date.now(),
+    vehicleId: live.vehicleId,
+    missionId: live.missionId,
+    latitude: live.latitude,
+    longitude: live.longitude,
+    speed: live.speed,
+    engineOn: live.engineOn,
+    timestamp: live.timestamp,
+    routeId: live.routeId,
+    routeSource: live.routeSource,
+  };
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
+function getEventLabel(type: string) {
+  switch (type) {
+    case "LOW_FUEL_CRITICAL":
+    case "OBD_LOW_FUEL":
+      return "Carburant critique";
+
+    case "HIGH_TEMP_CRITICAL":
+    case "OBD_HIGH_TEMP":
+      return "Température moteur critique";
+
+    case "LOW_BATTERY_CRITICAL":
+    case "OBD_LOW_BATTERY":
+      return "Batterie critique";
+
+    case "CHECK_ENGINE_ON":
+    case "OBD_CHECK_ENGINE":
+      return "Voyant moteur activé";
+
+    case "OVERSPEED":
+      return "Dépassement de vitesse";
+
+    case "OFF_ROUTE":
+      return "Véhicule hors trajet";
+
+    case "STOP_LONG":
+      return "Arrêt prolongé";
+
+    case "ENGINE_OFF":
+      return "Moteur éteint";
+
+    case "NO_SIGNAL":
+      return "Signal perdu";
+
+    default:
+      return type;
+  }
+}
+
 export default function OwnerGpsPage() {
   const [vehicles, setVehicles] = useState<VehicleLiveStatusDTO[]>([]);
   const [globalEvents, setGlobalEvents] = useState<VehicleEventDTO[]>([]);
   const [vehicleEvents, setVehicleEvents] = useState<VehicleEventDTO[]>([]);
   const [history, setHistory] = useState<GpsData[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [eventMode, setEventMode] = useState<EventMode>("vehicle");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+
+  const selectedVehicleIdRef = useRef<number | null>(null);
+  const recentEventsRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    selectedVehicleIdRef.current = selectedVehicleId;
+  }, [selectedVehicleId]);
+
+  const isDuplicateLiveEvent = useCallback((event: VehicleEventDTO) => {
+    const key = eventSpamKey(event);
+    const now = Date.now();
+    const last = recentEventsRef.current.get(key);
+
+    if (last && now - last < EVENT_COOLDOWN_MS) {
+      return true;
+    }
+
+    recentEventsRef.current.set(key, now);
+
+  Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
+  if (now - t > EVENT_COOLDOWN_MS * 2) {
+    recentEventsRef.current.delete(k);
+  }
+});
+
+    return false;
+  }, []);
 
   const loadFleet = useCallback(async () => {
     try {
@@ -32,11 +155,13 @@ export default function OwnerGpsPage() {
         gpsService.getLatestEvents(),
       ]);
 
-      setVehicles(fleet);
-      setGlobalEvents(liveEvents);
+      setVehicles(Array.isArray(fleet) ? fleet : []);
+      setGlobalEvents(
+        Array.isArray(liveEvents) ? liveEvents.filter(isDangerEvent) : []
+      );
 
       setSelectedVehicleId((prev) => {
-        if (fleet.length === 0) return null;
+        if (!fleet || fleet.length === 0) return null;
         if (prev && fleet.some((vehicle) => vehicle.vehicleId === prev)) {
           return prev;
         }
@@ -74,16 +199,13 @@ export default function OwnerGpsPage() {
 
         const [h, events] = await Promise.all([historyPromise, eventsPromise]);
 
-        setHistory(h);
-        setVehicleEvents(events);
-      } catch (e: any) {
-        console.error("Erreur lors du chargement du détail véhicule:", e);
-        toast.error(
-          e?.response?.data?.message ||
-            e?.response?.data?.error ||
-            e?.message ||
-            "Erreur lors du chargement du détail véhicule"
+        setHistory(Array.isArray(h) ? h : []);
+        setVehicleEvents(
+          Array.isArray(events) ? events.filter(isDangerEvent) : []
         );
+      } catch (e: any) {
+        console.error("Erreur détail véhicule:", e);
+        toast.error("Erreur lors du chargement du détail véhicule");
         setHistory([]);
         setVehicleEvents([]);
       } finally {
@@ -95,13 +217,70 @@ export default function OwnerGpsPage() {
 
   useEffect(() => {
     loadFleet();
-
-    const timer = window.setInterval(() => {
-      loadFleet();
-    }, 3000);
-
-    return () => window.clearInterval(timer);
   }, [loadFleet]);
+
+  useEffect(() => {
+    subscribeGpsLive<VehicleLiveStatusDTO>((liveVehicle) => {
+      setVehicles((prev) => {
+        const exists = prev.some((v) => v.vehicleId === liveVehicle.vehicleId);
+
+        if (!exists) return [...prev, liveVehicle];
+
+        return prev.map((v) =>
+          v.vehicleId === liveVehicle.vehicleId ? liveVehicle : v
+        );
+      });
+
+      setSelectedVehicleId((prev) => prev ?? liveVehicle.vehicleId);
+
+      setHistory((prev) => {
+        if (selectedVehicleIdRef.current !== liveVehicle.vehicleId) return prev;
+
+        const point = toGpsPoint(liveVehicle);
+        if (!point) return prev;
+
+        const exists = prev.some(
+          (p) =>
+            p.timestamp === point.timestamp ||
+            (p.vehicleId === point.vehicleId &&
+              p.latitude === point.latitude &&
+              p.longitude === point.longitude)
+        );
+
+        if (exists) return prev;
+
+        return [...prev, point].slice(-300);
+      });
+    });
+
+    subscribeEventsLive<VehicleEventDTO>((event) => {
+      if (!isDangerEvent(event)) return;
+      if (isDuplicateLiveEvent(event)) return;
+
+      setGlobalEvents((prev) => {
+        const exists = prev.some((e) => eventKey(e) === eventKey(event));
+        if (exists) return prev;
+        return [event, ...prev].slice(0, 50);
+      });
+
+      if (event.vehicleId === selectedVehicleIdRef.current) {
+        setVehicleEvents((prev) => {
+          const exists = prev.some((e) => eventKey(e) === eventKey(event));
+          if (exists) return prev;
+          return [event, ...prev].slice(0, 50);
+        });
+      }
+
+      toast.error(event.message || getEventLabel(event.eventType), {
+        toastId: eventSpamKey(event),
+      });
+    });
+
+    return () => {
+      unsubscribeGpsLive();
+      unsubscribeEventsLive();
+    };
+  }, [isDuplicateLiveEvent]);
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -153,24 +332,26 @@ export default function OwnerGpsPage() {
               Suivi GPS temps réel
             </h1>
             <p className="mt-1 text-slate-600">
-              Visualisez vos véhicules, missions actives, historique et événements.
+              GPS, OBD, événements critiques et missions synchronisés via WebSocket.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["ALL", "MOVING", "OFFLINE", "MISSION", "ALERT"] as StatusFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
-                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                  statusFilter === f
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+            {(["ALL", "MOVING", "OFFLINE", "MISSION", "ALERT"] as StatusFilter[]).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                    statusFilter === f
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {f}
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -190,24 +371,32 @@ export default function OwnerGpsPage() {
             <div className="grid gap-6 lg:grid-cols-[360px,1fr]">
               <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-200 px-5 py-4">
-                  <h2 className="text-lg font-extrabold text-slate-900">Vehicles</h2>
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Vehicles
+                  </h2>
                 </div>
 
                 <div className="max-h-[520px] overflow-auto">
                   {filteredVehicles.length === 0 ? (
-                    <div className="p-5 text-sm text-slate-500">No vehicles found.</div>
+                    <div className="p-5 text-sm text-slate-500">
+                      No vehicles found.
+                    </div>
                   ) : (
                     filteredVehicles.map((vehicle) => (
                       <button
                         key={vehicle.vehicleId}
                         onClick={() => setSelectedVehicleId(vehicle.vehicleId)}
                         className={`w-full border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50 ${
-                          selectedVehicleId === vehicle.vehicleId ? "bg-sky-50" : "bg-white"
+                          selectedVehicleId === vehicle.vehicleId
+                            ? "bg-sky-50"
+                            : "bg-white"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="font-bold text-slate-900">{vehicle.vehicleName}</p>
+                            <p className="font-bold text-slate-900">
+                              {vehicle.vehicleName}
+                            </p>
                             <p className="text-xs text-slate-500">
                               Driver: {vehicle.currentDriverName || "Aucun"}
                             </p>
@@ -231,88 +420,56 @@ export default function OwnerGpsPage() {
 
               <div className="space-y-6">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="text-lg font-extrabold text-slate-900">Selected vehicle</h2>
+                  <h2 className="text-lg font-extrabold text-slate-900">
+                    Selected vehicle
+                  </h2>
 
                   {!selectedVehicle ? (
-                    <p className="mt-3 text-sm text-slate-500">Aucun véhicule sélectionné.</p>
+                    <p className="mt-3 text-sm text-slate-500">
+                      Aucun véhicule sélectionné.
+                    </p>
                   ) : (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Vehicle</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.vehicleName}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Status</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.liveStatus}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Speed</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.speed} km/h
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Engine</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.engineOn ? "ON" : "OFF"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Mission active</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.missionActive ? "Active" : "Inactive"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Mission ID</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.missionId ?? "-"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Mission status</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.missionStatus || "-"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Driver ID</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.driverId ?? "-"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Driver</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.currentDriverName || "-"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <p className="text-xs font-bold text-slate-500">Route source</p>
-                        <p className="mt-1 font-bold text-slate-900">
-                          {selectedVehicle.routeSource || "-"}
-                        </p>
-                      </div>
+                      <Info label="Vehicle" value={selectedVehicle.vehicleName} />
+                      <Info label="Status" value={selectedVehicle.liveStatus} />
+                      <Info label="Speed" value={`${selectedVehicle.speed} km/h`} />
+                      <Info
+                        label="Engine"
+                        value={selectedVehicle.engineOn ? "ON" : "OFF"}
+                      />
+                      <Info
+                        label="Mission active"
+                        value={selectedVehicle.missionActive ? "Active" : "Inactive"}
+                      />
+                      <Info
+                        label="Mission ID"
+                        value={String(selectedVehicle.missionId ?? "-")}
+                      />
+                      <Info
+                        label="Mission status"
+                        value={selectedVehicle.missionStatus || "-"}
+                      />
+                      <Info
+                        label="Driver"
+                        value={selectedVehicle.currentDriverName || "-"}
+                      />
+                      <Info
+                        label="Route source"
+                        value={selectedVehicle.routeSource || "-"}
+                      />
+                      <Info
+                        label="History points"
+                        value={historyLoading ? "Loading..." : String(history.length)}
+                      />
                     </div>
                   )}
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <h2 className="text-lg font-extrabold text-slate-900">Events</h2>
+                    <h2 className="text-lg font-extrabold text-slate-900">
+                      Dangers critiques
+                    </h2>
 
                     <div className="flex gap-2">
                       <button
@@ -325,6 +482,7 @@ export default function OwnerGpsPage() {
                       >
                         Vehicle
                       </button>
+
                       <button
                         onClick={() => setEventMode("global")}
                         className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
@@ -340,18 +498,38 @@ export default function OwnerGpsPage() {
 
                   <div className="max-h-[360px] overflow-auto divide-y divide-slate-100">
                     {eventsToShow.length === 0 ? (
-                      <div className="p-5 text-sm text-slate-500">No events.</div>
+                      <div className="p-5 text-sm text-slate-500">
+                        Aucun danger critique.
+                      </div>
                     ) : (
                       eventsToShow.map((event) => (
-                        <div key={event.id} className="p-5">
+                        <div key={eventKey(event)} className="p-5">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="font-bold text-slate-900">{event.eventType}</p>
-                            <span className="text-xs font-bold text-slate-500">
-                              {event.severity}
+                            <p className="font-bold text-slate-900">
+                              {getEventLabel(event.eventType)}
+                            </p>
+
+                            <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
+                              CRITICAL
                             </span>
                           </div>
-                          <p className="mt-1 text-sm text-slate-600">{event.message}</p>
-                          <p className="mt-2 text-xs text-slate-400">{event.createdAt}</p>
+
+                          <p className="mt-1 text-sm text-slate-600">
+                            {event.message}
+                          </p>
+
+                          <p className="mt-2 text-xs text-slate-400">
+                            Vehicle #{event.vehicleId}
+                            {event.missionId ? ` — Mission #${event.missionId}` : ""}
+                            {" — "}
+                            {formatDate(event.createdAt)}
+                          </p>
+
+                          {isObdEvent(event) && (
+                            <p className="mt-1 text-xs font-bold text-blue-600">
+                              OBD danger
+                            </p>
+                          )}
                         </div>
                       ))
                     )}
@@ -369,5 +547,14 @@ export default function OwnerGpsPage() {
         )}
       </div>
     </ProtectedRoute>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 font-bold text-slate-900">{value}</p>
+    </div>
   );
 }

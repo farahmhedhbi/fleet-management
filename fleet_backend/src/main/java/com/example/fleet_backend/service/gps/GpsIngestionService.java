@@ -64,7 +64,8 @@ public class GpsIngestionService {
                         "Vehicle not found with id: " + dto.getVehicleId()
                 ));
 
-        ActiveMissionContext context = missionTrackingService.getActiveMissionContext(vehicle);
+        ActiveMissionContext context =
+                missionTrackingService.getActiveMissionContext(vehicle);
 
         GpsData previousGps = gpsDataRepository
                 .findTopByVehicleIdOrderByTimestampDesc(vehicle.getId())
@@ -122,7 +123,9 @@ public class GpsIngestionService {
         }
     }
 
-    private GpsData buildGpsData(Vehicle vehicle, GpsIncomingDTO dto, ActiveMissionContext context) {
+    private GpsData buildGpsData(Vehicle vehicle,
+                                 GpsIncomingDTO dto,
+                                 ActiveMissionContext context) {
         GpsData gpsData = new GpsData();
 
         gpsData.setVehicle(vehicle);
@@ -132,7 +135,9 @@ public class GpsIngestionService {
         gpsData.setLongitude(dto.getLongitude());
         gpsData.setSpeed(dto.getSpeed());
         gpsData.setEngineOn(dto.isEngineOn());
-        gpsData.setTimestamp(dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now());
+        gpsData.setTimestamp(
+                dto.getTimestamp() != null ? dto.getTimestamp() : LocalDateTime.now()
+        );
 
         gpsData.setRouteId(normalizeRouteId(dto.getRouteId()));
         gpsData.setRouteSource(normalizeRouteSource(dto.getRouteSource()));

@@ -1,6 +1,7 @@
 package com.example.fleet_backend.service.websocket;
 
 import com.example.fleet_backend.dto.MissionRoutePointDTO;
+import com.example.fleet_backend.dto.VehicleEventDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.LiveStatus;
@@ -33,11 +34,13 @@ public class GpsWebSocketPublisher {
                                   GpsData gpsData,
                                   LiveStatus liveStatus,
                                   ActiveMissionContext context) {
+
         if (vehicle == null || vehicle.getId() == null || gpsData == null) {
             return;
         }
 
-        VehicleLiveState state = vehicleLiveStateRepository.findByVehicleId(vehicle.getId())
+        VehicleLiveState state = vehicleLiveStateRepository
+                .findByVehicleId(vehicle.getId())
                 .orElse(null);
 
         if (state == null) {
@@ -59,9 +62,36 @@ public class GpsWebSocketPublisher {
 
         messagingTemplate.convertAndSend("/topic/gps/live", dto);
 
+        messagingTemplate.convertAndSend(
+                "/topic/vehicles/" + vehicle.getId() + "/live",
+                dto
+        );
+
         if (context != null && context.getMissionId() != null) {
             messagingTemplate.convertAndSend(
                     "/topic/missions/" + context.getMissionId() + "/live",
+                    dto
+            );
+        }
+    }
+
+    public void publishEvent(VehicleEventDTO dto) {
+        if (dto == null) {
+            return;
+        }
+
+        messagingTemplate.convertAndSend("/topic/events/live", dto);
+
+        if (dto.getVehicleId() != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/vehicles/" + dto.getVehicleId() + "/events",
+                    dto
+            );
+        }
+
+        if (dto.getMissionId() != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/missions/" + dto.getMissionId() + "/events",
                     dto
             );
         }

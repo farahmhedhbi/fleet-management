@@ -25,6 +25,7 @@ export interface VehicleLiveStatusDTO {
 export interface GpsData {
   id: number;
   vehicleId: number;
+  missionId?: number | null;
   latitude: number;
   longitude: number;
   speed: number;
@@ -35,7 +36,7 @@ export interface GpsData {
 }
 
 export interface VehicleEventDTO {
-  id: number;
+  id: number | null;
   vehicleId: number;
   missionId: number | null;
   eventType: string;
@@ -48,4 +49,9 @@ export interface VehicleEventDTO {
   acknowledged: boolean;
 }
 
-export type GpsFilterStatus = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
+export type GpsFilterStatus =
+  | "ALL"
+  | "MOVING"
+  | "OFFLINE"
+  | "MISSION"
+  | "ALERT";
