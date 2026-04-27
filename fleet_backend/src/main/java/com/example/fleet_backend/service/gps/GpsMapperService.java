@@ -49,7 +49,9 @@ public class GpsMapperService {
                 state.getDriverName(),
                 state.getRouteId(),
                 state.getRouteSource(),
-                missionRoute
+                missionRoute,
+                state.getHealthState() != null ? state.getHealthState().name() : "UNKNOWN",
+                state.getHealthReason()
         );
     }
 
@@ -76,7 +78,9 @@ public class GpsMapperService {
                 driverName,
                 null,
                 null,
-                missionRoute
+                missionRoute,
+                "NO_DATA",
+                "Aucune donnée live disponible"
         );
     }
 

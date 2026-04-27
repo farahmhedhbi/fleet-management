@@ -36,19 +36,30 @@ public class ObdAlertService {
         List<ObdAlertDTO> alerts = getAlertsFromLiveState(liveState);
 
         VehicleHealthSummaryDTO dto = new VehicleHealthSummaryDTO();
+
         dto.setVehicleId(vehicle.getId());
         dto.setRegistrationNumber(vehicle.getRegistrationNumber());
+
         dto.setObdStatus(obdAnalysisService.computeObdStatus(
                 liveState.getFuelLevel(),
                 liveState.getEngineTemperature(),
                 liveState.getBatteryVoltage(),
                 liveState.getCheckEngineOn()
         ));
+
+        dto.setHealthState(
+                liveState.getHealthState() != null
+                        ? liveState.getHealthState().name()
+                        : "UNKNOWN"
+        );
+        dto.setHealthReason(liveState.getHealthReason());
+
         dto.setActiveAlertsCount(alerts.size());
         dto.setFuelLevel(liveState.getFuelLevel());
         dto.setEngineTemperature(liveState.getEngineTemperature());
         dto.setBatteryVoltage(liveState.getBatteryVoltage());
         dto.setCheckEngineOn(Boolean.TRUE.equals(liveState.getCheckEngineOn()));
+
         dto.setMaintenanceHint(obdAnalysisService.buildMaintenanceHint(
                 liveState.getFuelLevel(),
                 liveState.getEngineTemperature(),

@@ -3,8 +3,10 @@ package com.example.fleet_backend.dto;
 import java.time.LocalDateTime;
 
 public class VehicleObdLiveDTO {
+
     private Long vehicleId;
     private String registrationNumber;
+
     private boolean engineOn;
     private Integer engineRpm;
     private Double fuelLevel;
@@ -12,8 +14,16 @@ public class VehicleObdLiveDTO {
     private Double batteryVoltage;
     private Double engineLoad;
     private Boolean checkEngineOn;
+
     private String obdStatus;
+
+    // ✅ NOUVEAU
+    private String healthState;
+    private String healthReason;
+
     private LocalDateTime timestamp;
+
+    // getters setters
 
     public Long getVehicleId() { return vehicleId; }
     public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
@@ -44,6 +54,12 @@ public class VehicleObdLiveDTO {
 
     public String getObdStatus() { return obdStatus; }
     public void setObdStatus(String obdStatus) { this.obdStatus = obdStatus; }
+
+    public String getHealthState() { return healthState; }
+    public void setHealthState(String healthState) { this.healthState = healthState; }
+
+    public String getHealthReason() { return healthReason; }
+    public void setHealthReason(String healthReason) { this.healthReason = healthReason; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }

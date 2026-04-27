@@ -27,6 +27,9 @@ public class VehicleLiveStatusDTO {
 
     private List<MissionRoutePointDTO> missionRoute;
 
+    private String healthState;
+    private String healthReason;
+
     public VehicleLiveStatusDTO() {
     }
 
@@ -45,7 +48,9 @@ public class VehicleLiveStatusDTO {
                                 String currentDriverName,
                                 String routeId,
                                 String routeSource,
-                                List<MissionRoutePointDTO> missionRoute) {
+                                List<MissionRoutePointDTO> missionRoute,
+                                String healthState,
+                                String healthReason) {
         this.vehicleId = vehicleId;
         this.vehicleName = vehicleName;
         this.latitude = latitude;
@@ -62,6 +67,8 @@ public class VehicleLiveStatusDTO {
         this.routeId = routeId;
         this.routeSource = routeSource;
         this.missionRoute = missionRoute;
+        this.healthState = healthState;
+        this.healthReason = healthReason;
     }
 
     public Long getVehicleId() {
@@ -192,4 +199,19 @@ public class VehicleLiveStatusDTO {
         this.missionRoute = missionRoute;
     }
 
+    public String getHealthState() {
+        return healthState;
+    }
+
+    public void setHealthState(String healthState) {
+        this.healthState = healthState;
+    }
+
+    public String getHealthReason() {
+        return healthReason;
+    }
+
+    public void setHealthReason(String healthReason) {
+        this.healthReason = healthReason;
+    }
 }

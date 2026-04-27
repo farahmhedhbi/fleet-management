@@ -13,5 +13,9 @@ public enum VehicleEventType {
     OBD_LOW_FUEL,
     OBD_HIGH_TEMP,
     OBD_LOW_BATTERY,
-    OBD_CHECK_ENGINE
+    OBD_CHECK_ENGINE,
+
+    ENGINE_FAILURE,
+    SUDDEN_STOP,
+    MISSION_INTERRUPTED
 }

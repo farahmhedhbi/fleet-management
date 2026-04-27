@@ -28,7 +28,7 @@ public class ObdEventService {
         this.notificationService = notificationService;
     }
 
-    public void generateEvents(GpsData gpsData) {
+    public void generateEvents(GpsData gpsData, VehicleHealthState healthState, String healthReason) {
         if (gpsData == null || gpsData.getVehicle() == null) {
             return;
         }
@@ -41,14 +41,29 @@ public class ObdEventService {
         );
 
         for (ObdAlertDTO alert : alerts) {
-            VehicleEventType type = mapAlertCodeToEventType(alert.getCode());
-            EventSeverity severity = mapSeverity(alert.getSeverity());
-
             createEventIfAllowed(
                     gpsData,
-                    type,
-                    severity,
+                    mapAlertCodeToEventType(alert.getCode()),
+                    mapSeverity(alert.getSeverity()),
                     alert.getMessage()
+            );
+        }
+
+        if (healthState == VehicleHealthState.BREAKDOWN) {
+            createEventIfAllowed(
+                    gpsData,
+                    VehicleEventType.ENGINE_FAILURE,
+                    EventSeverity.CRITICAL,
+                    healthReason
+            );
+        }
+
+        if (healthState == VehicleHealthState.MISSION_INTERRUPTED) {
+            createEventIfAllowed(
+                    gpsData,
+                    VehicleEventType.MISSION_INTERRUPTED,
+                    EventSeverity.CRITICAL,
+                    healthReason
             );
         }
     }
@@ -94,53 +109,34 @@ public class ObdEventService {
         event.setAcknowledged(false);
 
         eventRepository.save(event);
-        notifyOwnerIfCriticalObd(event);
+        notifyOwnerIfCritical(event);
     }
 
     private VehicleEventType mapAlertCodeToEventType(String code) {
-        if (code == null) {
-            return VehicleEventType.OBD_CHECK_ENGINE;
-        }
+        if (code == null) return VehicleEventType.OBD_CHECK_ENGINE;
 
-        if (code.startsWith("LOW_FUEL")) {
-            return VehicleEventType.OBD_LOW_FUEL;
-        }
-
-        if (code.startsWith("HIGH_TEMP")) {
-            return VehicleEventType.OBD_HIGH_TEMP;
-        }
-
-        if (code.startsWith("LOW_BATTERY")) {
-            return VehicleEventType.OBD_LOW_BATTERY;
-        }
-
-        if (code.equals("CHECK_ENGINE_ON")) {
-            return VehicleEventType.OBD_CHECK_ENGINE;
-        }
+        if (code.startsWith("LOW_FUEL")) return VehicleEventType.OBD_LOW_FUEL;
+        if (code.startsWith("HIGH_TEMP")) return VehicleEventType.OBD_HIGH_TEMP;
+        if (code.startsWith("LOW_BATTERY")) return VehicleEventType.OBD_LOW_BATTERY;
+        if (code.equals("CHECK_ENGINE_ON")) return VehicleEventType.OBD_CHECK_ENGINE;
 
         return VehicleEventType.OBD_CHECK_ENGINE;
     }
 
     private EventSeverity mapSeverity(String severity) {
-        if ("CRITICAL".equalsIgnoreCase(severity)) {
-            return EventSeverity.CRITICAL;
-        }
-
-        if ("WARNING".equalsIgnoreCase(severity)) {
-            return EventSeverity.WARNING;
-        }
-
+        if ("CRITICAL".equalsIgnoreCase(severity)) return EventSeverity.CRITICAL;
+        if ("WARNING".equalsIgnoreCase(severity)) return EventSeverity.WARNING;
         return EventSeverity.INFO;
     }
 
-    private void notifyOwnerIfCriticalObd(VehicleEvent event) {
+    private void notifyOwnerIfCritical(VehicleEvent event) {
         if (event == null || event.getVehicle() == null) return;
         if (event.getSeverity() != EventSeverity.CRITICAL) return;
         if (event.getVehicle().getOwner() == null) return;
 
         notificationService.createUniqueForUser(
                 event.getVehicle().getOwner().getId(),
-                "ALERTE_OBD_CRITIQUE",
+                "ALERTE_CRITIQUE_VEHICULE",
                 event.getMessage(),
                 event.getMissionId()
         );

@@ -3,6 +3,7 @@ package com.example.fleet_backend.service.gps;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.LiveStatus;
 import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.model.VehicleHealthState;
 import com.example.fleet_backend.model.VehicleLiveState;
 import com.example.fleet_backend.repository.VehicleLiveStateRepository;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,9 @@ public class LiveStateService {
                                 GpsData gpsData,
                                 LiveStatus liveStatus,
                                 ActiveMissionContext context,
-                                String obdStatus) {
+                                String obdStatus,
+                                VehicleHealthState healthState,
+                                String healthReason) {
         VehicleLiveState state = vehicleLiveStateRepository.findByVehicleId(vehicle.getId())
                 .orElseGet(VehicleLiveState::new);
 
@@ -51,14 +54,16 @@ public class LiveStateService {
         state.setCheckEngineOn(gpsData.getCheckEngineOn());
         state.setObdStatus(obdStatus);
 
+        state.setHealthState(healthState);
+        state.setHealthReason(healthReason);
+        state.setObdLastTimestamp(gpsData.getTimestamp());
+
         vehicleLiveStateRepository.save(state);
     }
 
     public void clearLiveMissionContext(Long vehicleId) {
         VehicleLiveState state = vehicleLiveStateRepository.findByVehicleId(vehicleId).orElse(null);
-        if (state == null) {
-            return;
-        }
+        if (state == null) return;
 
         state.setMissionId(null);
         state.setMissionStatus(null);

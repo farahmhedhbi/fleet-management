@@ -9,9 +9,10 @@ import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.service.MissionService;
 import com.example.fleet_backend.service.ObdEventService;
 import com.example.fleet_backend.service.VehicleEventService;
+import com.example.fleet_backend.service.VehicleHealthStateService;
+import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 
 import java.time.LocalDateTime;
 
@@ -27,8 +28,9 @@ public class GpsIngestionService {
     private final LiveStateService liveStateService;
     private final VehicleEventService vehicleEventService;
     private final ObdEventService obdEventService;
-    private final MissionService missionService;
+    private final VehicleHealthStateService vehicleHealthStateService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
+    private final MissionService missionService;
 
     public GpsIngestionService(GpsValidationService gpsValidationService,
                                VehicleRepository vehicleRepository,
@@ -38,8 +40,9 @@ public class GpsIngestionService {
                                LiveStateService liveStateService,
                                VehicleEventService vehicleEventService,
                                ObdEventService obdEventService,
-                               MissionService missionService,
-                               GpsWebSocketPublisher gpsWebSocketPublisher) {
+                               VehicleHealthStateService vehicleHealthStateService,
+                               GpsWebSocketPublisher gpsWebSocketPublisher,
+                               MissionService missionService) {
         this.gpsValidationService = gpsValidationService;
         this.vehicleRepository = vehicleRepository;
         this.gpsDataRepository = gpsDataRepository;
@@ -48,8 +51,9 @@ public class GpsIngestionService {
         this.liveStateService = liveStateService;
         this.vehicleEventService = vehicleEventService;
         this.obdEventService = obdEventService;
-        this.missionService = missionService;
+        this.vehicleHealthStateService = vehicleHealthStateService;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
+        this.missionService = missionService;
     }
 
     public void processIncomingGps(GpsIncomingDTO dto) {
@@ -77,20 +81,19 @@ public class GpsIngestionService {
 
         String obdStatus = gpsStatusService.computeObdStatus(gpsData);
 
+        VehicleHealthStateService.VehicleHealthDecision healthDecision =
+                vehicleHealthStateService.evaluate(gpsData, context.isMissionActive());
+
         liveStateService.updateLiveState(
                 vehicle,
                 gpsData,
                 statusResult.getLiveStatus(),
                 context,
-                obdStatus
+                obdStatus,
+                healthDecision.state(),
+                healthDecision.reason()
         );
 
-        gpsWebSocketPublisher.publishLiveUpdate(
-                vehicle,
-                gpsData,
-                statusResult.getLiveStatus(),
-                context
-        );
         vehicleEventService.analyzeAndCreateEvents(
                 vehicle,
                 previousGps,
@@ -101,7 +104,18 @@ public class GpsIngestionService {
                 statusResult.isMissionCompleted()
         );
 
-        obdEventService.generateEvents(gpsData);
+        obdEventService.generateEvents(
+                gpsData,
+                healthDecision.state(),
+                healthDecision.reason()
+        );
+
+        gpsWebSocketPublisher.publishLiveUpdate(
+                vehicle,
+                gpsData,
+                statusResult.getLiveStatus(),
+                context
+        );
 
         if (statusResult.isMissionCompleted() && context.getMission() != null) {
             missionService.completeMissionFromGps(context.getMission());
@@ -141,7 +155,6 @@ public class GpsIngestionService {
         if (routeSource == null || routeSource.isBlank()) {
             return null;
         }
-
         return routeSource.trim().toUpperCase();
     }
 }

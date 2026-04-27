@@ -51,6 +51,15 @@ public class VehicleLiveState {
 
     @Column(name = "route_source")
     private String routeSource;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "health_state", length = 50)
+    private VehicleHealthState healthState = VehicleHealthState.NORMAL;
+
+    @Column(name = "health_reason", length = 500)
+    private String healthReason;
+
+    @Column(name = "obd_last_timestamp")
+    private LocalDateTime obdLastTimestamp;
 
     private Integer engineRpm;
     private Double fuelLevel;
@@ -231,5 +240,29 @@ public class VehicleLiveState {
 
     public void setRouteSource(String routeSource) {
         this.routeSource = routeSource;
+    }
+
+    public VehicleHealthState getHealthState() {
+        return healthState;
+    }
+
+    public void setHealthState(VehicleHealthState healthState) {
+        this.healthState = healthState;
+    }
+
+    public String getHealthReason() {
+        return healthReason;
+    }
+
+    public void setHealthReason(String healthReason) {
+        this.healthReason = healthReason;
+    }
+
+    public LocalDateTime getObdLastTimestamp() {
+        return obdLastTimestamp;
+    }
+
+    public void setObdLastTimestamp(LocalDateTime obdLastTimestamp) {
+        this.obdLastTimestamp = obdLastTimestamp;
     }
 }
