@@ -1,8 +1,15 @@
 package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.ObdAlertDTO;
-import com.example.fleet_backend.model.*;
+import com.example.fleet_backend.dto.VehicleEventDTO;
+import com.example.fleet_backend.model.EventSeverity;
+import com.example.fleet_backend.model.GpsData;
+import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.model.VehicleEvent;
+import com.example.fleet_backend.model.VehicleEventType;
+import com.example.fleet_backend.model.VehicleHealthState;
 import com.example.fleet_backend.repository.VehicleEventRepository;
+import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,16 +26,28 @@ public class ObdEventService {
     private final VehicleEventRepository eventRepository;
     private final ObdAnalysisService obdAnalysisService;
     private final NotificationService notificationService;
+    private final GpsWebSocketPublisher gpsWebSocketPublisher;
+    private final IncidentAutomationService incidentAutomationService;
 
-    public ObdEventService(VehicleEventRepository eventRepository,
-                           ObdAnalysisService obdAnalysisService,
-                           NotificationService notificationService) {
+    public ObdEventService(
+            VehicleEventRepository eventRepository,
+            ObdAnalysisService obdAnalysisService,
+            NotificationService notificationService,
+            GpsWebSocketPublisher gpsWebSocketPublisher,
+            IncidentAutomationService incidentAutomationService
+    ) {
         this.eventRepository = eventRepository;
         this.obdAnalysisService = obdAnalysisService;
         this.notificationService = notificationService;
+        this.gpsWebSocketPublisher = gpsWebSocketPublisher;
+        this.incidentAutomationService = incidentAutomationService;
     }
 
-    public void generateEvents(GpsData gpsData, VehicleHealthState healthState, String healthReason) {
+    public void generateEvents(
+            GpsData gpsData,
+            VehicleHealthState healthState,
+            String healthReason
+    ) {
         if (gpsData == null || gpsData.getVehicle() == null) {
             return;
         }
@@ -41,10 +60,16 @@ public class ObdEventService {
         );
 
         for (ObdAlertDTO alert : alerts) {
+            EventSeverity severity = mapSeverity(alert.getSeverity());
+
+            if (severity != EventSeverity.CRITICAL && severity != EventSeverity.WARNING) {
+                continue;
+            }
+
             createEventIfAllowed(
                     gpsData,
                     mapAlertCodeToEventType(alert.getCode()),
-                    mapSeverity(alert.getSeverity()),
+                    severity,
                     alert.getMessage()
             );
         }
@@ -54,7 +79,7 @@ public class ObdEventService {
                     gpsData,
                     VehicleEventType.ENGINE_FAILURE,
                     EventSeverity.CRITICAL,
-                    healthReason
+                    healthReason != null ? healthReason : "Panne moteur probable"
             );
         }
 
@@ -63,15 +88,17 @@ public class ObdEventService {
                     gpsData,
                     VehicleEventType.MISSION_INTERRUPTED,
                     EventSeverity.CRITICAL,
-                    healthReason
+                    healthReason != null ? healthReason : "Mission interrompue"
             );
         }
     }
 
-    private void createEventIfAllowed(GpsData gpsData,
-                                      VehicleEventType eventType,
-                                      EventSeverity severity,
-                                      String message) {
+    private void createEventIfAllowed(
+            GpsData gpsData,
+            VehicleEventType eventType,
+            EventSeverity severity,
+            String message
+    ) {
         Vehicle vehicle = gpsData.getVehicle();
         LocalDateTime now = LocalDateTime.now();
 
@@ -108,8 +135,12 @@ public class ObdEventService {
         event.setCreatedAt(now);
         event.setAcknowledged(false);
 
-        eventRepository.save(event);
-        notifyOwnerIfCritical(event);
+        VehicleEvent saved = eventRepository.save(event);
+
+        incidentAutomationService.createIncidentIfNeeded(saved);
+
+        gpsWebSocketPublisher.publishEvent(toDto(saved));
+        notifyOwnerIfCritical(saved);
     }
 
     private VehicleEventType mapAlertCodeToEventType(String code) {
@@ -139,6 +170,22 @@ public class ObdEventService {
                 "ALERTE_CRITIQUE_VEHICULE",
                 event.getMessage(),
                 event.getMissionId()
+        );
+    }
+
+    private VehicleEventDTO toDto(VehicleEvent event) {
+        return new VehicleEventDTO(
+                event.getId(),
+                event.getVehicle() != null ? event.getVehicle().getId() : null,
+                event.getMissionId(),
+                event.getEventType() != null ? event.getEventType().name() : null,
+                event.getSeverity() != null ? event.getSeverity().name() : null,
+                event.getMessage(),
+                event.getLatitude(),
+                event.getLongitude(),
+                event.getSpeed(),
+                event.getCreatedAt(),
+                event.isAcknowledged()
         );
     }
 }

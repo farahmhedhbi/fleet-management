@@ -21,28 +21,28 @@ function getEventLabel(type: string) {
   switch (type) {
     case "OBD_LOW_FUEL":
     case "LOW_FUEL_WARNING":
-      return "Carburant faible";
-
     case "LOW_FUEL_CRITICAL":
       return "Carburant critique";
 
     case "OBD_HIGH_TEMP":
     case "HIGH_TEMP_WARNING":
-      return "Température moteur élevée";
-
     case "HIGH_TEMP_CRITICAL":
       return "Température moteur critique";
 
     case "OBD_LOW_BATTERY":
     case "LOW_BATTERY_WARNING":
-      return "Batterie faible";
-
     case "LOW_BATTERY_CRITICAL":
       return "Batterie critique";
 
     case "OBD_CHECK_ENGINE":
     case "CHECK_ENGINE_ON":
       return "Voyant moteur activé";
+
+    case "ENGINE_FAILURE":
+      return "Panne moteur probable";
+
+    case "MISSION_INTERRUPTED":
+      return "Mission interrompue";
 
     case "OFF_ROUTE":
       return "Hors trajet";
@@ -76,13 +76,13 @@ function getEventLabel(type: string) {
 function eventKey(event: VehicleEventDTO) {
   return event.id != null
     ? String(event.id)
-    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.createdAt}`;
+    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}-${event.createdAt}`;
 }
 
 export default function EventPanel({ events }: Props) {
-  const visibleEvents = events.filter(
-    (event) => event.severity === "WARNING" || event.severity === "CRITICAL"
-  );
+  const visibleEvents = events
+    .filter((event) => event.severity === "WARNING" || event.severity === "CRITICAL")
+    .slice(0, 50);
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">

@@ -25,6 +25,30 @@ public class VehicleAccessService {
         checkVehicleAccess(vehicle);
         return vehicle;
     }
+    public void assertCanAccessVehicle(Long vehicleId) {
+        if (vehicleId == null) {
+            throw new RuntimeException("Vehicle id obligatoire");
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (AuthUtil.isAdmin(auth)) {
+            return;
+        }
+
+        Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new RuntimeException("Véhicule introuvable"));
+
+        Long currentUserId = AuthUtil.userId(auth);
+
+        if (AuthUtil.isOwner(auth)
+                && vehicle.getOwner() != null
+                && vehicle.getOwner().getId().equals(currentUserId)) {
+            return;
+        }
+
+        throw new RuntimeException("Accès refusé au véhicule");
+    }
 
     public void checkVehicleAccess(Vehicle vehicle) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

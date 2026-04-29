@@ -108,11 +108,13 @@ public class GpsIngestionService {
                 statusResult.isMissionCompleted()
         );
 
-        obdEventService.generateEvents(
-                gpsData,
-                healthDecision.state(),
-                healthDecision.reason()
-        );
+        if (shouldAnalyzeObd(previousGps, gpsData)) {
+            obdEventService.generateEvents(
+                    gpsData,
+                    healthDecision.state(),
+                    healthDecision.reason()
+            );
+        }
 
         gpsWebSocketPublisher.publishLiveUpdate(
                 vehicle,
@@ -153,6 +155,36 @@ public class GpsIngestionService {
         gpsData.setCheckEngineOn(dto.getCheckEngineOn());
 
         return gpsData;
+    }
+
+    private boolean shouldAnalyzeObd(GpsData previous, GpsData current) {
+        if (current == null) return false;
+        if (previous == null) return true;
+
+        if (changed(current.getFuelLevel(), previous.getFuelLevel(), 2.0)) return true;
+        if (changed(current.getEngineTemperature(), previous.getEngineTemperature(), 5.0)) return true;
+        if (changed(current.getBatteryVoltage(), previous.getBatteryVoltage(), 0.5)) return true;
+        if (changed(current.getEngineLoad(), previous.getEngineLoad(), 15.0)) return true;
+        if (changed(current.getEngineRpm(), previous.getEngineRpm(), 500)) return true;
+
+        Boolean currentCheckEngine = current.getCheckEngineOn();
+        Boolean previousCheckEngine = previous.getCheckEngineOn();
+
+        if (currentCheckEngine != null && previousCheckEngine != null) {
+            return !currentCheckEngine.equals(previousCheckEngine);
+        }
+
+        return currentCheckEngine != null && previousCheckEngine == null;
+    }
+
+    private boolean changed(Double current, Double previous, double threshold) {
+        if (current == null || previous == null) return false;
+        return Math.abs(current - previous) >= threshold;
+    }
+
+    private boolean changed(Integer current, Integer previous, int threshold) {
+        if (current == null || previous == null) return false;
+        return Math.abs(current - previous) >= threshold;
     }
 
     private String normalizeRouteId(String routeId) {

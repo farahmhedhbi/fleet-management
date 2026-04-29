@@ -1,7 +1,9 @@
 package com.example.fleet_backend.service.websocket;
 
 import com.example.fleet_backend.dto.MissionRoutePointDTO;
+import com.example.fleet_backend.dto.ObdLiveSocketDTO;
 import com.example.fleet_backend.dto.VehicleEventDTO;
+import com.example.fleet_backend.dto.VehicleLiveSocketDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
 import com.example.fleet_backend.model.GpsData;
 import com.example.fleet_backend.model.LiveStatus;
@@ -47,32 +49,77 @@ public class GpsWebSocketPublisher {
             return;
         }
 
+        boolean missionActive = context != null && context.isMissionActive();
+
         List<MissionRoutePointDTO> missionRoute =
                 context != null ? context.getMissionRoute() : List.of();
 
-        boolean missionActive =
-                context != null && context.isMissionActive();
-
-        VehicleLiveStatusDTO dto = gpsMapperService.toVehicleLiveStatusDTO(
+        VehicleLiveStatusDTO fullDto = gpsMapperService.toVehicleLiveStatusDTO(
                 vehicle,
                 state,
                 missionActive,
                 missionRoute
         );
 
-        messagingTemplate.convertAndSend("/topic/gps/live", dto);
+        VehicleLiveSocketDTO liveSocketDto = toLiveSocketDto(fullDto);
+        ObdLiveSocketDTO obdSocketDto = toObdSocketDto(state , gpsData);
 
+        // GPS live global léger
+        messagingTemplate.convertAndSend("/topic/gps/live", liveSocketDto);
+
+        // GPS live véhicule léger
         messagingTemplate.convertAndSend(
-                "/topic/vehicles/" + vehicle.getId() + "/live",
-                dto
+                "/topic/vehicles/" + liveSocketDto.getVehicleId() + "/live",
+                liveSocketDto
         );
 
-        if (context != null && context.getMissionId() != null) {
+        // OBD live véhicule léger
+        messagingTemplate.convertAndSend(
+                "/topic/vehicles/" + liveSocketDto.getVehicleId() + "/obd",
+                obdSocketDto
+        );
+
+        // GPS live mission léger
+        if (liveSocketDto.getMissionId() != null) {
             messagingTemplate.convertAndSend(
-                    "/topic/missions/" + context.getMissionId() + "/live",
-                    dto
+                    "/topic/missions/" + liveSocketDto.getMissionId() + "/live",
+                    liveSocketDto
             );
         }
+    }
+
+    private VehicleLiveSocketDTO toLiveSocketDto(VehicleLiveStatusDTO dto) {
+        return new VehicleLiveSocketDTO(
+                dto.getVehicleId(),
+                dto.getVehicleName(),
+                dto.getLatitude(),
+                dto.getLongitude(),
+                dto.getSpeed(),
+                dto.isEngineOn(),
+                dto.getTimestamp(),
+                dto.getLiveStatus(),
+                dto.isMissionActive(),
+                dto.getMissionId(),
+                dto.getMissionStatus(),
+                dto.getRouteSource()
+        );
+    }
+
+    private ObdLiveSocketDTO toObdSocketDto(VehicleLiveState state, GpsData gpsData) {
+        return new ObdLiveSocketDTO(
+                state.getVehicle().getId(),
+                state.getEngineRpm(),
+                state.getFuelLevel(),
+                state.getEngineTemperature(),
+                state.getBatteryVoltage(),
+                state.getEngineLoad(),
+                state.getCheckEngineOn(),
+                gpsData.isEngineOn(),
+                state.getObdStatus(),
+                state.getHealthState() != null ? state.getHealthState().name() : null,
+                state.getHealthReason(),
+                state.getObdLastTimestamp()
+        );
     }
 
     public void publishEvent(VehicleEventDTO dto) {
