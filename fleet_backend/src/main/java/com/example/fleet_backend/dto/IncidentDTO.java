@@ -35,6 +35,10 @@ public class IncidentDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private String groupKey;
+    private Integer eventCount;
+    private LocalDateTime lastEventAt;
+
     public IncidentDTO(
             Long id,
             String title,
@@ -56,7 +60,10 @@ public class IncidentDTO {
             LocalDateTime validatedAt,
             LocalDateTime resolvedAt,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            LocalDateTime updatedAt,
+            String groupKey,
+            Integer eventCount,
+            LocalDateTime lastEventAt
     ) {
         this.id = id;
         this.title = title;
@@ -79,6 +86,9 @@ public class IncidentDTO {
         this.resolvedAt = resolvedAt;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.groupKey = groupKey;
+        this.eventCount = eventCount;
+        this.lastEventAt = lastEventAt;
     }
 
     public Long getId() { return id; }
@@ -102,4 +112,15 @@ public class IncidentDTO {
     public LocalDateTime getResolvedAt() { return resolvedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public String getGroupKey() {
+        return groupKey;
+    }
+
+    public Integer getEventCount() {
+        return eventCount;
+    }
+
+    public LocalDateTime getLastEventAt() {
+        return lastEventAt;
+    }
 }

@@ -27,6 +27,10 @@ export interface IncidentDTO {
   resolvedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+
+  groupKey: string | null;
+  eventCount: number | null;
+  lastEventAt: string | null;
 }
 
 export type IncidentStatus =

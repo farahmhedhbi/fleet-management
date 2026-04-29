@@ -57,16 +57,25 @@ public class Incident {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    @Column(name = "group_key")
+    private String groupKey;
+
+    private Integer eventCount = 1;
+
+    private LocalDateTime lastEventAt;
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
 
         if (status == null) status = IncidentStatus.REPORTED;
         if (source == null) source = IncidentSource.MANUAL;
+        if (eventCount == null) eventCount = 1;
+        if (lastEventAt == null) lastEventAt = now;
 
         reportedAt = now;
         createdAt = now;
         updatedAt = now;
+
     }
 
     @PreUpdate
@@ -212,5 +221,29 @@ public class Incident {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getGroupKey() {
+        return groupKey;
+    }
+
+    public void setGroupKey(String groupKey) {
+        this.groupKey = groupKey;
+    }
+
+    public Integer getEventCount() {
+        return eventCount;
+    }
+
+    public void setEventCount(Integer eventCount) {
+        this.eventCount = eventCount;
+    }
+
+    public LocalDateTime getLastEventAt() {
+        return lastEventAt;
+    }
+
+    public void setLastEventAt(LocalDateTime lastEventAt) {
+        this.lastEventAt = lastEventAt;
     }
 }

@@ -19,91 +19,102 @@ public class IncidentAutomationService {
 
     @Transactional
     public IncidentDTO createIncidentIfNeeded(VehicleEvent event) {
-        if (event == null || event.getId() == null || event.getEventType() == null) {
+        if (event == null || event.getId() == null || event.getEventType() == null || event.getVehicle() == null) {
             return null;
         }
 
+        Long vehicleId = event.getVehicle().getId();
         VehicleEventType type = event.getEventType();
 
         return switch (type) {
-            case OVERSPEED -> incidentService.createIncidentFromEvent(
-                    event.getId(),
-                    IncidentType.DRIVER_BEHAVIOR,
-                    IncidentSeverity.HIGH,
-                    "Excès de vitesse détecté",
-                    "Le véhicule a dépassé la vitesse autorisée."
-            );
-
-            case OFF_ROUTE -> incidentService.createIncidentFromEvent(
-                    event.getId(),
-                    IncidentType.GPS_ANOMALY,
-                    IncidentSeverity.HIGH,
-                    "Déviation de route détectée",
-                    "Le véhicule est sorti de l’itinéraire prévu."
-            );
-
-            case STOP_LONG -> incidentService.createIncidentFromEvent(
-                    event.getId(),
-                    IncidentType.MISSION_PROBLEM,
-                    IncidentSeverity.MEDIUM,
-                    "Arrêt prolongé détecté",
-                    "Le véhicule est resté arrêté pendant une durée anormale en mission."
-            );
-
-            case NO_SIGNAL -> incidentService.createIncidentFromEvent(
-                    event.getId(),
-                    IncidentType.GPS_ANOMALY,
-                    IncidentSeverity.MEDIUM,
-                    "Perte du signal GPS",
-                    "Le système ne reçoit plus de signal GPS récent."
-            );
-
-            case OBD_LOW_FUEL -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case OBD_LOW_FUEL -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.OBD_ALERT,
                     IncidentSeverity.MEDIUM,
+                    "Incident technique véhicule",
                     "Niveau carburant faible",
-                    "Le niveau de carburant du véhicule est faible."
+                    "VEHICLE_" + vehicleId + "_TECHNICAL"
             );
 
-            case OBD_HIGH_TEMP -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case OBD_HIGH_TEMP -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.OBD_ALERT,
                     IncidentSeverity.CRITICAL,
+                    "Incident technique véhicule",
                     "Température moteur critique",
-                    "La température moteur est anormalement élevée."
+                    "VEHICLE_" + vehicleId + "_TECHNICAL"
             );
 
-            case OBD_LOW_BATTERY -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case OBD_LOW_BATTERY -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.OBD_ALERT,
                     IncidentSeverity.HIGH,
+                    "Incident technique véhicule",
                     "Batterie faible",
-                    "La tension de batterie du véhicule est faible."
+                    "VEHICLE_" + vehicleId + "_TECHNICAL"
             );
 
-            case OBD_CHECK_ENGINE -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case OBD_CHECK_ENGINE -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.OBD_ALERT,
                     IncidentSeverity.CRITICAL,
+                    "Incident technique véhicule",
                     "Voyant moteur activé",
-                    "Le voyant check engine est activé."
+                    "VEHICLE_" + vehicleId + "_TECHNICAL"
             );
 
-            case ENGINE_FAILURE -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case ENGINE_FAILURE -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.VEHICLE_BREAKDOWN,
                     IncidentSeverity.CRITICAL,
-                    "Panne moteur détectée",
-                    "Le système a détecté une panne moteur probable."
+                    "Panne véhicule critique",
+                    "Panne moteur probable détectée",
+                    "VEHICLE_" + vehicleId + "_TECHNICAL"
             );
 
-            case MISSION_INTERRUPTED -> incidentService.createIncidentFromEvent(
-                    event.getId(),
+            case OVERSPEED -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
+                    IncidentType.DRIVER_BEHAVIOR,
+                    IncidentSeverity.HIGH,
+                    "Comportement conducteur à risque",
+                    "Excès de vitesse détecté",
+                    "VEHICLE_" + vehicleId + "_DRIVER_BEHAVIOR"
+            );
+
+            case OFF_ROUTE -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
+                    IncidentType.GPS_ANOMALY,
+                    IncidentSeverity.HIGH,
+                    "Problème de mission",
+                    "Déviation de route détectée",
+                    "VEHICLE_" + vehicleId + "_MISSION"
+            );
+
+            case STOP_LONG -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
+                    IncidentType.MISSION_PROBLEM,
+                    IncidentSeverity.MEDIUM,
+                    "Problème de mission",
+                    "Arrêt prolongé détecté",
+                    "VEHICLE_" + vehicleId + "_MISSION"
+            );
+
+            case MISSION_INTERRUPTED -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
                     IncidentType.MISSION_PROBLEM,
                     IncidentSeverity.CRITICAL,
                     "Mission interrompue",
-                    "La mission a été interrompue à cause d’un problème détecté."
+                    "Mission interrompue à cause d’un problème critique",
+                    "VEHICLE_" + vehicleId + "_MISSION"
+            );
+
+            case NO_SIGNAL -> incidentService.createOrUpdateActiveSystemIncidentFromEvent(
+                    event,
+                    IncidentType.GPS_ANOMALY,
+                    IncidentSeverity.MEDIUM,
+                    "Problème GPS",
+                    "Perte du signal GPS",
+                    "VEHICLE_" + vehicleId + "_GPS"
             );
 
             default -> null;

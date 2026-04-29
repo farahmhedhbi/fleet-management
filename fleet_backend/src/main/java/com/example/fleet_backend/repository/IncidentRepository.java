@@ -20,4 +20,10 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
     Optional<Incident> findByVehicleEventId(Long vehicleEventId);
 
     boolean existsByVehicleEventId(Long vehicleEventId);
+
+    Optional<Incident> findFirstByGroupKeyAndStatusInOrderByCreatedAtDesc(
+            String groupKey,
+            List<IncidentStatus> statuses
+    );
+
 }

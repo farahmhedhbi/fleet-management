@@ -246,7 +246,108 @@ public class IncidentService {
                 incident.getValidatedAt(),
                 incident.getResolvedAt(),
                 incident.getCreatedAt(),
-                incident.getUpdatedAt()
+                incident.getUpdatedAt(),
+                incident.getGroupKey(),
+                incident.getEventCount(),
+                incident.getLastEventAt()
         );
+    }
+    @Transactional
+    public IncidentDTO createOrUpdateActiveSystemIncidentFromEvent(
+            VehicleEvent event,
+            IncidentType type,
+            IncidentSeverity severity,
+            String title,
+            String description,
+            String groupKey
+    ) {
+        if (event == null || event.getId() == null || event.getVehicle() == null) {
+            return null;
+        }
+
+        if (incidentRepository.existsByVehicleEventId(event.getId())) {
+            return incidentRepository.findByVehicleEventId(event.getId())
+                    .map(this::toDTO)
+                    .orElse(null);
+        }
+
+        List<IncidentStatus> activeStatuses = List.of(
+                IncidentStatus.REPORTED,
+                IncidentStatus.VALIDATED,
+                IncidentStatus.IN_PROGRESS
+        );
+
+        Incident incident = incidentRepository
+                .findFirstByGroupKeyAndStatusInOrderByCreatedAtDesc(groupKey, activeStatuses)
+                .orElse(null);
+
+        if (incident == null) {
+            incident = new Incident();
+            incident.setTitle(title);
+            incident.setDescription(description);
+            incident.setType(type);
+            incident.setSeverity(severity);
+            incident.setStatus(IncidentStatus.REPORTED);
+            incident.setSource(IncidentSource.SYSTEM);
+            incident.setVehicle(event.getVehicle());
+            incident.setVehicleEvent(event);
+            incident.setGroupKey(groupKey);
+            incident.setEventCount(1);
+            incident.setLastEventAt(
+                    event.getCreatedAt() != null ? event.getCreatedAt() : LocalDateTime.now()
+            );
+
+            if (event.getMissionId() != null) {
+                missionRepository.findById(event.getMissionId()).ifPresent(incident::setMission);
+            }
+        } else {
+            incident.setVehicleEvent(event);
+            incident.setLastEventAt(event.getCreatedAt() != null ? event.getCreatedAt() : LocalDateTime.now());
+            incident.setEventCount(incident.getEventCount() == null ? 2 : incident.getEventCount() + 1);
+
+            if (isMoreSevere(severity, incident.getSeverity())) {
+                incident.setSeverity(severity);
+            }
+
+            incident.setDescription(mergeDescription(
+                    incident.getDescription(),
+                    description,
+                    event.getEventType() != null ? event.getEventType().name() : "EVENT"
+            ));
+        }
+
+        IncidentDTO dto = toDTO(incidentRepository.save(incident));
+        incidentWebSocketPublisher.publishIncident(dto);
+        return dto;
+    }
+    private boolean isMoreSevere(IncidentSeverity candidate, IncidentSeverity current) {
+        return severityRank(candidate) > severityRank(current);
+    }
+
+    private int severityRank(IncidentSeverity severity) {
+        if (severity == null) return 0;
+
+        return switch (severity) {
+            case LOW -> 1;
+            case MEDIUM -> 2;
+            case HIGH -> 3;
+            case CRITICAL -> 4;
+        };
+    }
+
+    private String mergeDescription(String oldDescription, String newDescription, String eventCode) {
+        String oldText = oldDescription == null ? "" : oldDescription;
+
+        if (oldText.contains(eventCode)) {
+            return oldText;
+        }
+
+        String line = "- " + eventCode + " : " + newDescription;
+
+        if (oldText.isBlank()) {
+            return line;
+        }
+
+        return oldText + "\n" + line;
     }
 }

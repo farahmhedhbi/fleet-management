@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { toast } from "react-toastify";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -65,11 +66,35 @@ function canMoveTo(status: string, target: IncidentStatus) {
   if (status === "RESOLVED" || status === "REJECTED") return false;
 
   if (target === "VALIDATED") return status === "REPORTED";
-  if (target === "IN_PROGRESS") return status === "REPORTED" || status === "VALIDATED";
-  if (target === "RESOLVED") return status === "REPORTED" || status === "VALIDATED" || status === "IN_PROGRESS";
-  if (target === "REJECTED") return status === "REPORTED" || status === "VALIDATED";
+
+  if (target === "IN_PROGRESS") {
+    return status === "REPORTED" || status === "VALIDATED";
+  }
+
+  if (target === "RESOLVED") {
+    return (
+      status === "REPORTED" ||
+      status === "VALIDATED" ||
+      status === "IN_PROGRESS"
+    );
+  }
+
+  if (target === "REJECTED") {
+    return status === "REPORTED" || status === "VALIDATED";
+  }
 
   return false;
+}
+
+function splitDescription(description?: string | null) {
+  if (!description || description.trim().length === 0) {
+    return ["Aucune description."];
+  }
+
+  return description
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 export default function IncidentsPage() {
@@ -83,12 +108,17 @@ export default function IncidentsPage() {
 
   async function load() {
     try {
+      setLoading(true);
       const data = await incidentService.getAll();
-      setIncidents(data);
+      setIncidents(Array.isArray(data) ? data : []);
       receivedRef.current = new Set(data.map((i) => incidentKey(i)));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Erreur lors du chargement des incidents");
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          "Erreur lors du chargement des incidents"
+      );
     } finally {
       setLoading(false);
     }
@@ -118,10 +148,7 @@ export default function IncidentsPage() {
       });
 
       if (!alreadyKnown && incident.status === "REPORTED") {
-        const isCritical =
-          incident.severity === "CRITICAL" || incident.severity === "HIGH";
-
-        if (isCritical) {
+        if (incident.severity === "CRITICAL" || incident.severity === "HIGH") {
           toast.error(incident.title || "Nouvel incident critique", {
             toastId: `incident-${incident.id}`,
           });
@@ -138,6 +165,13 @@ export default function IncidentsPage() {
     };
   }, []);
 
+  const activeIncidents = useMemo(() => {
+    return incidents.filter(
+      (incident) =>
+        incident.status !== "RESOLVED" && incident.status !== "REJECTED"
+    );
+  }, [incidents]);
+
   const filtered = useMemo(() => {
     return incidents.filter((incident) => {
       const statusOk =
@@ -153,12 +187,13 @@ export default function IncidentsPage() {
   const stats = useMemo(() => {
     return {
       total: incidents.length,
+      active: activeIncidents.length,
       reported: incidents.filter((i) => i.status === "REPORTED").length,
       inProgress: incidents.filter((i) => i.status === "IN_PROGRESS").length,
-      critical: incidents.filter((i) => i.severity === "CRITICAL").length,
+      critical: activeIncidents.filter((i) => i.severity === "CRITICAL").length,
       resolved: incidents.filter((i) => i.status === "RESOLVED").length,
     };
-  }, [incidents]);
+  }, [incidents, activeIncidents]);
 
   async function updateStatus(id: number, status: IncidentStatus) {
     try {
@@ -167,9 +202,7 @@ export default function IncidentsPage() {
       const updated = await incidentService.updateStatus(id, status);
 
       setIncidents((prev) =>
-        prev.map((incident) =>
-          incident.id === id ? updated : incident
-        )
+        prev.map((incident) => (incident.id === id ? updated : incident))
       );
 
       toast.success("Statut incident mis à jour");
@@ -186,7 +219,7 @@ export default function IncidentsPage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
+    <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
       <div className="space-y-6 p-6 md:p-10">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -194,7 +227,8 @@ export default function IncidentsPage() {
               Gestion des incidents
             </h1>
             <p className="mt-1 text-slate-600">
-              Incidents manuels et incidents générés automatiquement depuis GPS, OBD et événements critiques.
+              Incidents actifs agrégés depuis GPS, OBD, missions et événements
+              critiques.
             </p>
           </div>
 
@@ -206,11 +240,12 @@ export default function IncidentsPage() {
           </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <StatCard label="Total" value={stats.total} />
+          <StatCard label="Actifs" value={stats.active} danger={stats.active > 0} />
           <StatCard label="Signalés" value={stats.reported} />
           <StatCard label="En traitement" value={stats.inProgress} />
-          <StatCard label="Critiques" value={stats.critical} danger />
+          <StatCard label="Critiques actifs" value={stats.critical} danger />
           <StatCard label="Résolus" value={stats.resolved} />
         </div>
 
@@ -222,21 +257,28 @@ export default function IncidentsPage() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "REPORTED", "VALIDATED", "IN_PROGRESS", "RESOLVED", "REJECTED"] as StatusFilter[]).map(
-                  (status) => (
-                    <button
-                      key={status}
-                      onClick={() => setStatusFilter(status)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                        statusFilter === status
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  )
-                )}
+                {(
+                  [
+                    "ALL",
+                    "REPORTED",
+                    "VALIDATED",
+                    "IN_PROGRESS",
+                    "RESOLVED",
+                    "REJECTED",
+                  ] as StatusFilter[]
+                ).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                      statusFilter === status
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -246,21 +288,21 @@ export default function IncidentsPage() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as SeverityFilter[]).map(
-                  (severity) => (
-                    <button
-                      key={severity}
-                      onClick={() => setSeverityFilter(severity)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                        severityFilter === severity
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {severity}
-                    </button>
-                  )
-                )}
+                {(
+                  ["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as SeverityFilter[]
+                ).map((severity) => (
+                  <button
+                    key={severity}
+                    onClick={() => setSeverityFilter(severity)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                      severityFilter === severity
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {severity}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -276,111 +318,130 @@ export default function IncidentsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filtered.map((incident) => (
-              <div
-                key={incident.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-extrabold text-slate-900">
-                        {incident.title}
-                      </h2>
+            {filtered.map((incident) => {
+              const descriptionLines = splitDescription(incident.description);
 
-                      <span
-                        className={`rounded-full border px-2 py-1 text-xs font-bold ${severityClass(
-                          incident.severity
-                        )}`}
-                      >
-                        {incident.severity}
-                      </span>
+              return (
+                <div
+                  key={incident.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-extrabold text-slate-900">
+                          {incident.title}
+                        </h2>
 
-                      <span
-                        className={`rounded-full border px-2 py-1 text-xs font-bold ${statusClass(
-                          incident.status
-                        )}`}
-                      >
-                        {incident.status}
-                      </span>
+                        <Badge className={severityClass(incident.severity)}>
+                          {incident.severity}
+                        </Badge>
 
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">
-                        {incident.source}
-                      </span>
+                        <Badge className={statusClass(incident.status)}>
+                          {incident.status}
+                        </Badge>
+
+                        <Badge className="border-slate-200 bg-slate-50 text-slate-600">
+                          {incident.source}
+                        </Badge>
+
+                        {(incident.eventCount ?? 1) > 1 && (
+                          <Badge className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                            {incident.eventCount} occurrences
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                        {descriptionLines.map((line, index) => (
+                          <p key={`${incident.id}-line-${index}`} className="mt-1 first:mt-0">
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2 xl:grid-cols-5">
+                        <Info label="Type" value={incident.type} />
+
+                        <Info
+                          label="Véhicule"
+                          value={
+                            incident.vehicleRegistrationNumber
+                              ? `${incident.vehicleRegistrationNumber} (#${incident.vehicleId})`
+                              : incident.vehicleId
+                              ? `#${incident.vehicleId}`
+                              : "—"
+                          }
+                        />
+
+                        <Info
+                          label="Mission"
+                          value={
+                            incident.missionTitle
+                              ? `${incident.missionTitle} (#${incident.missionId})`
+                              : incident.missionId
+                              ? `#${incident.missionId}`
+                              : "—"
+                          }
+                        />
+
+                        <Info
+                          label="Occurrences"
+                          value={String(incident.eventCount ?? 1)}
+                        />
+
+                        <Info
+                          label="Dernier événement"
+                          value={formatDate(
+                            incident.lastEventAt || incident.updatedAt || incident.createdAt
+                          )}
+                        />
+                      </div>
                     </div>
 
-                    <p className="mt-2 text-sm text-slate-600">
-                      {incident.description || "Aucune description."}
-                    </p>
+                    <div className="flex flex-wrap gap-2 lg:w-44 lg:justify-end">
+                      {canMoveTo(incident.status, "VALIDATED") && (
+                        <ActionButton
+                          disabled={updatingId === incident.id}
+                          onClick={() => updateStatus(incident.id, "VALIDATED")}
+                        >
+                          Valider
+                        </ActionButton>
+                      )}
 
-                    <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2 xl:grid-cols-4">
-                      <Info label="Type" value={incident.type} />
-                      <Info
-                        label="Véhicule"
-                        value={
-                          incident.vehicleRegistrationNumber
-                            ? `${incident.vehicleRegistrationNumber} (#${incident.vehicleId})`
-                            : incident.vehicleId
-                            ? `#${incident.vehicleId}`
-                            : "—"
-                        }
-                      />
-                      <Info
-                        label="Mission"
-                        value={
-                          incident.missionTitle
-                            ? `${incident.missionTitle} (#${incident.missionId})`
-                            : incident.missionId
-                            ? `#${incident.missionId}`
-                            : "—"
-                        }
-                      />
-                      <Info label="Date" value={formatDate(incident.createdAt)} />
+                      {canMoveTo(incident.status, "IN_PROGRESS") && (
+                        <ActionButton
+                          disabled={updatingId === incident.id}
+                          onClick={() => updateStatus(incident.id, "IN_PROGRESS")}
+                        >
+                          Traiter
+                        </ActionButton>
+                      )}
+
+                      {canMoveTo(incident.status, "RESOLVED") && (
+                        <ActionButton
+                          success
+                          disabled={updatingId === incident.id}
+                          onClick={() => updateStatus(incident.id, "RESOLVED")}
+                        >
+                          Résoudre
+                        </ActionButton>
+                      )}
+
+                      {canMoveTo(incident.status, "REJECTED") && (
+                        <ActionButton
+                          muted
+                          disabled={updatingId === incident.id}
+                          onClick={() => updateStatus(incident.id, "REJECTED")}
+                        >
+                          Rejeter
+                        </ActionButton>
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
-                    {canMoveTo(incident.status, "VALIDATED") && (
-                      <ActionButton
-                        disabled={updatingId === incident.id}
-                        onClick={() => updateStatus(incident.id, "VALIDATED")}
-                      >
-                        Valider
-                      </ActionButton>
-                    )}
-
-                    {canMoveTo(incident.status, "IN_PROGRESS") && (
-                      <ActionButton
-                        disabled={updatingId === incident.id}
-                        onClick={() => updateStatus(incident.id, "IN_PROGRESS")}
-                      >
-                        Traiter
-                      </ActionButton>
-                    )}
-
-                    {canMoveTo(incident.status, "RESOLVED") && (
-                      <ActionButton
-                        success
-                        disabled={updatingId === incident.id}
-                        onClick={() => updateStatus(incident.id, "RESOLVED")}
-                      >
-                        Résoudre
-                      </ActionButton>
-                    )}
-
-                    {canMoveTo(incident.status, "REJECTED") && (
-                      <ActionButton
-                        muted
-                        disabled={updatingId === incident.id}
-                        onClick={() => updateStatus(incident.id, "REJECTED")}
-                      >
-                        Rejeter
-                      </ActionButton>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -415,8 +476,24 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-slate-50 px-3 py-2">
       <p className="font-bold text-slate-400">{label}</p>
-      <p className="mt-1 font-bold text-slate-700">{value}</p>
+      <p className="mt-1 break-words font-bold text-slate-700">{value}</p>
     </div>
+  );
+}
+
+function Badge({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return (
+    <span
+      className={`rounded-full border px-2 py-1 text-xs font-bold ${className}`}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -427,7 +504,7 @@ function ActionButton({
   success,
   muted,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
   success?: boolean;
