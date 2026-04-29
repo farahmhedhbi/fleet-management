@@ -25,21 +25,27 @@ public class VehicleEventService {
 
     private final VehicleEventRepository vehicleEventRepository;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
+    private final IncidentAutomationService incidentAutomationService;
 
-    public VehicleEventService(VehicleEventRepository vehicleEventRepository,
-                               GpsWebSocketPublisher gpsWebSocketPublisher) {
+    public VehicleEventService(
+            VehicleEventRepository vehicleEventRepository,
+            GpsWebSocketPublisher gpsWebSocketPublisher,
+            IncidentAutomationService incidentAutomationService
+    ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
+        this.incidentAutomationService = incidentAutomationService;
     }
 
-    public void analyzeAndCreateEvents(Vehicle vehicle,
-                                       GpsData previousGps,
-                                       GpsData currentGps,
-                                       boolean missionActive,
-                                       Long missionId,
-                                       boolean offRoute,
-                                       boolean missionCompleted) {
-
+    public void analyzeAndCreateEvents(
+            Vehicle vehicle,
+            GpsData previousGps,
+            GpsData currentGps,
+            boolean missionActive,
+            Long missionId,
+            boolean offRoute,
+            boolean missionCompleted
+    ) {
         if (vehicle == null || currentGps == null) {
             return;
         }
@@ -49,17 +55,15 @@ public class VehicleEventService {
         handleOffRoute(vehicle, currentGps, missionId, offRoute);
         handleMissionCompleted(vehicle, currentGps, missionId, missionCompleted);
         handleStopLong(vehicle, previousGps, currentGps, missionActive, missionId);
-
-        // IMPORTANT:
-        // OBD events are handled ONLY in ObdEventService.
-        // Do not create OBD events here to avoid duplicates/spam.
     }
 
-    private void handleEngineTransitions(Vehicle vehicle,
-                                         GpsData previousGps,
-                                         GpsData currentGps,
-                                         Long missionId,
-                                         boolean missionActive) {
+    private void handleEngineTransitions(
+            Vehicle vehicle,
+            GpsData previousGps,
+            GpsData currentGps,
+            Long missionId,
+            boolean missionActive
+    ) {
         if (previousGps == null) return;
 
         if (!previousGps.isEngineOn() && currentGps.isEngineOn()) {
@@ -96,9 +100,11 @@ public class VehicleEventService {
         }
     }
 
-    private void handleOverspeed(Vehicle vehicle,
-                                 GpsData currentGps,
-                                 Long missionId) {
+    private void handleOverspeed(
+            Vehicle vehicle,
+            GpsData currentGps,
+            Long missionId
+    ) {
         Double speed = currentGps.getSpeed();
 
         if (speed != null && speed > OVERSPEED_THRESHOLD) {
@@ -113,10 +119,12 @@ public class VehicleEventService {
         }
     }
 
-    private void handleOffRoute(Vehicle vehicle,
-                                GpsData currentGps,
-                                Long missionId,
-                                boolean offRoute) {
+    private void handleOffRoute(
+            Vehicle vehicle,
+            GpsData currentGps,
+            Long missionId,
+            boolean offRoute
+    ) {
         if (!offRoute) return;
 
         createEventIfAllowed(
@@ -129,10 +137,12 @@ public class VehicleEventService {
         );
     }
 
-    private void handleMissionCompleted(Vehicle vehicle,
-                                        GpsData currentGps,
-                                        Long missionId,
-                                        boolean missionCompleted) {
+    private void handleMissionCompleted(
+            Vehicle vehicle,
+            GpsData currentGps,
+            Long missionId,
+            boolean missionCompleted
+    ) {
         if (!missionCompleted) return;
 
         createEventIfAllowed(
@@ -145,11 +155,13 @@ public class VehicleEventService {
         );
     }
 
-    private void handleStopLong(Vehicle vehicle,
-                                GpsData previousGps,
-                                GpsData currentGps,
-                                boolean missionActive,
-                                Long missionId) {
+    private void handleStopLong(
+            Vehicle vehicle,
+            GpsData previousGps,
+            GpsData currentGps,
+            boolean missionActive,
+            Long missionId
+    ) {
         if (!missionActive || previousGps == null) return;
 
         boolean currentStopped =
@@ -163,7 +175,6 @@ public class VehicleEventService {
                         && previousGps.getSpeed() <= 1.0;
 
         if (!currentStopped || !previousStopped) return;
-
         if (currentGps.getTimestamp() == null || previousGps.getTimestamp() == null) return;
 
         long minutes = Duration.between(
@@ -183,13 +194,14 @@ public class VehicleEventService {
         }
     }
 
-    private void createEventIfAllowed(Vehicle vehicle,
-                                      Long missionId,
-                                      VehicleEventType eventType,
-                                      EventSeverity severity,
-                                      String message,
-                                      GpsData gpsData) {
-
+    private void createEventIfAllowed(
+            Vehicle vehicle,
+            Long missionId,
+            VehicleEventType eventType,
+            EventSeverity severity,
+            String message,
+            GpsData gpsData
+    ) {
         LocalDateTime now = LocalDateTime.now();
 
         var lastOpt = vehicleEventRepository
@@ -230,6 +242,8 @@ public class VehicleEventService {
         event.setAcknowledged(false);
 
         VehicleEvent saved = vehicleEventRepository.save(event);
+
+        incidentAutomationService.createIncidentIfNeeded(saved);
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
     }
