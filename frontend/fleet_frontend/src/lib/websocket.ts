@@ -186,3 +186,11 @@ export function disconnectWebSocket() {
   handlers.clear();
   pendingTopics.clear();
 }
+
+export function subscribeIncidentsLive<T = any>(handler: TopicHandler<T>) {
+  subscribeToTopic("/topic/incidents/live", handler);
+}
+
+export function unsubscribeIncidentsLive() {
+  unsubscribeFromTopic("/topic/incidents/live");
+}
