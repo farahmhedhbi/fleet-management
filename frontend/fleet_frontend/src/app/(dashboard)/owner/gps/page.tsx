@@ -25,7 +25,7 @@ const EVENT_COOLDOWN_MS = 10 * 60 * 1000;
 function eventKey(event: VehicleEventDTO) {
   return event.id != null
     ? String(event.id)
-    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.createdAt}`;
+    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}-${event.createdAt}`;
 }
 
 function eventSpamKey(event: VehicleEventDTO) {
@@ -33,16 +33,33 @@ function eventSpamKey(event: VehicleEventDTO) {
 }
 
 function isDangerEvent(event: VehicleEventDTO) {
+  return event.severity === "CRITICAL" || event.severity === "WARNING";
+}
+
+function isToastEvent(event: VehicleEventDTO) {
   return event.severity === "CRITICAL";
 }
 
 function isObdEvent(event: VehicleEventDTO) {
+  const type = event.eventType || "";
   return (
-    event.eventType.includes("FUEL") ||
-    event.eventType.includes("TEMP") ||
-    event.eventType.includes("BATTERY") ||
-    event.eventType.includes("ENGINE")
+    type.includes("OBD_") ||
+    type.includes("FUEL") ||
+    type.includes("TEMP") ||
+    type.includes("BATTERY") ||
+    type.includes("CHECK_ENGINE") ||
+    type === "ENGINE_FAILURE" ||
+    type === "MISSION_INTERRUPTED"
   );
+}
+
+function isRecentEvent(event: VehicleEventDTO) {
+  if (!event.createdAt) return false;
+
+  const createdAt = new Date(event.createdAt).getTime();
+  if (Number.isNaN(createdAt)) return false;
+
+  return Date.now() - createdAt <= EVENT_COOLDOWN_MS;
 }
 
 function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
@@ -74,20 +91,29 @@ function formatDate(value?: string | null) {
 function getEventLabel(type: string) {
   switch (type) {
     case "LOW_FUEL_CRITICAL":
+    case "LOW_FUEL_WARNING":
     case "OBD_LOW_FUEL":
       return "Carburant critique";
 
     case "HIGH_TEMP_CRITICAL":
+    case "HIGH_TEMP_WARNING":
     case "OBD_HIGH_TEMP":
       return "Température moteur critique";
 
     case "LOW_BATTERY_CRITICAL":
+    case "LOW_BATTERY_WARNING":
     case "OBD_LOW_BATTERY":
       return "Batterie critique";
 
     case "CHECK_ENGINE_ON":
     case "OBD_CHECK_ENGINE":
       return "Voyant moteur activé";
+
+    case "ENGINE_FAILURE":
+      return "Panne moteur probable";
+
+    case "MISSION_INTERRUPTED":
+      return "Mission interrompue";
 
     case "OVERSPEED":
       return "Dépassement de vitesse";
@@ -105,8 +131,19 @@ function getEventLabel(type: string) {
       return "Signal perdu";
 
     default:
-      return type;
+      return type || "Événement";
   }
+}
+
+function upsertEvent(list: VehicleEventDTO[], event: VehicleEventDTO) {
+  const key = eventKey(event);
+  const exists = list.some((item) => eventKey(item) === key);
+
+  if (exists) return list;
+
+  return [event, ...list]
+    .filter(isDangerEvent)
+    .slice(0, 50);
 }
 
 export default function OwnerGpsPage() {
@@ -138,8 +175,7 @@ export default function OwnerGpsPage() {
     }
 
     recentEventsRef.current.set(key, now);
-
-  Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
+Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
   if (now - t > EVENT_COOLDOWN_MS * 2) {
     recentEventsRef.current.delete(k);
   }
@@ -155,17 +191,20 @@ export default function OwnerGpsPage() {
         gpsService.getLatestEvents(),
       ]);
 
-      setVehicles(Array.isArray(fleet) ? fleet : []);
-      setGlobalEvents(
-        Array.isArray(liveEvents) ? liveEvents.filter(isDangerEvent) : []
-      );
+      const safeFleet = Array.isArray(fleet) ? fleet : [];
+      const safeEvents = Array.isArray(liveEvents)
+        ? liveEvents.filter(isDangerEvent)
+        : [];
+
+      setVehicles(safeFleet);
+      setGlobalEvents(safeEvents);
 
       setSelectedVehicleId((prev) => {
-        if (!fleet || fleet.length === 0) return null;
-        if (prev && fleet.some((vehicle) => vehicle.vehicleId === prev)) {
+        if (safeFleet.length === 0) return null;
+        if (prev && safeFleet.some((vehicle) => vehicle.vehicleId === prev)) {
           return prev;
         }
-        return fleet[0].vehicleId;
+        return safeFleet[0].vehicleId;
       });
     } catch (e: any) {
       console.error("Erreur lors du chargement GPS:", e);
@@ -186,16 +225,12 @@ export default function OwnerGpsPage() {
 
       try {
         const vehicle = vehicles.find((v) => v.vehicleId === vehicleId);
-
         const eventsPromise = gpsService.getVehicleEvents(vehicleId);
 
-        let historyPromise: Promise<GpsData[]>;
-
-        if (vehicle?.missionActive && vehicle.missionId) {
-          historyPromise = gpsService.getMissionHistory(vehicle.missionId);
-        } else {
-          historyPromise = Promise.resolve([]);
-        }
+        const historyPromise =
+          vehicle?.missionActive && vehicle.missionId
+            ? gpsService.getMissionHistory(vehicle.missionId)
+            : Promise.resolve([]);
 
         const [h, events] = await Promise.all([historyPromise, eventsPromise]);
 
@@ -203,7 +238,7 @@ export default function OwnerGpsPage() {
         setVehicleEvents(
           Array.isArray(events) ? events.filter(isDangerEvent) : []
         );
-      } catch (e: any) {
+      } catch (e) {
         console.error("Erreur détail véhicule:", e);
         toast.error("Erreur lors du chargement du détail véhicule");
         setHistory([]);
@@ -223,7 +258,6 @@ export default function OwnerGpsPage() {
     subscribeGpsLive<VehicleLiveStatusDTO>((liveVehicle) => {
       setVehicles((prev) => {
         const exists = prev.some((v) => v.vehicleId === liveVehicle.vehicleId);
-
         if (!exists) return [...prev, liveVehicle];
 
         return prev.map((v) =>
@@ -254,22 +288,17 @@ export default function OwnerGpsPage() {
     });
 
     subscribeEventsLive<VehicleEventDTO>((event) => {
-      if (!isDangerEvent(event)) return;
-      if (isDuplicateLiveEvent(event)) return;
+      if (!event || !isDangerEvent(event)) return;
 
-      setGlobalEvents((prev) => {
-        const exists = prev.some((e) => eventKey(e) === eventKey(event));
-        if (exists) return prev;
-        return [event, ...prev].slice(0, 50);
-      });
+      setGlobalEvents((prev) => upsertEvent(prev, event));
 
       if (event.vehicleId === selectedVehicleIdRef.current) {
-        setVehicleEvents((prev) => {
-          const exists = prev.some((e) => eventKey(e) === eventKey(event));
-          if (exists) return prev;
-          return [event, ...prev].slice(0, 50);
-        });
+        setVehicleEvents((prev) => upsertEvent(prev, event));
       }
+
+      if (!isRecentEvent(event)) return;
+      if (!isToastEvent(event)) return;
+      if (isDuplicateLiveEvent(event)) return;
 
       toast.error(event.message || getEventLabel(event.eventType), {
         toastId: eventSpamKey(event),
@@ -309,7 +338,10 @@ export default function OwnerGpsPage() {
     }
 
     return vehicles.filter(
-      (v) => v.liveStatus === "OFF_ROUTE" || v.liveStatus === "MISSION_COMPLETED"
+      (v) =>
+        v.liveStatus === "OFF_ROUTE" ||
+        v.liveStatus === "MISSION_COMPLETED" ||
+        v.liveStatus === "BREAKDOWN"
     );
   }, [vehicles, statusFilter]);
 
@@ -468,7 +500,7 @@ export default function OwnerGpsPage() {
                 <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <h2 className="text-lg font-extrabold text-slate-900">
-                      Dangers critiques
+                      Dangers / alertes
                     </h2>
 
                     <div className="flex gap-2">
@@ -499,7 +531,7 @@ export default function OwnerGpsPage() {
                   <div className="max-h-[360px] overflow-auto divide-y divide-slate-100">
                     {eventsToShow.length === 0 ? (
                       <div className="p-5 text-sm text-slate-500">
-                        Aucun danger critique.
+                        Aucune alerte récente.
                       </div>
                     ) : (
                       eventsToShow.map((event) => (
@@ -509,8 +541,14 @@ export default function OwnerGpsPage() {
                               {getEventLabel(event.eventType)}
                             </p>
 
-                            <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
-                              CRITICAL
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs font-bold ${
+                                event.severity === "CRITICAL"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-amber-100 text-amber-700"
+                              }`}
+                            >
+                              {event.severity}
                             </span>
                           </div>
 

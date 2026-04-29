@@ -16,6 +16,5 @@ public enum VehicleEventType {
     OBD_CHECK_ENGINE,
 
     ENGINE_FAILURE,
-    SUDDEN_STOP,
     MISSION_INTERRUPTED
 }
