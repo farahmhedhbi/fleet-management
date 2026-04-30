@@ -2,16 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { gpsService } from "@/lib/services/gpsService";
-import type { GpsData, VehicleEventDTO, VehicleLiveStatusDTO } from "@/types/gps";
-import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { toast } from "react-toastify";
+
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { gpsService } from "@/lib/services/gpsService";
 import {
-  subscribeGpsLive,
   subscribeEventsLive,
-  unsubscribeGpsLive,
+  subscribeGpsLive,
   unsubscribeEventsLive,
+  unsubscribeGpsLive,
 } from "@/lib/websocket";
+
+import type {
+  GpsData,
+  VehicleEventDTO,
+  VehicleLiveStatusDTO,
+} from "@/types/gps";
 
 const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
   ssr: false,
@@ -20,7 +26,7 @@ const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
 type EventMode = "vehicle" | "global";
 type StatusFilter = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
 
-const EVENT_COOLDOWN_MS = 10 * 60 * 1000;
+const EVENT_TOAST_COOLDOWN_MS = 10 * 60 * 1000;
 
 function eventKey(event: VehicleEventDTO) {
   return event.id != null
@@ -36,30 +42,23 @@ function isDangerEvent(event: VehicleEventDTO) {
   return event.severity === "CRITICAL" || event.severity === "WARNING";
 }
 
-function isToastEvent(event: VehicleEventDTO) {
-  return event.severity === "CRITICAL";
-}
-
 function isObdEvent(event: VehicleEventDTO) {
   const type = event.eventType || "";
+
   return (
-    type.includes("OBD_") ||
-    type.includes("FUEL") ||
-    type.includes("TEMP") ||
-    type.includes("BATTERY") ||
-    type.includes("CHECK_ENGINE") ||
+    type.startsWith("OBD_") ||
     type === "ENGINE_FAILURE" ||
     type === "MISSION_INTERRUPTED"
   );
 }
 
 function isRecentEvent(event: VehicleEventDTO) {
-  if (!event.createdAt) return false;
+  if (!event.createdAt) return true;
 
   const createdAt = new Date(event.createdAt).getTime();
-  if (Number.isNaN(createdAt)) return false;
+  if (Number.isNaN(createdAt)) return true;
 
-  return Date.now() - createdAt <= EVENT_COOLDOWN_MS;
+  return Date.now() - createdAt <= EVENT_TOAST_COOLDOWN_MS;
 }
 
 function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
@@ -83,67 +82,51 @@ function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
+
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
+
   return d.toLocaleString();
 }
 
-function getEventLabel(type: string) {
+function getEventLabel(type?: string | null) {
   switch (type) {
-    case "LOW_FUEL_CRITICAL":
-    case "LOW_FUEL_WARNING":
     case "OBD_LOW_FUEL":
-      return "Carburant critique";
-
-    case "HIGH_TEMP_CRITICAL":
-    case "HIGH_TEMP_WARNING":
+      return "Carburant faible";
     case "OBD_HIGH_TEMP":
-      return "Température moteur critique";
-
-    case "LOW_BATTERY_CRITICAL":
-    case "LOW_BATTERY_WARNING":
+      return "Température moteur élevée";
     case "OBD_LOW_BATTERY":
-      return "Batterie critique";
-
-    case "CHECK_ENGINE_ON":
+      return "Batterie faible";
     case "OBD_CHECK_ENGINE":
       return "Voyant moteur activé";
-
     case "ENGINE_FAILURE":
       return "Panne moteur probable";
-
     case "MISSION_INTERRUPTED":
       return "Mission interrompue";
-
     case "OVERSPEED":
       return "Dépassement de vitesse";
-
     case "OFF_ROUTE":
       return "Véhicule hors trajet";
-
     case "STOP_LONG":
       return "Arrêt prolongé";
-
     case "ENGINE_OFF":
       return "Moteur éteint";
-
     case "NO_SIGNAL":
       return "Signal perdu";
-
     default:
       return type || "Événement";
   }
 }
 
 function upsertEvent(list: VehicleEventDTO[], event: VehicleEventDTO) {
+  if (!isDangerEvent(event)) return list;
+
   const key = eventKey(event);
   const exists = list.some((item) => eventKey(item) === key);
 
   if (exists) return list;
 
-  return [event, ...list]
-    .filter(isDangerEvent)
-    .slice(0, 50);
+  return [event, ...list].slice(0, 50);
 }
 
 export default function OwnerGpsPage() {
@@ -151,7 +134,9 @@ export default function OwnerGpsPage() {
   const [globalEvents, setGlobalEvents] = useState<VehicleEventDTO[]>([]);
   const [vehicleEvents, setVehicleEvents] = useState<VehicleEventDTO[]>([]);
   const [history, setHistory] = useState<GpsData[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -159,30 +144,51 @@ export default function OwnerGpsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   const selectedVehicleIdRef = useRef<number | null>(null);
-  const recentEventsRef = useRef<Map<string, number>>(new Map());
+  const shownToastRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     selectedVehicleIdRef.current = selectedVehicleId;
   }, [selectedVehicleId]);
 
-  const isDuplicateLiveEvent = useCallback((event: VehicleEventDTO) => {
+  const canShowToast = useCallback((event: VehicleEventDTO) => {
     const key = eventSpamKey(event);
     const now = Date.now();
-    const last = recentEventsRef.current.get(key);
+    const lastShownAt = shownToastRef.current.get(key);
 
-    if (last && now - last < EVENT_COOLDOWN_MS) {
-      return true;
+    if (lastShownAt && now - lastShownAt < EVENT_TOAST_COOLDOWN_MS) {
+      return false;
     }
 
-    recentEventsRef.current.set(key, now);
-Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
-  if (now - t > EVENT_COOLDOWN_MS * 2) {
-    recentEventsRef.current.delete(k);
-  }
-});
+    shownToastRef.current.set(key, now);
 
-    return false;
+    for (const [storedKey, storedTime] of Array.from(
+      shownToastRef.current.entries()
+    )) {
+      if (now - storedTime > EVENT_TOAST_COOLDOWN_MS * 2) {
+        shownToastRef.current.delete(storedKey);
+      }
+    }
+
+    return true;
   }, []);
+
+  const showEventToast = useCallback(
+    (event: VehicleEventDTO) => {
+      if (!isDangerEvent(event)) return;
+      if (!isRecentEvent(event)) return;
+      if (!canShowToast(event)) return;
+
+      const message = event.message || getEventLabel(event.eventType);
+      const toastId = eventSpamKey(event);
+
+      if (event.severity === "CRITICAL") {
+        toast.error(message, { toastId });
+      } else {
+        toast.warning(message, { toastId });
+      }
+    },
+    [canShowToast]
+  );
 
   const loadFleet = useCallback(async () => {
     try {
@@ -193,7 +199,7 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
 
       const safeFleet = Array.isArray(fleet) ? fleet : [];
       const safeEvents = Array.isArray(liveEvents)
-        ? liveEvents.filter(isDangerEvent)
+        ? liveEvents.filter(isDangerEvent).slice(0, 50)
         : [];
 
       setVehicles(safeFleet);
@@ -201,13 +207,16 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
 
       setSelectedVehicleId((prev) => {
         if (safeFleet.length === 0) return null;
+
         if (prev && safeFleet.some((vehicle) => vehicle.vehicleId === prev)) {
           return prev;
         }
+
         return safeFleet[0].vehicleId;
       });
     } catch (e: any) {
       console.error("Erreur lors du chargement GPS:", e);
+
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
@@ -225,6 +234,7 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
 
       try {
         const vehicle = vehicles.find((v) => v.vehicleId === vehicleId);
+
         const eventsPromise = gpsService.getVehicleEvents(vehicleId);
 
         const historyPromise =
@@ -236,7 +246,7 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
 
         setHistory(Array.isArray(h) ? h : []);
         setVehicleEvents(
-          Array.isArray(events) ? events.filter(isDangerEvent) : []
+          Array.isArray(events) ? events.filter(isDangerEvent).slice(0, 50) : []
         );
       } catch (e) {
         console.error("Erreur détail véhicule:", e);
@@ -258,6 +268,7 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
     subscribeGpsLive<VehicleLiveStatusDTO>((liveVehicle) => {
       setVehicles((prev) => {
         const exists = prev.some((v) => v.vehicleId === liveVehicle.vehicleId);
+
         if (!exists) return [...prev, liveVehicle];
 
         return prev.map((v) =>
@@ -268,7 +279,9 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
       setSelectedVehicleId((prev) => prev ?? liveVehicle.vehicleId);
 
       setHistory((prev) => {
-        if (selectedVehicleIdRef.current !== liveVehicle.vehicleId) return prev;
+        if (selectedVehicleIdRef.current !== liveVehicle.vehicleId) {
+          return prev;
+        }
 
         const point = toGpsPoint(liveVehicle);
         if (!point) return prev;
@@ -296,20 +309,14 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
         setVehicleEvents((prev) => upsertEvent(prev, event));
       }
 
-      if (!isRecentEvent(event)) return;
-      if (!isToastEvent(event)) return;
-      if (isDuplicateLiveEvent(event)) return;
-
-      toast.error(event.message || getEventLabel(event.eventType), {
-        toastId: eventSpamKey(event),
-      });
+      showEventToast(event);
     });
 
     return () => {
       unsubscribeGpsLive();
       unsubscribeEventsLive();
     };
-  }, [isDuplicateLiveEvent]);
+  }, [showEventToast]);
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -364,26 +371,27 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
               Suivi GPS temps réel
             </h1>
             <p className="mt-1 text-slate-600">
-              GPS, OBD, événements critiques et missions synchronisés via WebSocket.
+              GPS, OBD, événements critiques et missions synchronisés via
+              WebSocket.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["ALL", "MOVING", "OFFLINE", "MISSION", "ALERT"] as StatusFilter[]).map(
-              (f) => (
-                <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                    statusFilter === f
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {f}
-                </button>
-              )
-            )}
+            {(
+              ["ALL", "MOVING", "OFFLINE", "MISSION", "ALERT"] as StatusFilter[]
+            ).map((f) => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                  statusFilter === f
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -464,14 +472,19 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <Info label="Vehicle" value={selectedVehicle.vehicleName} />
                       <Info label="Status" value={selectedVehicle.liveStatus} />
-                      <Info label="Speed" value={`${selectedVehicle.speed} km/h`} />
+                      <Info
+                        label="Speed"
+                        value={`${selectedVehicle.speed ?? 0} km/h`}
+                      />
                       <Info
                         label="Engine"
                         value={selectedVehicle.engineOn ? "ON" : "OFF"}
                       />
                       <Info
                         label="Mission active"
-                        value={selectedVehicle.missionActive ? "Active" : "Inactive"}
+                        value={
+                          selectedVehicle.missionActive ? "Active" : "Inactive"
+                        }
                       />
                       <Info
                         label="Mission ID"
@@ -491,7 +504,9 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
                       />
                       <Info
                         label="History points"
-                        value={historyLoading ? "Loading..." : String(history.length)}
+                        value={
+                          historyLoading ? "Loading..." : String(history.length)
+                        }
                       />
                     </div>
                   )}
@@ -558,7 +573,9 @@ Array.from(recentEventsRef.current.entries()).forEach(([k, t]) => {
 
                           <p className="mt-2 text-xs text-slate-400">
                             Vehicle #{event.vehicleId}
-                            {event.missionId ? ` — Mission #${event.missionId}` : ""}
+                            {event.missionId
+                              ? ` — Mission #${event.missionId}`
+                              : ""}
                             {" — "}
                             {formatDate(event.createdAt)}
                           </p>

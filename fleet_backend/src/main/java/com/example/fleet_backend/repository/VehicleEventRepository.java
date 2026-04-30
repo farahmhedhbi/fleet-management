@@ -17,4 +17,13 @@ public interface VehicleEventRepository extends JpaRepository<VehicleEvent, Long
             Long vehicleId,
             VehicleEventType eventType
     );
+    Optional<VehicleEvent> findTopByVehicleIdAndMissionIdAndEventTypeOrderByCreatedAtDesc(
+            Long vehicleId,
+            Long missionId,
+            VehicleEventType eventType
+    );
+    Optional<VehicleEvent> findTopByVehicleIdAndMissionIdIsNullAndEventTypeOrderByCreatedAtDesc(
+            Long vehicleId,
+            VehicleEventType eventType
+    );
 }

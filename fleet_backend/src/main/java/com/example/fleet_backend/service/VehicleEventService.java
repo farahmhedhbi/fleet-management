@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -204,27 +205,31 @@ public class VehicleEventService {
     ) {
         LocalDateTime now = LocalDateTime.now();
 
-        var lastOpt = vehicleEventRepository
-                .findTopByVehicleIdAndEventTypeOrderByCreatedAtDesc(
-                        vehicle.getId(),
-                        eventType
-                );
+        Optional<VehicleEvent> lastOpt;
+
+        if (missionId != null) {
+            lastOpt = vehicleEventRepository
+                    .findTopByVehicleIdAndMissionIdAndEventTypeOrderByCreatedAtDesc(
+                            vehicle.getId(),
+                            missionId,
+                            eventType
+                    );
+        } else {
+            lastOpt = vehicleEventRepository
+                    .findTopByVehicleIdAndMissionIdIsNullAndEventTypeOrderByCreatedAtDesc(
+                            vehicle.getId(),
+                            eventType
+                    );
+        }
 
         if (lastOpt.isPresent()) {
             VehicleEvent last = lastOpt.get();
 
-            boolean sameMission = missionId == null
-                    ? last.getMissionId() == null
-                    : missionId.equals(last.getMissionId());
+            long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
 
             boolean sameSeverity = last.getSeverity() == severity;
 
-            long minutes = Duration.between(
-                    last.getCreatedAt(),
-                    now
-            ).toMinutes();
-
-            if (sameMission && sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
+            if (sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
                 return;
             }
         }
@@ -247,6 +252,9 @@ public class VehicleEventService {
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
     }
+
+
+
 
     public List<VehicleEventDTO> getLatestEvents() {
         return vehicleEventRepository.findTop50ByOrderByCreatedAtDesc()
@@ -279,6 +287,32 @@ public class VehicleEventService {
                 event.getSpeed(),
                 event.getCreatedAt(),
                 event.isAcknowledged()
+        );
+    }
+    public void createObdEventIfAllowed(
+            Vehicle vehicle,
+            Long missionId,
+            VehicleEventType eventType,
+            EventSeverity severity,
+            String message,
+            Double latitude,
+            Double longitude,
+            Double speed
+    ) {
+        GpsData gpsData = new GpsData();
+        gpsData.setVehicle(vehicle);
+        gpsData.setLatitude(latitude);
+        gpsData.setLongitude(longitude);
+        gpsData.setSpeed(speed);
+        gpsData.setTimestamp(LocalDateTime.now());
+
+        createEventIfAllowed(
+                vehicle,
+                missionId,
+                eventType,
+                severity,
+                message,
+                gpsData
         );
     }
 }

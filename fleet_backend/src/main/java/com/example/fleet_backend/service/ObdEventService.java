@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -52,6 +53,11 @@ public class ObdEventService {
             return;
         }
 
+        generateMainObdAlert(gpsData);
+        generateHealthStateEvent(gpsData, healthState, healthReason);
+    }
+
+    private void generateMainObdAlert(GpsData gpsData) {
         List<ObdAlertDTO> alerts = obdAnalysisService.computeAlerts(
                 gpsData.getFuelLevel(),
                 gpsData.getEngineTemperature(),
@@ -59,19 +65,52 @@ public class ObdEventService {
                 gpsData.getCheckEngineOn()
         );
 
-        for (ObdAlertDTO alert : alerts) {
-            EventSeverity severity = mapSeverity(alert.getSeverity());
+        if (alerts == null || alerts.isEmpty()) {
+            return;
+        }
 
-            if (severity != EventSeverity.CRITICAL && severity != EventSeverity.WARNING) {
-                continue;
-            }
+        ObdAlertDTO selectedAlert = selectMostImportantAlert(alerts);
 
-            createEventIfAllowed(
-                    gpsData,
-                    mapAlertCodeToEventType(alert.getCode()),
-                    severity,
-                    alert.getMessage()
-            );
+        if (selectedAlert == null) {
+            return;
+        }
+
+        EventSeverity severity = mapSeverity(selectedAlert.getSeverity());
+
+        if (severity != EventSeverity.CRITICAL && severity != EventSeverity.WARNING) {
+            return;
+        }
+
+        createEventIfAllowed(
+                gpsData,
+                mapAlertCodeToEventType(selectedAlert.getCode()),
+                severity,
+                selectedAlert.getMessage()
+        );
+    }
+
+    private ObdAlertDTO selectMostImportantAlert(List<ObdAlertDTO> alerts) {
+        Optional<ObdAlertDTO> critical = alerts.stream()
+                .filter(alert -> "CRITICAL".equalsIgnoreCase(alert.getSeverity()))
+                .findFirst();
+
+        if (critical.isPresent()) {
+            return critical.get();
+        }
+
+        return alerts.stream()
+                .filter(alert -> "WARNING".equalsIgnoreCase(alert.getSeverity()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void generateHealthStateEvent(
+            GpsData gpsData,
+            VehicleHealthState healthState,
+            String healthReason
+    ) {
+        if (healthState == null) {
+            return;
         }
 
         if (healthState == VehicleHealthState.BREAKDOWN) {
@@ -79,8 +118,11 @@ public class ObdEventService {
                     gpsData,
                     VehicleEventType.ENGINE_FAILURE,
                     EventSeverity.CRITICAL,
-                    healthReason != null ? healthReason : "Panne moteur probable"
+                    healthReason != null && !healthReason.isBlank()
+                            ? healthReason
+                            : "Panne moteur probable"
             );
+            return;
         }
 
         if (healthState == VehicleHealthState.MISSION_INTERRUPTED) {
@@ -88,7 +130,9 @@ public class ObdEventService {
                     gpsData,
                     VehicleEventType.MISSION_INTERRUPTED,
                     EventSeverity.CRITICAL,
-                    healthReason != null ? healthReason : "Mission interrompue"
+                    healthReason != null && !healthReason.isBlank()
+                            ? healthReason
+                            : "Mission interrompue"
             );
         }
     }
@@ -100,25 +144,26 @@ public class ObdEventService {
             String message
     ) {
         Vehicle vehicle = gpsData.getVehicle();
+
+        if (vehicle == null || vehicle.getId() == null || eventType == null || severity == null) {
+            return;
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
-        var lastOpt = eventRepository.findTopByVehicleIdAndEventTypeOrderByCreatedAtDesc(
+        Optional<VehicleEvent> lastOpt = findLastSimilarEvent(
                 vehicle.getId(),
+                gpsData.getMissionId(),
                 eventType
         );
 
         if (lastOpt.isPresent()) {
             VehicleEvent last = lastOpt.get();
 
-            boolean sameMission = gpsData.getMissionId() == null
-                    ? last.getMissionId() == null
-                    : gpsData.getMissionId().equals(last.getMissionId());
-
             boolean sameSeverity = last.getSeverity() == severity;
-
             long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
 
-            if (sameMission && sameSeverity && minutes < OBD_EVENT_COOLDOWN_MINUTES) {
+            if (sameSeverity && minutes < OBD_EVENT_COOLDOWN_MINUTES) {
                 return;
             }
         }
@@ -140,34 +185,81 @@ public class ObdEventService {
         incidentAutomationService.createIncidentIfNeeded(saved);
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
+
         notifyOwnerIfCritical(saved);
     }
 
-    private VehicleEventType mapAlertCodeToEventType(String code) {
-        if (code == null) return VehicleEventType.OBD_CHECK_ENGINE;
+    private Optional<VehicleEvent> findLastSimilarEvent(
+            Long vehicleId,
+            Long missionId,
+            VehicleEventType eventType
+    ) {
+        if (missionId != null) {
+            return eventRepository.findTopByVehicleIdAndMissionIdAndEventTypeOrderByCreatedAtDesc(
+                    vehicleId,
+                    missionId,
+                    eventType
+            );
+        }
 
-        if (code.startsWith("LOW_FUEL")) return VehicleEventType.OBD_LOW_FUEL;
-        if (code.startsWith("HIGH_TEMP")) return VehicleEventType.OBD_HIGH_TEMP;
-        if (code.startsWith("LOW_BATTERY")) return VehicleEventType.OBD_LOW_BATTERY;
-        if (code.equals("CHECK_ENGINE_ON")) return VehicleEventType.OBD_CHECK_ENGINE;
+        return eventRepository.findTopByVehicleIdAndMissionIdIsNullAndEventTypeOrderByCreatedAtDesc(
+                vehicleId,
+                eventType
+        );
+    }
+
+    private VehicleEventType mapAlertCodeToEventType(String code) {
+        if (code == null || code.isBlank()) {
+            return VehicleEventType.OBD_CHECK_ENGINE;
+        }
+
+        if (code.startsWith("LOW_FUEL")) {
+            return VehicleEventType.OBD_LOW_FUEL;
+        }
+
+        if (code.startsWith("HIGH_TEMP")) {
+            return VehicleEventType.OBD_HIGH_TEMP;
+        }
+
+        if (code.startsWith("LOW_BATTERY")) {
+            return VehicleEventType.OBD_LOW_BATTERY;
+        }
+
+        if ("CHECK_ENGINE_ON".equals(code)) {
+            return VehicleEventType.OBD_CHECK_ENGINE;
+        }
 
         return VehicleEventType.OBD_CHECK_ENGINE;
     }
 
     private EventSeverity mapSeverity(String severity) {
-        if ("CRITICAL".equalsIgnoreCase(severity)) return EventSeverity.CRITICAL;
-        if ("WARNING".equalsIgnoreCase(severity)) return EventSeverity.WARNING;
+        if ("CRITICAL".equalsIgnoreCase(severity)) {
+            return EventSeverity.CRITICAL;
+        }
+
+        if ("WARNING".equalsIgnoreCase(severity)) {
+            return EventSeverity.WARNING;
+        }
+
         return EventSeverity.INFO;
     }
 
     private void notifyOwnerIfCritical(VehicleEvent event) {
-        if (event == null || event.getVehicle() == null) return;
-        if (event.getSeverity() != EventSeverity.CRITICAL) return;
-        if (event.getVehicle().getOwner() == null) return;
+        if (event == null || event.getVehicle() == null) {
+            return;
+        }
+
+        if (event.getSeverity() != EventSeverity.CRITICAL) {
+            return;
+        }
+
+        if (event.getVehicle().getOwner() == null) {
+            return;
+        }
 
         notificationService.createUniqueForUser(
                 event.getVehicle().getOwner().getId(),
-                "ALERTE_CRITIQUE_VEHICULE",
+                event.getEventType().name(),
                 event.getMessage(),
                 event.getMissionId()
         );
