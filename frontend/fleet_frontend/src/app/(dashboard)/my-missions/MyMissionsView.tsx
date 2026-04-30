@@ -15,6 +15,7 @@ import {
   User,
   Route,
   History,
+  AlertTriangle,
 } from "lucide-react";
 
 function cn(...classes: (string | false | undefined)[]) {
@@ -23,9 +24,19 @@ function cn(...classes: (string | false | undefined)[]) {
 
 function statusBadge(status?: MissionStatus) {
   const s = String(status || "PLANNED");
-  if (s === "COMPLETED") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (s === "IN_PROGRESS") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (s === "CANCELED") return "bg-rose-50 text-rose-700 border-rose-200";
+
+  if (s === "COMPLETED") {
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  }
+
+  if (s === "IN_PROGRESS") {
+    return "bg-blue-50 text-blue-700 border-blue-200";
+  }
+
+  if (s === "CANCELED") {
+    return "bg-rose-50 text-rose-700 border-rose-200";
+  }
+
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
@@ -34,6 +45,10 @@ function statusLabel(s: MissionStatus) {
   if (s === "IN_PROGRESS") return "In Progress";
   if (s === "COMPLETED") return "Completed";
   return "Canceled";
+}
+
+function canReportIncident(mission: Mission) {
+  return mission.status === "IN_PROGRESS";
 }
 
 interface MyMissionsViewProps {
@@ -72,22 +87,24 @@ export default function MyMissionsView({
   formatDateTime,
 }: MyMissionsViewProps) {
   return (
-    <div className="p-6 md:p-10 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div className="space-y-6 p-6 md:p-10">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
             My Missions
           </h1>
           <p className="mt-1 text-slate-600">
-            Start and finish your assigned missions.
+            Start, follow and report incidents for your assigned missions.
           </p>
         </div>
 
         <button
           onClick={onRefresh}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
         >
-          <RefreshCcw className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          <RefreshCcw
+            className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+          />
           Refresh
         </button>
       </div>
@@ -99,7 +116,7 @@ export default function MyMissionsView({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by title, vehicle, status, route..."
-            className="w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
+            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-medium text-slate-800 outline-none focus:border-slate-300 focus:ring-2 focus:ring-sky-500/20"
           />
         </div>
       </div>
@@ -121,15 +138,18 @@ export default function MyMissionsView({
             const canStart = canStartMission(m);
             const canFinish = canFinishMission(m);
             const busy = actingId === m.id;
+            const reportAllowed = canReportIncident(m);
 
             return (
               <div
                 key={m.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
+                className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-extrabold text-slate-900">{m.title}</h3>
+                    <h3 className="text-lg font-extrabold text-slate-900">
+                      {m.title}
+                    </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {m.description || "No description"}
                     </p>
@@ -229,6 +249,31 @@ export default function MyMissionsView({
                       Historique
                     </Link>
                   </div>
+
+                  <Link
+                    href={`/my-missions/${m.id}/report-incident`}
+                    aria-disabled={!reportAllowed}
+                    onClick={(e) => {
+                      if (!reportAllowed) {
+                        e.preventDefault();
+                      }
+                    }}
+                    className={cn(
+                      "inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+                      reportAllowed
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "cursor-not-allowed bg-slate-100 text-slate-400"
+                    )}
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Déclarer incident
+                  </Link>
+
+                  {!reportAllowed ? (
+                    <p className="text-xs font-semibold text-slate-400">
+                      Disponible seulement quand la mission est en cours.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             );

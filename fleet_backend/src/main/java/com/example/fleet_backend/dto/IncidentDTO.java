@@ -39,6 +39,10 @@ public class IncidentDTO {
     private Integer eventCount;
     private LocalDateTime lastEventAt;
 
+    private Double latitude;
+    private Double longitude;
+    private Boolean emergency;
+
     public IncidentDTO(
             Long id,
             String title,
@@ -63,7 +67,10 @@ public class IncidentDTO {
             LocalDateTime updatedAt,
             String groupKey,
             Integer eventCount,
-            LocalDateTime lastEventAt
+            LocalDateTime lastEventAt,
+            Double latitude,
+            Double longitude,
+            Boolean emergency
     ) {
         this.id = id;
         this.title = title;
@@ -89,6 +96,9 @@ public class IncidentDTO {
         this.groupKey = groupKey;
         this.eventCount = eventCount;
         this.lastEventAt = lastEventAt;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.emergency = emergency;
     }
 
     public Long getId() { return id; }
@@ -112,15 +122,10 @@ public class IncidentDTO {
     public LocalDateTime getResolvedAt() { return resolvedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public String getGroupKey() {
-        return groupKey;
-    }
-
-    public Integer getEventCount() {
-        return eventCount;
-    }
-
-    public LocalDateTime getLastEventAt() {
-        return lastEventAt;
-    }
+    public String getGroupKey() { return groupKey; }
+    public Integer getEventCount() { return eventCount; }
+    public LocalDateTime getLastEventAt() { return lastEventAt; }
+    public Double getLatitude() { return latitude; }
+    public Double getLongitude() { return longitude; }
+    public Boolean getEmergency() { return emergency; }
 }
