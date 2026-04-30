@@ -53,11 +53,18 @@ public class IncidentService {
         incident.setTitle(request.getTitle());
         incident.setDescription(request.getDescription());
         incident.setType(request.getType());
-        incident.setSeverity(request.getSeverity());
+        incident.setSeverity(Boolean.TRUE.equals(request.getEmergency())
+                ? IncidentSeverity.CRITICAL
+                : request.getSeverity());
         incident.setStatus(IncidentStatus.REPORTED);
         incident.setSource(IncidentSource.MANUAL);
+
         incident.setReportedByUserId(AuthUtil.userId(auth));
         incident.setReportedByEmail(AuthUtil.email(auth));
+
+        incident.setLatitude(request.getLatitude());
+        incident.setLongitude(request.getLongitude());
+        incident.setEmergency(Boolean.TRUE.equals(request.getEmergency()));
 
         if (request.getVehicleId() != null) {
             vehicleAccessService.assertCanAccessVehicle(request.getVehicleId());
@@ -72,10 +79,13 @@ public class IncidentService {
             Mission mission = missionRepository.findById(request.getMissionId())
                     .orElseThrow(() -> new RuntimeException("Mission introuvable"));
 
+            if (!AuthUtil.isAdmin(auth) && !AuthUtil.isOwner(auth) && !AuthUtil.isDriver(auth)) {
+                throw new RuntimeException("Accès refusé");
+            }
+
             incident.setMission(mission);
 
-            if (incident.getVehicle() == null && mission.getVehicle() != null) {
-                vehicleAccessService.assertCanAccessVehicle(mission.getVehicle().getId());
+            if (mission.getVehicle() != null) {
                 incident.setVehicle(mission.getVehicle());
             }
         }
@@ -233,23 +243,33 @@ public class IncidentService {
                 incident.getSeverity(),
                 incident.getStatus(),
                 incident.getSource(),
+
                 vehicle != null ? vehicle.getId() : null,
                 vehicle != null ? vehicle.getRegistrationNumber() : null,
+
                 mission != null ? mission.getId() : null,
                 mission != null ? mission.getTitle() : null,
+
                 event != null ? event.getId() : null,
+
                 incident.getReportedByUserId(),
                 incident.getReportedByEmail(),
                 incident.getHandledByUserId(),
                 incident.getHandledByEmail(),
+
                 incident.getReportedAt(),
                 incident.getValidatedAt(),
                 incident.getResolvedAt(),
                 incident.getCreatedAt(),
                 incident.getUpdatedAt(),
+
                 incident.getGroupKey(),
                 incident.getEventCount(),
-                incident.getLastEventAt()
+                incident.getLastEventAt(),
+
+                incident.getLatitude(),
+                incident.getLongitude(),
+                incident.getEmergency()
         );
     }
     @Transactional

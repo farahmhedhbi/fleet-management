@@ -21,6 +21,10 @@ public class IncidentCreateRequest {
     private Long vehicleId;
     private Long missionId;
 
+    private Double latitude;
+    private Double longitude;
+    private Boolean emergency;
+
     public String getTitle() {
         return title;
     }
@@ -43,5 +47,17 @@ public class IncidentCreateRequest {
 
     public Long getMissionId() {
         return missionId;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public Boolean getEmergency() {
+        return emergency;
     }
 }

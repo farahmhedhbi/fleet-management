@@ -56,6 +56,9 @@ public class Incident {
     private LocalDateTime resolvedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Double latitude;
+    private Double longitude;
+    private Boolean emergency = false;
 
     @Column(name = "group_key")
     private String groupKey;
@@ -71,6 +74,7 @@ public class Incident {
         if (source == null) source = IncidentSource.MANUAL;
         if (eventCount == null) eventCount = 1;
         if (lastEventAt == null) lastEventAt = now;
+        if (emergency == null) emergency = false;
 
         reportedAt = now;
         createdAt = now;
@@ -245,5 +249,28 @@ public class Incident {
 
     public void setLastEventAt(LocalDateTime lastEventAt) {
         this.lastEventAt = lastEventAt;
+    }
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public Boolean getEmergency() {
+        return emergency;
+    }
+
+    public void setEmergency(Boolean emergency) {
+        this.emergency = emergency;
     }
 }

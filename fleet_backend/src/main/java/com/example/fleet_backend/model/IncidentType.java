@@ -7,5 +7,6 @@ public enum IncidentType {
     GPS_ANOMALY,
     MISSION_PROBLEM,
     DRIVER_BEHAVIOR,
+    ROAD_ISSUE,
     OTHER
 }

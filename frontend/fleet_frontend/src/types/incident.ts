@@ -4,8 +4,8 @@ export interface IncidentDTO {
   description: string | null;
 
   type: string;
-  severity: string;
-  status: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
   source: string;
 
   vehicleId: number | null;
@@ -31,6 +31,10 @@ export interface IncidentDTO {
   groupKey: string | null;
   eventCount: number | null;
   lastEventAt: string | null;
+
+  latitude: number | null;
+  longitude: number | null;
+  emergency: boolean | null;
 }
 
 export type IncidentStatus =
@@ -40,8 +44,4 @@ export type IncidentStatus =
   | "RESOLVED"
   | "REJECTED";
 
-export type IncidentSeverity =
-  | "LOW"
-  | "MEDIUM"
-  | "HIGH"
-  | "CRITICAL";
+export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
