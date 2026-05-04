@@ -71,13 +71,15 @@ public class MissionPlanningService {
         long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
         LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
 
-        if (missionRepository.existsVehicleOverlap(vehicle.getId(), dto.getStartDate(), estimatedEndDate)) {
-            throw new IllegalArgumentException("Vehicle already assigned on this estimated time range");
-        }
+        validateDriverLicense(driver, estimatedEndDate);
 
-        if (missionRepository.existsDriverOverlap(driver.getId(), dto.getStartDate(), estimatedEndDate)) {
-            throw new IllegalArgumentException("Driver already assigned on this estimated time range");
-        }
+        validateVehicleAndDriverAvailability(
+                vehicle.getId(),
+                driver.getId(),
+                dto.getStartDate(),
+                estimatedEndDate,
+                null
+        );
 
         Mission mission = new Mission();
         mission.setTitle(dto.getTitle().trim());
@@ -133,15 +135,15 @@ public class MissionPlanningService {
         long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
         LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
 
-        if (missionRepository.existsVehicleOverlapExcludingMission(
-                vehicle.getId(), dto.getStartDate(), estimatedEndDate, mission.getId())) {
-            throw new IllegalArgumentException("Vehicle already assigned on this estimated time range");
-        }
+        validateDriverLicense(driver, estimatedEndDate);
 
-        if (missionRepository.existsDriverOverlapExcludingMission(
-                driver.getId(), dto.getStartDate(), estimatedEndDate, mission.getId())) {
-            throw new IllegalArgumentException("Driver already assigned on this estimated time range");
-        }
+        validateVehicleAndDriverAvailability(
+                vehicle.getId(),
+                driver.getId(),
+                dto.getStartDate(),
+                estimatedEndDate,
+                mission.getId()
+        );
 
         mission.setTitle(dto.getTitle().trim());
         mission.setDescription(dto.getDescription());
@@ -156,22 +158,72 @@ public class MissionPlanningService {
         return missionRepository.save(mission);
     }
 
+    private void validateDriverLicense(Driver driver, LocalDateTime missionEndDate) {
+        if (driver.getStatus() != Driver.DriverStatus.ACTIVE) {
+            throw new IllegalArgumentException("Ce chauffeur n'est pas actif");
+        }
+
+        if (driver.getLicenseExpiry() == null) {
+            throw new IllegalArgumentException("La date d'expiration du permis est manquante");
+        }
+
+        if (driver.getLicenseExpiry().isBefore(missionEndDate) || driver.getLicenseExpiry().isEqual(missionEndDate)) {
+            throw new IllegalArgumentException("Le permis du chauffeur expire avant la fin de la mission");
+        }
+    }
+
+    private void validateVehicleAndDriverAvailability(Long vehicleId,
+                                                      Long driverId,
+                                                      LocalDateTime startDate,
+                                                      LocalDateTime endDate,
+                                                      Long currentMissionId) {
+
+        if (missionRepository.existsByVehicleIdAndStatus(vehicleId, Mission.MissionStatus.IN_PROGRESS)) {
+            throw new IllegalArgumentException("Ce véhicule a déjà une mission en cours");
+        }
+
+        if (missionRepository.existsByDriverIdAndStatus(driverId, Mission.MissionStatus.IN_PROGRESS)) {
+            throw new IllegalArgumentException("Ce chauffeur a déjà une mission en cours");
+        }
+
+        boolean vehicleOverlap = currentMissionId == null
+                ? missionRepository.existsVehicleOverlap(vehicleId, startDate, endDate)
+                : missionRepository.existsVehicleOverlapExcludingMission(vehicleId, startDate, endDate, currentMissionId);
+
+        if (vehicleOverlap) {
+            throw new IllegalArgumentException("Ce véhicule est déjà réservé dans cette période");
+        }
+
+        boolean driverOverlap = currentMissionId == null
+                ? missionRepository.existsDriverOverlap(driverId, startDate, endDate)
+                : missionRepository.existsDriverOverlapExcludingMission(driverId, startDate, endDate, currentMissionId);
+
+        if (driverOverlap) {
+            throw new IllegalArgumentException("Ce chauffeur est déjà réservé dans cette période");
+        }
+    }
+
     private void validateMissionInput(MissionDTO dto) {
         if (dto.getTitle() == null || dto.getTitle().isBlank()) {
             throw new IllegalArgumentException("title is required");
         }
+
         if (dto.getDeparture() == null || dto.getDeparture().isBlank()) {
             throw new IllegalArgumentException("departure is required");
         }
+
         if (dto.getDestination() == null || dto.getDestination().isBlank()) {
             throw new IllegalArgumentException("destination is required");
         }
+
         if (dto.getVehicleId() == null) {
             throw new IllegalArgumentException("vehicleId is required");
         }
+
         if (dto.getDriverId() == null) {
             throw new IllegalArgumentException("driverId is required");
         }
+
         if (dto.getStartDate() == null) {
             throw new IllegalArgumentException("startDate is required");
         }

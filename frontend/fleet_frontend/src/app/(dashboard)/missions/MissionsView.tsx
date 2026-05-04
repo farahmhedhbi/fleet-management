@@ -248,23 +248,27 @@ export default function MissionsView({
       <div className="grid gap-4 md:grid-cols-2">
         <select
           value={form.vehicleId || ""}
-          onChange={(e) => setForm((p) => ({ ...p, vehicleId: Number(e.target.value) }))}
+          onChange={(e) =>
+            setForm((p) => ({ ...p, vehicleId: Number(e.target.value) }))
+          }
           className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
         >
-          <option value="">Select vehicle</option>
+          <option value="">Select available vehicle</option>
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.registrationNumber}
+              {v.registrationNumber} {v.status ? `- ${v.status}` : ""}
             </option>
           ))}
         </select>
 
         <select
           value={form.driverId || ""}
-          onChange={(e) => setForm((p) => ({ ...p, driverId: Number(e.target.value) }))}
+          onChange={(e) =>
+            setForm((p) => ({ ...p, driverId: Number(e.target.value) }))
+          }
           className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
         >
-          <option value="">Select driver</option>
+          <option value="">Select available driver</option>
           {drivers.map((d) => (
             <option key={d.id} value={d.id}>
               {d.firstName} {d.lastName}
@@ -467,6 +471,7 @@ export default function MissionsView({
                           {statusLabel(m.status)}
                         </span>
                       </div>
+
                       <p className="mt-2 text-sm text-slate-600">
                         {m.description || "No description"}
                       </p>
@@ -475,42 +480,54 @@ export default function MissionsView({
 
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Route</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Route
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.departure} → {m.destination}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicle</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Vehicle
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.vehicleRegistrationNumber || "—"}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Driver
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.driverName || "—"}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planned start</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Planned start
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.startDate)}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estimated end</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Estimated end
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.endDate)}
                       </p>
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Started at</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Started at
+                      </p>
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.startedAt)}
                       </p>

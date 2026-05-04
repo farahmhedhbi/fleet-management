@@ -36,6 +36,37 @@ function toInputDateTime(value?: string | null) {
   return local.toISOString().slice(0, 16);
 }
 
+function rangesOverlap(
+  aStart?: string,
+  aEnd?: string,
+  bStart?: string,
+  bEnd?: string
+) {
+  if (!aStart || !aEnd || !bStart || !bEnd) return false;
+
+  const as = new Date(aStart).getTime();
+  const ae = new Date(aEnd).getTime();
+  const bs = new Date(bStart).getTime();
+  const be = new Date(bEnd).getTime();
+
+  if ([as, ae, bs, be].some(Number.isNaN)) return false;
+
+  return as < be && ae > bs;
+}
+
+function isDriverLicenseValidForMission(driver: Driver, missionEnd?: string) {
+  if (driver.status !== "ACTIVE") return false;
+  if (!driver.licenseExpiry) return false;
+  if (!missionEnd) return true;
+
+  const expiry = new Date(driver.licenseExpiry).getTime();
+  const end = new Date(missionEnd).getTime();
+
+  if (Number.isNaN(expiry) || Number.isNaN(end)) return false;
+
+  return expiry > end;
+}
+
 const emptyForm: MissionDTO = {
   title: "",
   description: "",
@@ -61,13 +92,20 @@ export default function MissionsPage() {
   const [statusFilter, setStatusFilter] = useState<MissionStatusFilter>("ALL");
   const [form, setForm] = useState<MissionDTO>(emptyForm);
 
-  const [departureSuggestions, setDepartureSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] = useState(false);
-  const [loadingDestinationSuggestions, setLoadingDestinationSuggestions] = useState(false);
+  const [departureSuggestions, setDepartureSuggestions] = useState<
+    PlaceSuggestion[]
+  >([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<
+    PlaceSuggestion[]
+  >([]);
+  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] =
+    useState(false);
+  const [loadingDestinationSuggestions, setLoadingDestinationSuggestions] =
+    useState(false);
 
   const loadAll = async () => {
     setRefreshing(true);
+
     try {
       const [ms, vs, ds] = await Promise.all([
         missionService.getAll(),
@@ -96,6 +134,80 @@ export default function MissionsPage() {
     loadAll();
   }, []);
 
+  const estimatedCreateEnd = useMemo(() => {
+    if (!form.startDate) return "";
+
+    const d = new Date(form.startDate);
+    if (Number.isNaN(d.getTime())) return "";
+
+    // Estimation front simple فقط للفلترة.
+    // Backend يحسب الوقت الحقيقي بالـ RoutePlannerService.
+    d.setHours(d.getHours() + 2);
+    return d.toISOString();
+  }, [form.startDate]);
+
+  const unavailableVehicleIds = useMemo(() => {
+    return new Set(
+      missions
+        .filter((m) => {
+          if (m.status === "IN_PROGRESS") return true;
+
+          if (m.status === "PLANNED") {
+            return rangesOverlap(
+              form.startDate,
+              estimatedCreateEnd,
+              m.startDate,
+              m.endDate
+            );
+          }
+
+          return false;
+        })
+        .map((m) => m.vehicleId)
+        .filter((id): id is number => Boolean(id))
+    );
+  }, [missions, form.startDate, estimatedCreateEnd]);
+
+  const unavailableDriverIds = useMemo(() => {
+    return new Set(
+      missions
+        .filter((m) => {
+          if (m.status === "IN_PROGRESS") return true;
+
+          if (m.status === "PLANNED") {
+            return rangesOverlap(
+              form.startDate,
+              estimatedCreateEnd,
+              m.startDate,
+              m.endDate
+            );
+          }
+
+          return false;
+        })
+        .map((m) => m.driverId)
+        .filter((id): id is number => Boolean(id))
+    );
+  }, [missions, form.startDate, estimatedCreateEnd]);
+
+  const vehiclesForForm = useMemo(() => {
+    if (openEdit) return vehicles;
+
+    return vehicles.filter(
+      (v) => v.status === "AVAILABLE" && !unavailableVehicleIds.has(v.id)
+    );
+  }, [vehicles, unavailableVehicleIds, openEdit]);
+
+  const driversForForm = useMemo(() => {
+    if (openEdit) return drivers;
+
+    return drivers.filter(
+      (d) =>
+        !unavailableDriverIds.has(d.id) &&
+        isDriverLicenseValidForMission(d, estimatedCreateEnd)
+    );
+  }, [drivers, unavailableDriverIds, estimatedCreateEnd, openEdit]);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
 
@@ -105,7 +217,11 @@ export default function MissionsPage() {
 
       const matchesSearch = !query
         ? true
-        : `${m.title} ${m.description ?? ""} ${m.departure} ${m.destination} ${m.status} ${m.driverName ?? ""} ${m.vehicleRegistrationNumber ?? ""}`
+        : `${m.title} ${m.description ?? ""} ${m.departure} ${
+            m.destination
+          } ${m.status} ${m.driverName ?? ""} ${
+            m.vehicleRegistrationNumber ?? ""
+          }`
             .toLowerCase()
             .includes(query);
 
@@ -139,6 +255,7 @@ export default function MissionsPage() {
     if (!form.driverId) return toast.warn("Driver is required");
 
     setCreating(true);
+
     try {
       await missionService.create(form);
       toast.success("Mission created successfully");
@@ -174,6 +291,7 @@ export default function MissionsPage() {
       vehicleId: mission.vehicleId || 0,
       driverId: mission.driverId || 0,
     });
+
     setOpenEdit(true);
     setOpenCreate(false);
   };
@@ -188,6 +306,7 @@ export default function MissionsPage() {
     if (!form.driverId) return toast.warn("Driver is required");
 
     setUpdating(true);
+
     try {
       await missionService.update(editingMissionId, form);
       toast.success("Mission updated successfully");
@@ -295,8 +414,8 @@ export default function MissionsPage() {
     <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
       <MissionsView
         missions={missions}
-        vehicles={vehicles}
-        drivers={drivers}
+        vehicles={vehiclesForForm}
+        drivers={driversForForm}
         filtered={filtered}
         loading={loading}
         refreshing={refreshing}
@@ -304,10 +423,20 @@ export default function MissionsPage() {
         updating={updating}
         openCreate={openCreate}
         openEdit={openEdit}
-        setOpenCreate={setOpenCreate}
+        setOpenCreate={(value) => {
+          setOpenCreate(value);
+
+          if (value) {
+            setOpenEdit(false);
+            resetForm();
+          }
+        }}
         setOpenEdit={(value) => {
           setOpenEdit(value);
-          if (!value) resetForm();
+
+          if (!value) {
+            resetForm();
+          }
         }}
         q={q}
         setQ={setQ}
