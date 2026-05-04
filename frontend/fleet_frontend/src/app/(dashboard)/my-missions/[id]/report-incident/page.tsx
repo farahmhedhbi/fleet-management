@@ -22,10 +22,9 @@ import { incidentService } from "@/lib/services/incidentService";
 type IncidentTypeOption =
   | "ACCIDENT"
   | "VEHICLE_BREAKDOWN"
-  | "MISSION_PROBLEM"
-  | "GPS_ANOMALY"
   | "ROAD_ISSUE"
-  | "DRIVER_BEHAVIOR"
+  | "DANGER"
+  | "MISSION_PROBLEM"
   | "OTHER";
 
 type SeverityOption = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -185,19 +184,12 @@ export default function DriverReportIncidentPage() {
                   Type incident
                 </label>
 
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value as IncidentTypeOption)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/10"
-                >
-                  <option value="ACCIDENT">Accident</option>
+                <option value="ACCIDENT">Accident</option>
                   <option value="VEHICLE_BREAKDOWN">Panne véhicule</option>
-                  <option value="ROAD_ISSUE">Danger / problème route</option>
+                  <option value="ROAD_ISSUE">Problème route</option>
+                  <option value="DANGER">Danger / agression</option>
                   <option value="MISSION_PROBLEM">Problème mission</option>
-                  <option value="GPS_ANOMALY">Problème GPS</option>
-                  <option value="DRIVER_BEHAVIOR">Comportement conducteur</option>
                   <option value="OTHER">Autre</option>
-                </select>
               </div>
 
               <div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "react-toastify";
@@ -31,7 +32,7 @@ function incidentKey(incident: IncidentDTO) {
   return String(incident.id);
 }
 
-function severityClass(severity: string) {
+function severityClass(severity: IncidentSeverity) {
   switch (severity) {
     case "CRITICAL":
       return "bg-red-100 text-red-700 border-red-200";
@@ -39,57 +40,71 @@ function severityClass(severity: string) {
       return "bg-orange-100 text-orange-700 border-orange-200";
     case "MEDIUM":
       return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "LOW":
     default:
       return "bg-slate-100 text-slate-700 border-slate-200";
   }
 }
 
-function statusClass(status: string) {
+function statusClass(status: IncidentStatus) {
   switch (status) {
-    case "REPORTED":
+    case "OPEN":
       return "bg-blue-100 text-blue-700 border-blue-200";
-    case "VALIDATED":
-      return "bg-purple-100 text-purple-700 border-purple-200";
     case "IN_PROGRESS":
       return "bg-amber-100 text-amber-700 border-amber-200";
     case "RESOLVED":
       return "bg-green-100 text-green-700 border-green-200";
-    case "REJECTED":
-      return "bg-slate-100 text-slate-700 border-slate-200";
+    case "CLOSED":
     default:
       return "bg-slate-100 text-slate-700 border-slate-200";
   }
 }
 
-function canMoveTo(status: string, target: IncidentStatus) {
+function statusLabel(status: IncidentStatus) {
+  switch (status) {
+    case "OPEN":
+      return "Ouvert";
+    case "IN_PROGRESS":
+      return "En traitement";
+    case "RESOLVED":
+      return "Résolu";
+    case "CLOSED":
+      return "Clôturé";
+    default:
+      return status;
+  }
+}
+
+function severityLabel(severity: IncidentSeverity) {
+  switch (severity) {
+    case "LOW":
+      return "Faible";
+    case "MEDIUM":
+      return "Moyenne";
+    case "HIGH":
+      return "Haute";
+    case "CRITICAL":
+      return "Critique";
+    default:
+      return severity;
+  }
+}
+
+function canMoveTo(status: IncidentStatus, target: IncidentStatus) {
   if (status === target) return false;
-  if (status === "RESOLVED" || status === "REJECTED") return false;
+  if (status === "CLOSED") return false;
 
-  if (target === "VALIDATED") return status === "REPORTED";
-
-  if (target === "IN_PROGRESS") {
-    return status === "REPORTED" || status === "VALIDATED";
-  }
-
-  if (target === "RESOLVED") {
-    return (
-      status === "REPORTED" ||
-      status === "VALIDATED" ||
-      status === "IN_PROGRESS"
-    );
-  }
-
-  if (target === "REJECTED") {
-    return status === "REPORTED" || status === "VALIDATED";
+  if (target === "IN_PROGRESS") return status === "OPEN" || status === "RESOLVED";
+  if (target === "RESOLVED") return status === "OPEN" || status === "IN_PROGRESS";
+  if (target === "CLOSED") {
+    return status === "OPEN" || status === "IN_PROGRESS" || status === "RESOLVED";
   }
 
   return false;
 }
 
 function splitDescription(description?: string | null) {
-  if (!description || description.trim().length === 0) {
-    return ["Aucune description."];
-  }
+  if (!description || description.trim().length === 0) return ["Aucune description."];
 
   return description
     .split("\n")
@@ -110,8 +125,9 @@ export default function IncidentsPage() {
     try {
       setLoading(true);
       const data = await incidentService.getAll();
+
       setIncidents(Array.isArray(data) ? data : []);
-      receivedRef.current = new Set(data.map((i) => incidentKey(i)));
+      receivedRef.current = new Set(data.map((incident) => incidentKey(incident)));
     } catch (e: any) {
       console.error(e);
       toast.error(
@@ -139,15 +155,11 @@ export default function IncidentsPage() {
 
       setIncidents((prev) => {
         const exists = prev.some((i) => i.id === incident.id);
-
-        if (exists) {
-          return prev.map((i) => (i.id === incident.id ? incident : i));
-        }
-
+        if (exists) return prev.map((i) => (i.id === incident.id ? incident : i));
         return [incident, ...prev].slice(0, 100);
       });
 
-      if (!alreadyKnown && incident.status === "REPORTED") {
+      if (!alreadyKnown && incident.status === "OPEN") {
         if (incident.severity === "CRITICAL" || incident.severity === "HIGH") {
           toast.error(incident.title || "Nouvel incident critique", {
             toastId: `incident-${incident.id}`,
@@ -160,23 +172,18 @@ export default function IncidentsPage() {
       }
     });
 
-    return () => {
-      unsubscribeIncidentsLive();
-    };
+    return () => unsubscribeIncidentsLive();
   }, []);
 
   const activeIncidents = useMemo(() => {
     return incidents.filter(
-      (incident) =>
-        incident.status !== "RESOLVED" && incident.status !== "REJECTED"
+      (incident) => incident.status !== "RESOLVED" && incident.status !== "CLOSED"
     );
   }, [incidents]);
 
   const filtered = useMemo(() => {
     return incidents.filter((incident) => {
-      const statusOk =
-        statusFilter === "ALL" || incident.status === statusFilter;
-
+      const statusOk = statusFilter === "ALL" || incident.status === statusFilter;
       const severityOk =
         severityFilter === "ALL" || incident.severity === severityFilter;
 
@@ -188,10 +195,11 @@ export default function IncidentsPage() {
     return {
       total: incidents.length,
       active: activeIncidents.length,
-      reported: incidents.filter((i) => i.status === "REPORTED").length,
+      open: incidents.filter((i) => i.status === "OPEN").length,
       inProgress: incidents.filter((i) => i.status === "IN_PROGRESS").length,
       critical: activeIncidents.filter((i) => i.severity === "CRITICAL").length,
       resolved: incidents.filter((i) => i.status === "RESOLVED").length,
+      closed: incidents.filter((i) => i.status === "CLOSED").length,
     };
   }, [incidents, activeIncidents]);
 
@@ -227,8 +235,8 @@ export default function IncidentsPage() {
               Gestion des incidents
             </h1>
             <p className="mt-1 text-slate-600">
-              Incidents actifs agrégés depuis GPS, OBD, missions et événements
-              critiques.
+              Suivi des incidents déclarés par les drivers ou confirmés depuis
+              les alertes GPS / OBD.
             </p>
           </div>
 
@@ -240,13 +248,18 @@ export default function IncidentsPage() {
           </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <StatCard label="Total" value={stats.total} />
           <StatCard label="Actifs" value={stats.active} danger={stats.active > 0} />
-          <StatCard label="Signalés" value={stats.reported} />
+          <StatCard label="Ouverts" value={stats.open} />
           <StatCard label="En traitement" value={stats.inProgress} />
-          <StatCard label="Critiques actifs" value={stats.critical} danger />
+          <StatCard
+            label="Critiques actifs"
+            value={stats.critical}
+            danger={stats.critical > 0}
+          />
           <StatCard label="Résolus" value={stats.resolved} />
+          <StatCard label="Clôturés" value={stats.closed} />
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -257,28 +270,21 @@ export default function IncidentsPage() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    "ALL",
-                    "REPORTED",
-                    "VALIDATED",
-                    "IN_PROGRESS",
-                    "RESOLVED",
-                    "REJECTED",
-                  ] as StatusFilter[]
-                ).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                      statusFilter === status
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
+                {(["ALL", "OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as StatusFilter[]).map(
+                  (status) => (
+                    <button
+                      key={status}
+                      onClick={() => setStatusFilter(status)}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                        statusFilter === status
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {status === "ALL" ? "Tous" : statusLabel(status)}
+                    </button>
+                  )
+                )}
               </div>
             </div>
 
@@ -288,21 +294,21 @@ export default function IncidentsPage() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {(
-                  ["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as SeverityFilter[]
-                ).map((severity) => (
-                  <button
-                    key={severity}
-                    onClick={() => setSeverityFilter(severity)}
-                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                      severityFilter === severity
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {severity}
-                  </button>
-                ))}
+                {(["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as SeverityFilter[]).map(
+                  (severity) => (
+                    <button
+                      key={severity}
+                      onClick={() => setSeverityFilter(severity)}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                        severityFilter === severity
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {severity === "ALL" ? "Toutes" : severityLabel(severity)}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -334,27 +340,30 @@ export default function IncidentsPage() {
                         </h2>
 
                         <Badge className={severityClass(incident.severity)}>
-                          {incident.severity}
+                          {severityLabel(incident.severity)}
                         </Badge>
 
                         <Badge className={statusClass(incident.status)}>
-                          {incident.status}
+                          {statusLabel(incident.status)}
                         </Badge>
 
                         <Badge className="border-slate-200 bg-slate-50 text-slate-600">
                           {incident.source}
                         </Badge>
 
-                        {(incident.eventCount ?? 1) > 1 && (
-                          <Badge className="border-indigo-200 bg-indigo-50 text-indigo-700">
-                            {incident.eventCount} occurrences
+                        {incident.emergency ? (
+                          <Badge className="border-red-200 bg-red-50 text-red-700">
+                            Urgence
                           </Badge>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
                         {descriptionLines.map((line, index) => (
-                          <p key={`${incident.id}-line-${index}`} className="mt-1 first:mt-0">
+                          <p
+                            key={`${incident.id}-line-${index}`}
+                            className="mt-1 first:mt-0"
+                          >
                             {line}
                           </p>
                         ))}
@@ -386,28 +395,54 @@ export default function IncidentsPage() {
                         />
 
                         <Info
-                          label="Occurrences"
-                          value={String(incident.eventCount ?? 1)}
+                          label="Déclaré par"
+                          value={incident.reportedByEmail || "—"}
                         />
 
                         <Info
-                          label="Dernier événement"
-                          value={formatDate(
-                            incident.lastEventAt || incident.updatedAt || incident.createdAt
-                          )}
+                          label="Date"
+                          value={formatDate(incident.reportedAt || incident.createdAt)}
+                        />
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2 xl:grid-cols-4">
+                        <Info
+                          label="Dernière mise à jour"
+                          value={formatDate(incident.updatedAt)}
+                        />
+
+                        <Info
+                          label="Traité par"
+                          value={incident.handledByEmail || "—"}
+                        />
+
+                        <Info
+                          label="Position"
+                          value={
+                            incident.latitude != null && incident.longitude != null
+                              ? `${incident.latitude.toFixed(5)}, ${incident.longitude.toFixed(5)}`
+                              : "—"
+                          }
+                        />
+
+                        <Info
+                          label="Event lié"
+                          value={
+                            incident.vehicleEventId
+                              ? `#${incident.vehicleEventId}`
+                              : "—"
+                          }
                         />
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2 lg:w-44 lg:justify-end">
-                      {canMoveTo(incident.status, "VALIDATED") && (
-                        <ActionButton
-                          disabled={updatingId === incident.id}
-                          onClick={() => updateStatus(incident.id, "VALIDATED")}
-                        >
-                          Valider
-                        </ActionButton>
-                      )}
+                      <Link
+                        href={`/incidents/${incident.id}`}
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Détails
+                      </Link>
 
                       {canMoveTo(incident.status, "IN_PROGRESS") && (
                         <ActionButton
@@ -428,13 +463,13 @@ export default function IncidentsPage() {
                         </ActionButton>
                       )}
 
-                      {canMoveTo(incident.status, "REJECTED") && (
+                      {canMoveTo(incident.status, "CLOSED") && (
                         <ActionButton
                           muted
                           disabled={updatingId === incident.id}
-                          onClick={() => updateStatus(incident.id, "REJECTED")}
+                          onClick={() => updateStatus(incident.id, "CLOSED")}
                         >
-                          Rejeter
+                          Clôturer
                         </ActionButton>
                       )}
                     </div>

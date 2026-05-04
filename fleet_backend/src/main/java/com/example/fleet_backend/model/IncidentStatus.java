@@ -1,9 +1,8 @@
 package com.example.fleet_backend.model;
 
 public enum IncidentStatus {
-    REPORTED,
-    VALIDATED,
+    OPEN,
     IN_PROGRESS,
     RESOLVED,
-    REJECTED
+    CLOSED
 }

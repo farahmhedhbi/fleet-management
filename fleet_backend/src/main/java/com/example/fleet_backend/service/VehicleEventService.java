@@ -26,16 +26,15 @@ public class VehicleEventService {
 
     private final VehicleEventRepository vehicleEventRepository;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
-    private final IncidentAutomationService incidentAutomationService;
+
 
     public VehicleEventService(
             VehicleEventRepository vehicleEventRepository,
-            GpsWebSocketPublisher gpsWebSocketPublisher,
-            IncidentAutomationService incidentAutomationService
+            GpsWebSocketPublisher gpsWebSocketPublisher
     ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
-        this.incidentAutomationService = incidentAutomationService;
+
     }
 
     public void analyzeAndCreateEvents(
@@ -248,7 +247,7 @@ public class VehicleEventService {
 
         VehicleEvent saved = vehicleEventRepository.save(event);
 
-        incidentAutomationService.createIncidentIfNeeded(saved);
+
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
     }

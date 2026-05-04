@@ -70,16 +70,16 @@ public class Incident {
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
 
-        if (status == null) status = IncidentStatus.REPORTED;
-        if (source == null) source = IncidentSource.MANUAL;
+        if (status == null) status = IncidentStatus.OPEN;
+        if (source == null) source = IncidentSource.DRIVER;
         if (eventCount == null) eventCount = 1;
         if (lastEventAt == null) lastEventAt = now;
         if (emergency == null) emergency = false;
 
-        reportedAt = now;
-        createdAt = now;
-        updatedAt = now;
+        if (reportedAt == null) reportedAt = now;
+        if (createdAt == null) createdAt = now;
 
+        updatedAt = now;
     }
 
     @PreUpdate

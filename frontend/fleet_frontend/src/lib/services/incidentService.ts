@@ -1,15 +1,29 @@
 import { api } from "@/lib/api";
-import type { IncidentDTO, IncidentStatus } from "@/types/incident";
+import type {
+  IncidentDTO,
+  IncidentSeverity,
+  IncidentStatus,
+  IncidentType,
+} from "@/types/incident";
 
 export type CreateIncidentRequest = {
   title: string;
   description?: string;
-  type: string;
-  severity: string;
+  type: IncidentType;
+  severity: IncidentSeverity;
   vehicleId?: number;
   missionId?: number;
   latitude?: number;
   longitude?: number;
+  emergency?: boolean;
+};
+
+export type CreateIncidentFromEventRequest = {
+  vehicleEventId: number;
+  type: IncidentType;
+  severity: IncidentSeverity;
+  title?: string;
+  description?: string;
   emergency?: boolean;
 };
 
@@ -19,8 +33,18 @@ export const incidentService = {
     return res.data;
   },
 
+  async createFromEvent(data: CreateIncidentFromEventRequest): Promise<IncidentDTO> {
+    const res = await api.post<IncidentDTO>("/api/incidents/from-event", data);
+    return res.data;
+  },
+
   async getAll(): Promise<IncidentDTO[]> {
     const res = await api.get<IncidentDTO[]>("/api/incidents");
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  async getMy(): Promise<IncidentDTO[]> {
+    const res = await api.get<IncidentDTO[]>("/api/incidents/me");
     return Array.isArray(res.data) ? res.data : [];
   },
 
@@ -43,7 +67,6 @@ export const incidentService = {
     const res = await api.put<IncidentDTO>(`/api/incidents/${id}/status`, {
       status,
     });
-
     return res.data;
   },
 };

@@ -2,8 +2,15 @@ package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.IncidentCreateRequest;
 import com.example.fleet_backend.dto.IncidentDTO;
+import com.example.fleet_backend.dto.IncidentFromEventRequest;
 import com.example.fleet_backend.dto.IncidentUpdateStatusRequest;
-import com.example.fleet_backend.model.*;
+import com.example.fleet_backend.model.Incident;
+import com.example.fleet_backend.model.IncidentSeverity;
+import com.example.fleet_backend.model.IncidentSource;
+import com.example.fleet_backend.model.IncidentStatus;
+import com.example.fleet_backend.model.Mission;
+import com.example.fleet_backend.model.Vehicle;
+import com.example.fleet_backend.model.VehicleEvent;
 import com.example.fleet_backend.repository.IncidentRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleEventRepository;
@@ -56,8 +63,8 @@ public class IncidentService {
         incident.setSeverity(Boolean.TRUE.equals(request.getEmergency())
                 ? IncidentSeverity.CRITICAL
                 : request.getSeverity());
-        incident.setStatus(IncidentStatus.REPORTED);
-        incident.setSource(IncidentSource.MANUAL);
+        incident.setStatus(IncidentStatus.OPEN);
+        incident.setSource(resolveManualSource(auth));
 
         incident.setReportedByUserId(AuthUtil.userId(auth));
         incident.setReportedByEmail(AuthUtil.email(auth));
@@ -79,18 +86,76 @@ public class IncidentService {
             Mission mission = missionRepository.findById(request.getMissionId())
                     .orElseThrow(() -> new RuntimeException("Mission introuvable"));
 
-            if (!AuthUtil.isAdmin(auth) && !AuthUtil.isOwner(auth) && !AuthUtil.isDriver(auth)) {
-                throw new RuntimeException("Accès refusé");
-            }
-
             incident.setMission(mission);
 
             if (mission.getVehicle() != null) {
+                vehicleAccessService.assertCanAccessVehicle(mission.getVehicle().getId());
                 incident.setVehicle(mission.getVehicle());
             }
         }
 
-        IncidentDTO dto = toDTO(incidentRepository.save(incident));
+        Incident saved = incidentRepository.save(incident);
+        IncidentDTO dto = toDTO(saved);
+
+        incidentWebSocketPublisher.publishIncident(dto);
+        return dto;
+    }
+
+    @Transactional
+    public IncidentDTO confirmEventAsIncident(
+            IncidentFromEventRequest request,
+            Authentication auth
+    ) {
+        if (incidentRepository.existsByVehicleEventId(request.getVehicleEventId())) {
+            Incident existing = incidentRepository.findByVehicleEventId(request.getVehicleEventId())
+                    .orElseThrow(() -> new RuntimeException("Incident existant introuvable"));
+
+            return toDTO(existing);
+        }
+
+        VehicleEvent event = vehicleEventRepository.findById(request.getVehicleEventId())
+                .orElseThrow(() -> new RuntimeException("Event véhicule introuvable"));
+
+        if (event.getVehicle() == null) {
+            throw new RuntimeException("Event sans véhicule");
+        }
+
+        vehicleAccessService.assertCanAccessVehicle(event.getVehicle().getId());
+
+        Incident incident = new Incident();
+
+        incident.setTitle(
+                request.getTitle() != null && !request.getTitle().isBlank()
+                        ? request.getTitle()
+                        : "Incident confirmé depuis une alerte"
+        );
+
+        incident.setDescription(request.getDescription());
+        incident.setType(request.getType());
+        incident.setSeverity(Boolean.TRUE.equals(request.getEmergency())
+                ? IncidentSeverity.CRITICAL
+                : request.getSeverity());
+
+        incident.setStatus(IncidentStatus.OPEN);
+        incident.setSource(resolveManualSource(auth));
+
+        incident.setVehicle(event.getVehicle());
+        incident.setVehicleEvent(event);
+
+        incident.setLatitude(event.getLatitude());
+        incident.setLongitude(event.getLongitude());
+
+        incident.setReportedByUserId(AuthUtil.userId(auth));
+        incident.setReportedByEmail(AuthUtil.email(auth));
+        incident.setEmergency(Boolean.TRUE.equals(request.getEmergency()));
+
+        if (event.getMissionId() != null) {
+            missionRepository.findById(event.getMissionId()).ifPresent(incident::setMission);
+        }
+
+        Incident saved = incidentRepository.save(incident);
+        IncidentDTO dto = toDTO(saved);
+
         incidentWebSocketPublisher.publishIncident(dto);
         return dto;
     }
@@ -100,6 +165,20 @@ public class IncidentService {
         return incidentRepository.findTop50ByOrderByCreatedAtDesc()
                 .stream()
                 .filter(incident -> canCurrentUserSeeIncident(incident, auth))
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentDTO> getMyIncidents(Authentication auth) {
+        Long userId = AuthUtil.userId(auth);
+
+        if (userId == null) {
+            throw new RuntimeException("Utilisateur non authentifié");
+        }
+
+        return incidentRepository.findByReportedByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
                 .map(this::toDTO)
                 .toList();
     }
@@ -156,61 +235,66 @@ public class IncidentService {
 
         IncidentStatus newStatus = request.getStatus();
 
+        validateStatusTransition(incident.getStatus(), newStatus);
+
         incident.setStatus(newStatus);
         incident.setHandledByUserId(AuthUtil.userId(auth));
         incident.setHandledByEmail(AuthUtil.email(auth));
 
-        if (newStatus == IncidentStatus.VALIDATED) {
+        if (newStatus == IncidentStatus.IN_PROGRESS && incident.getValidatedAt() == null) {
             incident.setValidatedAt(LocalDateTime.now());
         }
 
-        if (newStatus == IncidentStatus.RESOLVED || newStatus == IncidentStatus.REJECTED) {
+        if (newStatus == IncidentStatus.RESOLVED || newStatus == IncidentStatus.CLOSED) {
             incident.setResolvedAt(LocalDateTime.now());
         }
 
-        IncidentDTO dto = toDTO(incidentRepository.save(incident));
+        Incident saved = incidentRepository.save(incident);
+        IncidentDTO dto = toDTO(saved);
+
         incidentWebSocketPublisher.publishIncident(dto);
         return dto;
     }
 
-    @Transactional
-    public IncidentDTO createIncidentFromEvent(
-            Long vehicleEventId,
-            IncidentType type,
-            IncidentSeverity severity,
-            String title,
-            String description
-    ) {
-        if (incidentRepository.existsByVehicleEventId(vehicleEventId)) {
-            Incident existing = incidentRepository.findByVehicleEventId(vehicleEventId)
-                    .orElseThrow(() -> new RuntimeException("Incident existant introuvable"));
-
-            return toDTO(existing);
+    private IncidentSource resolveManualSource(Authentication auth) {
+        if (AuthUtil.isOwner(auth)) {
+            return IncidentSource.OWNER;
         }
 
-        VehicleEvent event = vehicleEventRepository.findById(vehicleEventId)
-                .orElseThrow(() -> new RuntimeException("Event véhicule introuvable"));
+        return IncidentSource.DRIVER;
+    }
 
-        Incident incident = new Incident();
-        incident.setTitle(title);
-        incident.setDescription(description);
-        incident.setType(type);
-        incident.setSeverity(severity);
-        incident.setStatus(IncidentStatus.REPORTED);
-        incident.setSource(IncidentSource.SYSTEM);
-        incident.setVehicleEvent(event);
-
-        if (event.getVehicle() != null) {
-            incident.setVehicle(event.getVehicle());
+    private void validateStatusTransition(IncidentStatus currentStatus, IncidentStatus newStatus) {
+        if (currentStatus == null || newStatus == null) {
+            throw new IllegalArgumentException("Statut incident invalide.");
         }
 
-        if (event.getMissionId() != null) {
-            missionRepository.findById(event.getMissionId()).ifPresent(incident::setMission);
+        if (currentStatus == IncidentStatus.CLOSED) {
+            throw new IllegalStateException("Un incident clôturé ne peut plus être modifié.");
         }
 
-        IncidentDTO dto = toDTO(incidentRepository.save(incident));
-        incidentWebSocketPublisher.publishIncident(dto);
-        return dto;
+        boolean validTransition = switch (currentStatus) {
+            case OPEN -> newStatus == IncidentStatus.OPEN
+                    || newStatus == IncidentStatus.IN_PROGRESS
+                    || newStatus == IncidentStatus.RESOLVED
+                    || newStatus == IncidentStatus.CLOSED;
+
+            case IN_PROGRESS -> newStatus == IncidentStatus.IN_PROGRESS
+                    || newStatus == IncidentStatus.RESOLVED
+                    || newStatus == IncidentStatus.CLOSED;
+
+            case RESOLVED -> newStatus == IncidentStatus.RESOLVED
+                    || newStatus == IncidentStatus.CLOSED
+                    || newStatus == IncidentStatus.IN_PROGRESS;
+
+            case CLOSED -> false;
+        };
+
+        if (!validTransition) {
+            throw new IllegalStateException(
+                    "Transition de statut invalide : " + currentStatus + " -> " + newStatus
+            );
+        }
     }
 
     private boolean canCurrentUserSeeIncident(Incident incident, Authentication auth) {
@@ -271,103 +355,5 @@ public class IncidentService {
                 incident.getLongitude(),
                 incident.getEmergency()
         );
-    }
-    @Transactional
-    public IncidentDTO createOrUpdateActiveSystemIncidentFromEvent(
-            VehicleEvent event,
-            IncidentType type,
-            IncidentSeverity severity,
-            String title,
-            String description,
-            String groupKey
-    ) {
-        if (event == null || event.getId() == null || event.getVehicle() == null) {
-            return null;
-        }
-
-        if (incidentRepository.existsByVehicleEventId(event.getId())) {
-            return incidentRepository.findByVehicleEventId(event.getId())
-                    .map(this::toDTO)
-                    .orElse(null);
-        }
-
-        List<IncidentStatus> activeStatuses = List.of(
-                IncidentStatus.REPORTED,
-                IncidentStatus.VALIDATED,
-                IncidentStatus.IN_PROGRESS
-        );
-
-        Incident incident = incidentRepository
-                .findFirstByGroupKeyAndStatusInOrderByCreatedAtDesc(groupKey, activeStatuses)
-                .orElse(null);
-
-        if (incident == null) {
-            incident = new Incident();
-            incident.setTitle(title);
-            incident.setDescription(description);
-            incident.setType(type);
-            incident.setSeverity(severity);
-            incident.setStatus(IncidentStatus.REPORTED);
-            incident.setSource(IncidentSource.SYSTEM);
-            incident.setVehicle(event.getVehicle());
-            incident.setVehicleEvent(event);
-            incident.setGroupKey(groupKey);
-            incident.setEventCount(1);
-            incident.setLastEventAt(
-                    event.getCreatedAt() != null ? event.getCreatedAt() : LocalDateTime.now()
-            );
-
-            if (event.getMissionId() != null) {
-                missionRepository.findById(event.getMissionId()).ifPresent(incident::setMission);
-            }
-        } else {
-            incident.setVehicleEvent(event);
-            incident.setLastEventAt(event.getCreatedAt() != null ? event.getCreatedAt() : LocalDateTime.now());
-            incident.setEventCount(incident.getEventCount() == null ? 2 : incident.getEventCount() + 1);
-
-            if (isMoreSevere(severity, incident.getSeverity())) {
-                incident.setSeverity(severity);
-            }
-
-            incident.setDescription(mergeDescription(
-                    incident.getDescription(),
-                    description,
-                    event.getEventType() != null ? event.getEventType().name() : "EVENT"
-            ));
-        }
-
-        IncidentDTO dto = toDTO(incidentRepository.save(incident));
-        incidentWebSocketPublisher.publishIncident(dto);
-        return dto;
-    }
-    private boolean isMoreSevere(IncidentSeverity candidate, IncidentSeverity current) {
-        return severityRank(candidate) > severityRank(current);
-    }
-
-    private int severityRank(IncidentSeverity severity) {
-        if (severity == null) return 0;
-
-        return switch (severity) {
-            case LOW -> 1;
-            case MEDIUM -> 2;
-            case HIGH -> 3;
-            case CRITICAL -> 4;
-        };
-    }
-
-    private String mergeDescription(String oldDescription, String newDescription, String eventCode) {
-        String oldText = oldDescription == null ? "" : oldDescription;
-
-        if (oldText.contains(eventCode)) {
-            return oldText;
-        }
-
-        String line = "- " + eventCode + " : " + newDescription;
-
-        if (oldText.isBlank()) {
-            return line;
-        }
-
-        return oldText + "\n" + line;
     }
 }

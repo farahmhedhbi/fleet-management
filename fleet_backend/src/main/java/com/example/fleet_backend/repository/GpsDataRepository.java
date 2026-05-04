@@ -1,6 +1,7 @@
 package com.example.fleet_backend.repository;
 
 import com.example.fleet_backend.model.GpsData;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
@@ -17,5 +18,12 @@ public interface GpsDataRepository extends JpaRepository<GpsData, Long> {
             Long vehicleId,
             LocalDateTime from,
             LocalDateTime to
+    );
+
+    List<GpsData> findByVehicleIdAndTimestampBetweenOrderByTimestampDesc(
+            Long vehicleId,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable
     );
 }

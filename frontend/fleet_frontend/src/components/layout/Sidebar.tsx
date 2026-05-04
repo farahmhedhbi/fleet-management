@@ -19,6 +19,7 @@ import {
   ClipboardList,
   UserCircle2,
   MapPinned,
+  AlertTriangle,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
@@ -59,7 +60,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
     // DRIVER
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
-    
+    { name: "Mes incidents", href: "/my-incidents", icon: AlertTriangle, show: isDriver },
 
     // OWNER
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
@@ -67,11 +68,12 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
     { name: "Suivi GPS", href: "/owner/gps", icon: MapPinned, show: isOwnerActive },
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
-    { name: "Incidents", href: "/incidents", icon: ClipboardList, show: isOwnerActive },
+    
 
     // OWNER billing
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
+    { name: "Incidents", href: "/incidents", icon: ClipboardList, show: isOwnerActive || isAdmin },
     // ADMIN
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },

@@ -26,6 +26,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             Vehicle vehicle,
             Mission.MissionStatus status
     );
+    boolean existsByVehicle_IdAndDriver_Id(Long vehicleId, Long driverId);
 
     boolean existsByVehicleAndStatusIn(Vehicle vehicle, List<Mission.MissionStatus> statuses);
     boolean existsByDriverAndStatusIn(Driver driver, List<Mission.MissionStatus> statuses);

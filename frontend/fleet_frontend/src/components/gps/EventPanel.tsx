@@ -1,10 +1,31 @@
 "use client";
 
 import type { VehicleEventDTO } from "@/types/gps";
+import ConfirmEventAsIncidentButton from "@/components/incidents/ConfirmEventAsIncidentButton";
 
 interface Props {
   events: VehicleEventDTO[];
 }
+
+const INCIDENT_CONFIRMABLE_EVENTS = new Set([
+  "OFF_ROUTE",
+  "STOP_LONG",
+  "NO_SIGNAL",
+  "OVERSPEED",
+  "OBD_LOW_FUEL",
+  "OBD_HIGH_TEMP",
+  "OBD_LOW_BATTERY",
+  "OBD_CHECK_ENGINE",
+  "ENGINE_FAILURE",
+  "MISSION_INTERRUPTED",
+  "LOW_FUEL_WARNING",
+  "LOW_FUEL_CRITICAL",
+  "HIGH_TEMP_WARNING",
+  "HIGH_TEMP_CRITICAL",
+  "LOW_BATTERY_WARNING",
+  "LOW_BATTERY_CRITICAL",
+  "CHECK_ENGINE_ON",
+]);
 
 function getSeverityClasses(severity: string) {
   switch (severity) {
@@ -76,12 +97,27 @@ function getEventLabel(type: string) {
 function eventKey(event: VehicleEventDTO) {
   return event.id != null
     ? String(event.id)
-    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}-${event.createdAt}`;
+    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${
+        event.eventType
+      }-${event.severity}-${event.createdAt}`;
+}
+
+function canConfirmAsIncident(event: VehicleEventDTO) {
+  if (!event.id) return false;
+
+  if (event.severity !== "WARNING" && event.severity !== "CRITICAL") {
+    return false;
+  }
+
+  return INCIDENT_CONFIRMABLE_EVENTS.has(event.eventType);
 }
 
 export default function EventPanel({ events }: Props) {
   const visibleEvents = events
-    .filter((event) => event.severity === "WARNING" || event.severity === "CRITICAL")
+    .filter(
+      (event) =>
+        event.severity === "WARNING" || event.severity === "CRITICAL"
+    )
     .slice(0, 50);
 
   return (
@@ -95,7 +131,9 @@ export default function EventPanel({ events }: Props) {
           visibleEvents.map((event) => (
             <div
               key={eventKey(event)}
-              className={`rounded-xl border p-3 ${getSeverityClasses(event.severity)}`}
+              className={`rounded-xl border p-3 ${getSeverityClasses(
+                event.severity
+              )}`}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="font-semibold">
@@ -107,7 +145,9 @@ export default function EventPanel({ events }: Props) {
                 </span>
               </div>
 
-              <div className="mt-1 text-sm">{event.message}</div>
+              <div className="mt-1 text-sm">
+                {event.message || "Aucun message."}
+              </div>
 
               <div className="mt-2 text-xs opacity-80">
                 Véhicule #{event.vehicleId}
@@ -120,6 +160,12 @@ export default function EventPanel({ events }: Props) {
                   ? new Date(event.createdAt).toLocaleString()
                   : "—"}
               </div>
+
+              {canConfirmAsIncident(event) ? (
+                <div className="mt-3 flex justify-end">
+                  <ConfirmEventAsIncidentButton event={event} />
+                </div>
+              ) : null}
             </div>
           ))
         )}

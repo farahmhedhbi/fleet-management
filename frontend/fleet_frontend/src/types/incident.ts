@@ -1,12 +1,29 @@
+export type IncidentStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+
+export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export type IncidentSource = "DRIVER" | "OWNER" | "SYSTEM";
+
+export type IncidentType =
+  | "ACCIDENT"
+  | "VEHICLE_BREAKDOWN"
+  | "ROAD_ISSUE"
+  | "DANGER"
+  | "MISSION_PROBLEM"
+  | "GPS_ANOMALY"
+  | "OBD_ALERT"
+  | "DRIVER_BEHAVIOR"
+  | "OTHER";
+
 export interface IncidentDTO {
   id: number;
   title: string;
   description: string | null;
 
-  type: string;
+  type: IncidentType;
   severity: IncidentSeverity;
   status: IncidentStatus;
-  source: string;
+  source: IncidentSource;
 
   vehicleId: number | null;
   vehicleRegistrationNumber: string | null;
@@ -36,12 +53,3 @@ export interface IncidentDTO {
   longitude: number | null;
   emergency: boolean | null;
 }
-
-export type IncidentStatus =
-  | "REPORTED"
-  | "VALIDATED"
-  | "IN_PROGRESS"
-  | "RESOLVED"
-  | "REJECTED";
-
-export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";

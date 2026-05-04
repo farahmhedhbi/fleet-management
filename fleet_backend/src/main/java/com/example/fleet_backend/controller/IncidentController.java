@@ -2,6 +2,7 @@ package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.IncidentCreateRequest;
 import com.example.fleet_backend.dto.IncidentDTO;
+import com.example.fleet_backend.dto.IncidentFromEventRequest;
 import com.example.fleet_backend.dto.IncidentUpdateStatusRequest;
 import com.example.fleet_backend.service.IncidentService;
 import jakarta.validation.Valid;
@@ -28,6 +29,14 @@ public class IncidentController {
         return incidentService.createManualIncident(request, auth);
     }
 
+    @PostMapping("/from-event")
+    public IncidentDTO confirmEventAsIncident(
+            @Valid @RequestBody IncidentFromEventRequest request,
+            Authentication auth
+    ) {
+        return incidentService.confirmEventAsIncident(request, auth);
+    }
+
     @GetMapping
     public List<IncidentDTO> getLatestIncidents(Authentication auth) {
         return incidentService.getLatestIncidents(auth);
@@ -39,6 +48,11 @@ public class IncidentController {
             Authentication auth
     ) {
         return incidentService.getIncidentById(id, auth);
+    }
+
+    @GetMapping("/me")
+    public List<IncidentDTO> getMyIncidents(Authentication auth) {
+        return incidentService.getMyIncidents(auth);
     }
 
     @GetMapping("/vehicle/{vehicleId}")

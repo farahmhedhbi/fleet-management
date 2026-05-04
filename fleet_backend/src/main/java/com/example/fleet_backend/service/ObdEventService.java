@@ -28,20 +28,20 @@ public class ObdEventService {
     private final ObdAnalysisService obdAnalysisService;
     private final NotificationService notificationService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
-    private final IncidentAutomationService incidentAutomationService;
+
 
     public ObdEventService(
             VehicleEventRepository eventRepository,
             ObdAnalysisService obdAnalysisService,
             NotificationService notificationService,
-            GpsWebSocketPublisher gpsWebSocketPublisher,
-            IncidentAutomationService incidentAutomationService
+            GpsWebSocketPublisher gpsWebSocketPublisher
+
     ) {
         this.eventRepository = eventRepository;
         this.obdAnalysisService = obdAnalysisService;
         this.notificationService = notificationService;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
-        this.incidentAutomationService = incidentAutomationService;
+
     }
 
     public void generateEvents(
@@ -182,7 +182,7 @@ public class ObdEventService {
 
         VehicleEvent saved = eventRepository.save(event);
 
-        incidentAutomationService.createIncidentIfNeeded(saved);
+
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
 
