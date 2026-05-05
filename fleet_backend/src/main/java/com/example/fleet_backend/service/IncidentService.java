@@ -89,11 +89,13 @@ public class IncidentService {
             incident.setMission(mission);
 
             if (mission.getVehicle() != null) {
-                vehicleAccessService.assertCanAccessVehicle(mission.getVehicle().getId());
+                if (!AuthUtil.isDriver(auth)) {
+                    vehicleAccessService.assertCanAccessVehicle(mission.getVehicle().getId());
+                }
+
                 incident.setVehicle(mission.getVehicle());
             }
         }
-
         Incident saved = incidentRepository.save(incident);
         IncidentDTO dto = toDTO(saved);
 
@@ -120,7 +122,7 @@ public class IncidentService {
             throw new RuntimeException("Event sans véhicule");
         }
 
-        vehicleAccessService.assertCanAccessVehicle(event.getVehicle().getId());
+        assertCanConfirmEventAsIncident(event, auth);
 
         Incident incident = new Incident();
 
@@ -182,7 +184,6 @@ public class IncidentService {
                 .map(this::toDTO)
                 .toList();
     }
-
     @Transactional(readOnly = true)
     public IncidentDTO getIncidentById(Long id, Authentication auth) {
         Incident incident = incidentRepository.findById(id)
@@ -256,6 +257,53 @@ public class IncidentService {
         return dto;
     }
 
+    private void assertCanConfirmEventAsIncident(VehicleEvent event, Authentication auth) {
+
+        if (AuthUtil.isAdmin(auth)) return;
+
+        if (event == null || event.getVehicle() == null) {
+            throw new RuntimeException("Event invalide");
+        }
+
+        // OWNER
+        if (AuthUtil.isOwner(auth)) {
+            vehicleAccessService.assertCanAccessVehicle(event.getVehicle().getId());
+            return;
+        }
+
+        // DRIVER
+        if (AuthUtil.isDriver(auth)) {
+
+            String currentEmail = AuthUtil.email(auth);
+
+            if (currentEmail == null) {
+                throw new RuntimeException("Utilisateur non authentifié");
+            }
+
+            if (event.getMissionId() == null) {
+                throw new RuntimeException("Event sans mission");
+            }
+
+            Mission mission = missionRepository.findById(event.getMissionId())
+                    .orElseThrow(() -> new RuntimeException("Mission introuvable"));
+
+            if (mission.getDriver() == null) {
+                throw new RuntimeException("Mission sans driver");
+            }
+
+            // 🔥 الحل هنا: نقارن بالإيميل
+            if (
+                    mission.getDriver().getEmail() != null &&
+                            mission.getDriver().getEmail().equalsIgnoreCase(currentEmail)
+            ) {
+                return;
+            }
+
+            throw new RuntimeException("Le driver ne peut confirmer que ses propres missions");
+        }
+
+        throw new RuntimeException("Accès refusé");
+    }
     private IncidentSource resolveManualSource(Authentication auth) {
         if (AuthUtil.isOwner(auth)) {
             return IncidentSource.OWNER;
@@ -301,6 +349,20 @@ public class IncidentService {
         if (AuthUtil.isAdmin(auth)) {
             return true;
         }
+
+        Long currentUserId = AuthUtil.userId(auth);
+
+        if (currentUserId == null) {
+            return false;
+        }
+
+
+        if (AuthUtil.isDriver(auth)
+                && incident.getReportedByUserId() != null
+                && incident.getReportedByUserId().equals(currentUserId)) {
+            return true;
+        }
+
 
         if (incident.getVehicle() == null) {
             return false;

@@ -60,20 +60,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
     // DRIVER
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
-    { name: "Mes incidents", href: "/my-incidents", icon: AlertTriangle, show: isDriver },
-
-    // OWNER
+  { name: "Mes incidents", href: "/driver/incidents", icon: AlertTriangle, show: isDriver },
+  // OWNER
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwnerActive },
     { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
     { name: "Suivi GPS", href: "/owner/gps", icon: MapPinned, show: isOwnerActive },
     { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
     
+    { name: "Incidents", href: "/owner/incidents", icon: AlertTriangle, show: isOwnerActive || isAdmin },
+    { name: "Maintenances", href: "/owner/maintenances", icon: ClipboardList, show: isOwnerActive || isAdmin },
+    { name: "Maintenances à venir", href: "/owner/maintenances/upcoming", icon: Calendar, show: isOwnerActive || isAdmin },
 
     // OWNER billing
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
-    { name: "Incidents", href: "/incidents", icon: ClipboardList, show: isOwnerActive || isAdmin },
     // ADMIN
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },

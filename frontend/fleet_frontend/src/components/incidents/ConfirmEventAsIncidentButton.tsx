@@ -2,115 +2,84 @@
 
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { AlertTriangle } from "lucide-react";
-
 import { incidentService } from "@/lib/services/incidentService";
-import type { IncidentSeverity, IncidentType } from "@/types/incident";
 import type { VehicleEventDTO } from "@/types/gps";
+import type { IncidentSeverity, IncidentType } from "@/types/incident";
 
-function mapEventToIncident(eventType?: string | null): {
-  type: IncidentType;
-  severity: IncidentSeverity;
-  title: string;
-} {
-  switch (eventType) {
+interface Props {
+  event: VehicleEventDTO;
+  onConfirmed?: () => void;
+}
+
+function mapEventToIncidentType(eventType?: string | null): IncidentType {
+  if (!eventType) return "OTHER";
+
+  if (eventType === "OFF_ROUTE" || eventType === "NO_SIGNAL") {
+    return "GPS_ANOMALY";
+  }
+
+  if (eventType === "STOP_LONG" || eventType === "MISSION_INTERRUPTED") {
+    return "MISSION_PROBLEM";
+  }
+
+  if (
+    eventType.startsWith("OBD_") ||
+    eventType.includes("LOW_FUEL") ||
+    eventType.includes("HIGH_TEMP") ||
+    eventType.includes("LOW_BATTERY") ||
+    eventType === "CHECK_ENGINE_ON"
+  ) {
+    return "OBD_ALERT";
+  }
+
+  if (eventType === "ENGINE_FAILURE") {
+    return "VEHICLE_BREAKDOWN";
+  }
+
+  if (eventType === "OVERSPEED") {
+    return "DRIVER_BEHAVIOR";
+  }
+
+  return "OTHER";
+}
+
+function mapSeverity(severity?: string | null): IncidentSeverity {
+  if (severity === "CRITICAL") return "CRITICAL";
+  if (severity === "WARNING") return "HIGH";
+  return "MEDIUM";
+}
+
+function buildTitle(event: VehicleEventDTO) {
+  switch (event.eventType) {
     case "OFF_ROUTE":
-      return {
-        type: "MISSION_PROBLEM",
-        severity: "HIGH",
-        title: "Déviation de route confirmée",
-      };
-
-    case "STOP_LONG":
-      return {
-        type: "MISSION_PROBLEM",
-        severity: "MEDIUM",
-        title: "Arrêt prolongé confirmé",
-      };
-
-    case "NO_SIGNAL":
-      return {
-        type: "GPS_ANOMALY",
-        severity: "MEDIUM",
-        title: "Perte signal GPS confirmée",
-      };
-
+      return "Véhicule hors trajet";
     case "OVERSPEED":
-      return {
-        type: "DRIVER_BEHAVIOR",
-        severity: "HIGH",
-        title: "Comportement conducteur à risque",
-      };
-
+      return "Comportement conducteur à risque";
+    case "STOP_LONG":
+      return "Arrêt prolongé en mission";
     case "OBD_HIGH_TEMP":
-    case "HIGH_TEMP_WARNING":
-    case "HIGH_TEMP_CRITICAL":
-      return {
-        type: "VEHICLE_BREAKDOWN",
-        severity: "CRITICAL",
-        title: "Surchauffe moteur confirmée",
-      };
-
+      return "Température moteur critique";
     case "OBD_LOW_FUEL":
-    case "LOW_FUEL_WARNING":
-    case "LOW_FUEL_CRITICAL":
-      return {
-        type: "VEHICLE_BREAKDOWN",
-        severity: "MEDIUM",
-        title: "Carburant faible confirmé",
-      };
-
+      return "Carburant faible";
     case "OBD_LOW_BATTERY":
-    case "LOW_BATTERY_WARNING":
-    case "LOW_BATTERY_CRITICAL":
-      return {
-        type: "VEHICLE_BREAKDOWN",
-        severity: "HIGH",
-        title: "Batterie faible confirmée",
-      };
-
+      return "Batterie faible";
     case "OBD_CHECK_ENGINE":
-    case "CHECK_ENGINE_ON":
-      return {
-        type: "VEHICLE_BREAKDOWN",
-        severity: "CRITICAL",
-        title: "Voyant moteur confirmé",
-      };
-
+      return "Voyant moteur activé";
     case "ENGINE_FAILURE":
-      return {
-        type: "VEHICLE_BREAKDOWN",
-        severity: "CRITICAL",
-        title: "Panne moteur confirmée",
-      };
-
+      return "Panne moteur détectée";
     case "MISSION_INTERRUPTED":
-      return {
-        type: "MISSION_PROBLEM",
-        severity: "CRITICAL",
-        title: "Mission interrompue confirmée",
-      };
-
+      return "Mission interrompue";
     default:
-      return {
-        type: "OTHER",
-        severity: "MEDIUM",
-        title: "Incident confirmé depuis une alerte",
-      };
+      return "Incident confirmé depuis une alerte";
   }
 }
 
-export default function ConfirmEventAsIncidentButton({
-  event,
-  onConfirmed,
-}: {
-  event: VehicleEventDTO;
-  onConfirmed?: () => void;
-}) {
+export default function ConfirmEventAsIncidentButton({ event, onConfirmed }: Props) {
   const [loading, setLoading] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
-  async function confirm() {
-    if (!event?.id) {
+  async function handleConfirm() {
+    if (!event.id) {
       toast.error("Event invalide");
       return;
     }
@@ -118,28 +87,21 @@ export default function ConfirmEventAsIncidentButton({
     try {
       setLoading(true);
 
-      const mapped = mapEventToIncident(event.eventType);
-
-      await incidentService.createFromEvent({
+      await incidentService.fromEvent({
         vehicleEventId: event.id,
-        type: mapped.type,
-        severity: mapped.severity,
-        title: mapped.title,
-        description:
-          event.message ||
-          `Incident confirmé depuis l’alerte technique ${event.eventType || ""}`,
-        emergency: mapped.severity === "CRITICAL",
+        type: mapEventToIncidentType(event.eventType),
+        severity: mapSeverity(event.severity),
+        title: buildTitle(event),
+        description: event.message ?? "Incident confirmé depuis une alerte GPS/OBD.",
+        emergency: event.severity === "CRITICAL",
       });
 
-      toast.success("Incident créé depuis l’alerte");
+      setConfirmed(true);
+      toast.success("Incident créé avec succès");
       onConfirmed?.();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(
-        e?.response?.data?.message ||
-          e?.response?.data?.error ||
-          "Erreur lors de la confirmation"
-      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de la confirmation de l'incident");
     } finally {
       setLoading(false);
     }
@@ -147,12 +109,11 @@ export default function ConfirmEventAsIncidentButton({
 
   return (
     <button
-      onClick={confirm}
-      disabled={loading}
-      className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+      onClick={handleConfirm}
+      disabled={loading || confirmed}
+      className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
     >
-      <AlertTriangle className="h-4 w-4" />
-      {loading ? "Confirmation..." : "Confirmer incident"}
+      {confirmed ? "Incident confirmé" : loading ? "Confirmation..." : "Confirmer incident"}
     </button>
   );
 }

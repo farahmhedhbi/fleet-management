@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { toast } from "react-toastify";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import ConfirmEventAsIncidentButton from "@/components/incidents/ConfirmEventAsIncidentButton";
 import { gpsService } from "@/lib/services/gpsService";
 import {
   subscribeEventsLive,
@@ -28,18 +29,43 @@ type StatusFilter = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
 
 const EVENT_TOAST_COOLDOWN_MS = 10 * 60 * 1000;
 
+const CONFIRMABLE_EVENTS = new Set([
+  "OFF_ROUTE",
+  "STOP_LONG",
+  "NO_SIGNAL",
+  "OVERSPEED",
+  "OBD_LOW_FUEL",
+  "OBD_HIGH_TEMP",
+  "OBD_LOW_BATTERY",
+  "OBD_CHECK_ENGINE",
+  "ENGINE_FAILURE",
+  "MISSION_INTERRUPTED",
+]);
+
 function eventKey(event: VehicleEventDTO) {
   return event.id != null
     ? String(event.id)
-    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}-${event.createdAt}`;
+    : `${event.vehicleId}-${event.missionId ?? "no-mission"}-${
+        event.eventType
+      }-${event.severity}-${event.createdAt}`;
 }
 
 function eventSpamKey(event: VehicleEventDTO) {
-  return `${event.vehicleId}-${event.missionId ?? "no-mission"}-${event.eventType}-${event.severity}`;
+  return `${event.vehicleId}-${event.missionId ?? "no-mission"}-${
+    event.eventType
+  }-${event.severity}`;
 }
 
 function isDangerEvent(event: VehicleEventDTO) {
   return event.severity === "CRITICAL" || event.severity === "WARNING";
+}
+
+function canConfirmAsIncident(event: VehicleEventDTO) {
+  return (
+    !!event.id &&
+    isDangerEvent(event) &&
+    CONFIRMABLE_EVENTS.has(event.eventType || "")
+  );
 }
 
 function isObdEvent(event: VehicleEventDTO) {
@@ -584,6 +610,27 @@ export default function OwnerGpsPage() {
                             <p className="mt-1 text-xs font-bold text-blue-600">
                               OBD danger
                             </p>
+                          )}
+
+                          {canConfirmAsIncident(event) && (
+                            <div className="mt-3 flex justify-end">
+                              <ConfirmEventAsIncidentButton
+                                event={event}
+                                onConfirmed={() => {
+                                  setGlobalEvents((prev) =>
+                                    prev.filter(
+                                      (e) => eventKey(e) !== eventKey(event)
+                                    )
+                                  );
+
+                                  setVehicleEvents((prev) =>
+                                    prev.filter(
+                                      (e) => eventKey(e) !== eventKey(event)
+                                    )
+                                  );
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
                       ))
