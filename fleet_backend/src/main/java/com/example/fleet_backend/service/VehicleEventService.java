@@ -26,15 +26,16 @@ public class VehicleEventService {
 
     private final VehicleEventRepository vehicleEventRepository;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
-
+    private final NotificationService notificationService;
 
     public VehicleEventService(
             VehicleEventRepository vehicleEventRepository,
-            GpsWebSocketPublisher gpsWebSocketPublisher
+            GpsWebSocketPublisher gpsWebSocketPublisher,
+            NotificationService notificationService
     ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
-
+        this.notificationService = notificationService;
     }
 
     public void analyzeAndCreateEvents(
@@ -202,6 +203,10 @@ public class VehicleEventService {
             String message,
             GpsData gpsData
     ) {
+        if (vehicle == null || vehicle.getId() == null || eventType == null || severity == null) {
+            return;
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
         Optional<VehicleEvent> lastOpt;
@@ -225,7 +230,6 @@ public class VehicleEventService {
             VehicleEvent last = lastOpt.get();
 
             long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
-
             boolean sameSeverity = last.getSeverity() == severity;
 
             if (sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
@@ -247,13 +251,53 @@ public class VehicleEventService {
 
         VehicleEvent saved = vehicleEventRepository.save(event);
 
-
-
         gpsWebSocketPublisher.publishEvent(toDto(saved));
+
+        notifyOwnerForGpsProblem(saved);
     }
 
+    private void notifyOwnerForGpsProblem(VehicleEvent event) {
+        if (event == null || event.getVehicle() == null) {
+            return;
+        }
 
+        Vehicle vehicle = event.getVehicle();
 
+        if (vehicle.getOwner() == null) {
+            return;
+        }
+
+        if (!shouldNotifyOwner(event)) {
+            return;
+        }
+
+        notificationService.createVehicleProblemNotification(
+                vehicle.getOwner().getId(),
+                vehicle.getId(),
+                vehicle.getRegistrationNumber(),
+                event.getMissionId()
+        );
+    }
+
+    private boolean shouldNotifyOwner(VehicleEvent event) {
+        if (event.getEventType() == null || event.getSeverity() == null) {
+            return false;
+        }
+
+        if (event.getEventType() == VehicleEventType.ENGINE_ON
+                || event.getEventType() == VehicleEventType.MISSION_STARTED
+                || event.getEventType() == VehicleEventType.MISSION_COMPLETED) {
+            return false;
+        }
+
+        if (event.getSeverity() == EventSeverity.CRITICAL) {
+            return true;
+        }
+
+        return event.getSeverity() == EventSeverity.WARNING
+                && (event.getEventType() == VehicleEventType.STOP_LONG
+                || event.getEventType() == VehicleEventType.ENGINE_OFF);
+    }
 
     public List<VehicleEventDTO> getLatestEvents() {
         return vehicleEventRepository.findTop50ByOrderByCreatedAtDesc()
@@ -288,6 +332,7 @@ public class VehicleEventService {
                 event.isAcknowledged()
         );
     }
+
     public void createObdEventIfAllowed(
             Vehicle vehicle,
             Long missionId,

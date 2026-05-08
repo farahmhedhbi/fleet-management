@@ -83,7 +83,10 @@ function isDriverLateAlert(notification: Notification) {
 }
 
 function isOwnerLateStartNotification(notification: Notification) {
-  return notification?.title?.trim().toLowerCase() === "mission démarrée en retard";
+  return (
+    notification?.title?.trim().toLowerCase() ===
+    "mission démarrée en retard"
+  );
 }
 
 function sortByNewest(list: Notification[]) {
@@ -146,15 +149,47 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
   const badge = useMemo(() => {
     const r = roleLabel(roleName || (user?.role as any));
-    if (r.includes("admin")) return "bg-violet-50 text-violet-700 border-violet-200";
-    if (r.includes("owner")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (r.includes("driver")) return "bg-sky-50 text-sky-700 border-sky-200";
+
+    if (r.includes("admin")) {
+      return "bg-violet-50 text-violet-700 border-violet-200";
+    }
+
+    if (r.includes("owner")) {
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    }
+
+    if (r.includes("driver")) {
+      return "bg-sky-50 text-sky-700 border-sky-200";
+    }
+
     return "bg-slate-50 text-slate-700 border-slate-200";
   }, [roleName, user?.role]);
 
   const openAllRoute = useCallback(() => {
     return isDriver ? "/my-missions" : "/missions";
   }, [isDriver]);
+
+  const openNotificationTarget = useCallback(
+    (notification: Notification) => {
+      setNotifOpen(false);
+
+      // GPS event lié à une mission => page GPS live
+      if (notification.vehicleId && notification.missionId) {
+        router.push("/owner/gps");
+        return;
+      }
+
+      // Problème technique véhicule / OBD => page OBD du véhicule
+      if (notification.vehicleId) {
+        router.push(`/vehicles/${notification.vehicleId}/obd`);
+        return;
+      }
+
+      // Notifications mission / retard mission
+      router.push(openAllRoute());
+    },
+    [openAllRoute, router]
+  );
 
   const handleLogout = useCallback(() => {
     setMenuOpen(false);
@@ -191,7 +226,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       );
 
       if (newDriverLateUnread.length > 0) {
-        newDriverLateUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
+        newDriverLateUnread.forEach((n) =>
+          alreadyPlayedIdsRef.current.add(n.id)
+        );
         playLateAlertSound();
 
         const latest = newDriverLateUnread[0];
@@ -211,7 +248,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       );
 
       if (newOwnerLateUnread.length > 0) {
-        newOwnerLateUnread.forEach((n) => alreadyPlayedIdsRef.current.add(n.id));
+        newOwnerLateUnread.forEach((n) =>
+          alreadyPlayedIdsRef.current.add(n.id)
+        );
 
         const latest = newOwnerLateUnread[0];
         toast.warn(latest.message || "Mission démarrée en retard", {
@@ -230,11 +269,18 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
     try {
       const count = await notificationService.unreadCount();
+
       if (!isMountedRef.current) return;
+
       setUnreadCount(Number(count) || 0);
     } catch (e: any) {
-      console.error("Unread notifications error:", e?.response?.data || e?.message || e);
+      console.error(
+        "Unread notifications error:",
+        e?.response?.data || e?.message || e
+      );
+
       if (!isMountedRef.current) return;
+
       setUnreadCount(0);
     }
   }, [canSeeNotifs]);
@@ -262,7 +308,10 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
         processSpecialNotifications(safeList);
         await loadUnreadCount();
       } catch (e: any) {
-        console.error("Load notifications error:", e?.response?.data || e?.message || e);
+        console.error(
+          "Load notifications error:",
+          e?.response?.data || e?.message || e
+        );
 
         if (!isMountedRef.current) return;
 
@@ -272,7 +321,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
         if (showErrorToast) {
           toast.error(
-            e?.response?.data?.message || e?.message || "Failed to load notifications"
+            e?.response?.data?.message ||
+              e?.message ||
+              "Failed to load notifications"
           );
         }
       } finally {
@@ -336,7 +387,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
       await loadUnreadCount();
       await loadNotifications(false);
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Mark read failed");
+      toast.error(
+        e?.response?.data?.message || e?.message || "Mark read failed"
+      );
     }
   };
 
@@ -352,7 +405,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
       await loadNotifications(false);
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Mark all read failed");
+      toast.error(
+        e?.response?.data?.message || e?.message || "Mark all read failed"
+      );
     }
   };
 
@@ -370,7 +425,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
             </button>
 
             <div>
-              <p className="text-sm font-bold text-slate-900">Fleet Management</p>
+              <p className="text-sm font-bold text-slate-900">
+                Fleet Management
+              </p>
               <p className="text-xs text-slate-500">Dashboard</p>
             </div>
           </div>
@@ -387,6 +444,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                   type="button"
                 >
                   <Bell size={18} />
+
                   {unreadCount > 0 && (
                     <span className="absolute -right-1 -top-1 inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
                       {unreadCount > 99 ? "99+" : unreadCount}
@@ -398,7 +456,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                   <div className="absolute right-0 mt-2 w-[380px] max-w-[92vw] rounded-3xl border border-slate-200 bg-white shadow-2xl">
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                       <div>
-                        <p className="text-sm font-extrabold text-slate-900">Notifications</p>
+                        <p className="text-sm font-extrabold text-slate-900">
+                          Notifications
+                        </p>
                         <p className="text-xs font-semibold text-slate-500">
                           {unreadCount} non lue(s)
                         </p>
@@ -426,17 +486,29 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                         notifications.map((n) => {
                           const isDriverLate = isDriverLateAlert(n);
                           const isOwnerLate = isOwnerLateStartNotification(n);
+                          const canOpen = Boolean(n.vehicleId || n.missionId);
 
                           return (
                             <div
                               key={n.id}
                               className={cn(
                                 "mb-2 flex gap-3 rounded-2xl px-3 py-3 transition hover:bg-slate-50",
-                                isDriverLate && !n.read && "border border-red-200 bg-red-50",
-                                isDriverLate && n.read && "border border-red-100 bg-red-50/50",
-                                isOwnerLate && !n.read && "border border-amber-200 bg-amber-50",
-                                isOwnerLate && n.read && "border border-amber-100 bg-amber-50/50",
-                                !isDriverLate && !isOwnerLate && !n.read && "bg-blue-50/40"
+                                isDriverLate &&
+                                  !n.read &&
+                                  "border border-red-200 bg-red-50",
+                                isDriverLate &&
+                                  n.read &&
+                                  "border border-red-100 bg-red-50/50",
+                                isOwnerLate &&
+                                  !n.read &&
+                                  "border border-amber-200 bg-amber-50",
+                                isOwnerLate &&
+                                  n.read &&
+                                  "border border-amber-100 bg-amber-50/50",
+                                !isDriverLate &&
+                                  !isOwnerLate &&
+                                  !n.read &&
+                                  "bg-blue-50/40"
                               )}
                             >
                               <div
@@ -444,7 +516,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                                   "mt-1 flex h-7 w-7 items-center justify-center rounded-full",
                                   isDriverLate && "bg-red-100 text-red-600",
                                   isOwnerLate && "bg-amber-100 text-amber-600",
-                                  !isDriverLate && !isOwnerLate && "bg-slate-100 text-slate-500"
+                                  !isDriverLate &&
+                                    !isOwnerLate &&
+                                    "bg-slate-100 text-slate-500"
                                 )}
                               >
                                 {isDriverLate ? (
@@ -463,7 +537,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                                       "truncate text-sm font-extrabold",
                                       isDriverLate && "text-red-700",
                                       isOwnerLate && "text-amber-700",
-                                      !isDriverLate && !isOwnerLate && "text-slate-900"
+                                      !isDriverLate &&
+                                        !isOwnerLate &&
+                                        "text-slate-900"
                                     )}
                                   >
                                     {n.title}
@@ -487,7 +563,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                                     "mt-1 text-sm font-semibold",
                                     isDriverLate && "text-red-700",
                                     isOwnerLate && "text-amber-700",
-                                    !isDriverLate && !isOwnerLate && "text-slate-600"
+                                    !isDriverLate &&
+                                      !isOwnerLate &&
+                                      "text-slate-600"
                                   )}
                                 >
                                   {n.message}
@@ -512,12 +590,9 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                                     {formatDateTime(n.createdAt)}
                                   </span>
 
-                                  {n.missionId && (
+                                  {canOpen && (
                                     <button
-                                      onClick={() => {
-                                        setNotifOpen(false);
-                                        router.push(openAllRoute());
-                                      }}
+                                      onClick={() => openNotificationTarget(n)}
                                       className={cn(
                                         "rounded-full px-3 py-1 text-[11px] font-extrabold text-white",
                                         isDriverLate
@@ -552,12 +627,21 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-extrabold text-white">
                   {initials(user?.firstName, user?.lastName)}
                 </div>
+
                 <div className="hidden text-left md:block">
-                  <p className="text-sm font-extrabold text-slate-900">{displayName}</p>
-                  <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold", badge)}>
+                  <p className="text-sm font-extrabold text-slate-900">
+                    {displayName}
+                  </p>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                      badge
+                    )}
+                  >
                     {roleLabel(roleName)}
                   </span>
                 </div>
+
                 <ChevronDown size={16} className="text-slate-500" />
               </button>
 
@@ -622,8 +706,12 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold text-red-700">{floatingAlert.title}</p>
-              <p className="mt-1 text-sm font-semibold text-slate-700">{floatingAlert.message}</p>
+              <p className="text-sm font-extrabold text-red-700">
+                {floatingAlert.title}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">
+                {floatingAlert.message}
+              </p>
               <p className="mt-2 text-xs font-semibold text-slate-500">
                 {formatDateTime(floatingAlert.createdAt)}
               </p>

@@ -27,8 +27,6 @@ const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
 type EventMode = "vehicle" | "global";
 type StatusFilter = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
 
-const EVENT_TOAST_COOLDOWN_MS = 10 * 60 * 1000;
-
 const CONFIRMABLE_EVENTS = new Set([
   "OFF_ROUTE",
   "STOP_LONG",
@@ -50,14 +48,21 @@ function eventKey(event: VehicleEventDTO) {
       }-${event.severity}-${event.createdAt}`;
 }
 
-function eventSpamKey(event: VehicleEventDTO) {
-  return `${event.vehicleId}-${event.missionId ?? "no-mission"}-${
-    event.eventType
-  }-${event.severity}`;
-}
-
 function isDangerEvent(event: VehicleEventDTO) {
   return event.severity === "CRITICAL" || event.severity === "WARNING";
+}
+
+function isMissionCompletedEvent(event: VehicleEventDTO) {
+  return event.eventType === "MISSION_COMPLETED";
+}
+
+function isLiveMissionFinished(live: VehicleLiveStatusDTO) {
+  return (
+    live.missionActive === false ||
+    live.missionStatus === "COMPLETED" ||
+    live.missionStatus === "CANCELED" ||
+    live.liveStatus === "MISSION_COMPLETED"
+  );
 }
 
 function canConfirmAsIncident(event: VehicleEventDTO) {
@@ -78,28 +83,19 @@ function isObdEvent(event: VehicleEventDTO) {
   );
 }
 
-function isRecentEvent(event: VehicleEventDTO) {
-  if (!event.createdAt) return true;
-
-  const createdAt = new Date(event.createdAt).getTime();
-  if (Number.isNaN(createdAt)) return true;
-
-  return Date.now() - createdAt <= EVENT_TOAST_COOLDOWN_MS;
-}
-
 function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
   if (live.latitude == null || live.longitude == null || !live.timestamp) {
     return null;
   }
 
   return {
-    id: Date.now(),
+    id: Number(`${live.vehicleId}${Date.now()}`),
     vehicleId: live.vehicleId,
     missionId: live.missionId,
     latitude: live.latitude,
     longitude: live.longitude,
-    speed: live.speed,
-    engineOn: live.engineOn,
+    speed: live.speed ?? 0,
+    engineOn: live.engineOn ?? false,
     timestamp: live.timestamp,
     routeId: live.routeId,
     routeSource: live.routeSource,
@@ -117,6 +113,8 @@ function formatDate(value?: string | null) {
 
 function getEventLabel(type?: string | null) {
   switch (type) {
+    case "MISSION_COMPLETED":
+      return "Mission terminée";
     case "OBD_LOW_FUEL":
       return "Carburant faible";
     case "OBD_HIGH_TEMP":
@@ -170,51 +168,15 @@ export default function OwnerGpsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   const selectedVehicleIdRef = useRef<number | null>(null);
-  const shownToastRef = useRef<Map<string, number>>(new Map());
+  const vehiclesRef = useRef<VehicleLiveStatusDTO[]>([]);
 
   useEffect(() => {
     selectedVehicleIdRef.current = selectedVehicleId;
   }, [selectedVehicleId]);
 
-  const canShowToast = useCallback((event: VehicleEventDTO) => {
-    const key = eventSpamKey(event);
-    const now = Date.now();
-    const lastShownAt = shownToastRef.current.get(key);
-
-    if (lastShownAt && now - lastShownAt < EVENT_TOAST_COOLDOWN_MS) {
-      return false;
-    }
-
-    shownToastRef.current.set(key, now);
-
-    for (const [storedKey, storedTime] of Array.from(
-      shownToastRef.current.entries()
-    )) {
-      if (now - storedTime > EVENT_TOAST_COOLDOWN_MS * 2) {
-        shownToastRef.current.delete(storedKey);
-      }
-    }
-
-    return true;
-  }, []);
-
-  const showEventToast = useCallback(
-    (event: VehicleEventDTO) => {
-      if (!isDangerEvent(event)) return;
-      if (!isRecentEvent(event)) return;
-      if (!canShowToast(event)) return;
-
-      const message = event.message || getEventLabel(event.eventType);
-      const toastId = eventSpamKey(event);
-
-      if (event.severity === "CRITICAL") {
-        toast.error(message, { toastId });
-      } else {
-        toast.warning(message, { toastId });
-      }
-    },
-    [canShowToast]
-  );
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
 
   const loadFleet = useCallback(async () => {
     try {
@@ -254,36 +216,64 @@ export default function OwnerGpsPage() {
     }
   }, []);
 
-  const loadVehicleDetails = useCallback(
-    async (vehicleId: number) => {
-      setHistoryLoading(true);
+  const loadVehicleDetails = useCallback(async (vehicleId: number) => {
+    setHistoryLoading(true);
 
-      try {
-        const vehicle = vehicles.find((v) => v.vehicleId === vehicleId);
+    try {
+      const vehicle = vehiclesRef.current.find(
+        (v) => v.vehicleId === vehicleId
+      );
 
-        const eventsPromise = gpsService.getVehicleEvents(vehicleId);
+      const eventsPromise = gpsService.getVehicleEvents(vehicleId);
 
-        const historyPromise =
-          vehicle?.missionActive && vehicle.missionId
-            ? gpsService.getMissionHistory(vehicle.missionId)
-            : Promise.resolve([]);
+      const historyPromise =
+        vehicle?.missionActive && vehicle.missionId
+          ? gpsService.getMissionHistory(vehicle.missionId)
+          : Promise.resolve([]);
 
-        const [h, events] = await Promise.all([historyPromise, eventsPromise]);
+      const [h, events] = await Promise.all([historyPromise, eventsPromise]);
 
-        setHistory(Array.isArray(h) ? h : []);
-        setVehicleEvents(
-          Array.isArray(events) ? events.filter(isDangerEvent).slice(0, 50) : []
-        );
-      } catch (e) {
-        console.error("Erreur détail véhicule:", e);
-        toast.error("Erreur lors du chargement du détail véhicule");
+      setHistory(Array.isArray(h) ? h : []);
+      setVehicleEvents(
+        Array.isArray(events) ? events.filter(isDangerEvent).slice(0, 50) : []
+      );
+    } catch (e) {
+      console.error("Erreur détail véhicule:", e);
+      toast.error("Erreur lors du chargement du détail véhicule");
+      setHistory([]);
+      setVehicleEvents([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const markVehicleMissionCompleted = useCallback(
+    (vehicleId: number) => {
+      setVehicles((prev) =>
+        prev.map((vehicle) =>
+          vehicle.vehicleId === vehicleId
+            ? {
+                ...vehicle,
+                missionActive: false,
+                missionId: null,
+                missionStatus: "COMPLETED",
+                liveStatus: "MISSION_COMPLETED",
+                routeSource: "STATIC",
+              }
+            : vehicle
+        )
+      );
+
+      if (vehicleId === selectedVehicleIdRef.current) {
         setHistory([]);
         setVehicleEvents([]);
-      } finally {
-        setHistoryLoading(false);
       }
+
+      setTimeout(() => {
+        loadFleet();
+      }, 300);
     },
-    [vehicles]
+    [loadFleet]
   );
 
   useEffect(() => {
@@ -293,16 +283,43 @@ export default function OwnerGpsPage() {
   useEffect(() => {
     subscribeGpsLive<VehicleLiveStatusDTO>((liveVehicle) => {
       setVehicles((prev) => {
-        const exists = prev.some((v) => v.vehicleId === liveVehicle.vehicleId);
+        const fixedLiveVehicle = isLiveMissionFinished(liveVehicle)
+          ? {
+              ...liveVehicle,
+              missionActive: false,
+              missionId:
+                liveVehicle.missionStatus === "COMPLETED" ||
+                liveVehicle.missionStatus === "CANCELED"
+                  ? null
+                  : liveVehicle.missionId,
+              routeSource:
+                liveVehicle.missionStatus === "COMPLETED" ||
+                liveVehicle.missionStatus === "CANCELED"
+                  ? "STATIC"
+                  : liveVehicle.routeSource,
+            }
+          : liveVehicle;
 
-        if (!exists) return [...prev, liveVehicle];
+        const exists = prev.some(
+          (v) => v.vehicleId === fixedLiveVehicle.vehicleId
+        );
+
+        if (!exists) return [...prev, fixedLiveVehicle];
 
         return prev.map((v) =>
-          v.vehicleId === liveVehicle.vehicleId ? liveVehicle : v
+          v.vehicleId === fixedLiveVehicle.vehicleId ? fixedLiveVehicle : v
         );
       });
 
       setSelectedVehicleId((prev) => prev ?? liveVehicle.vehicleId);
+
+      if (
+        liveVehicle.vehicleId === selectedVehicleIdRef.current &&
+        isLiveMissionFinished(liveVehicle)
+      ) {
+        setHistory([]);
+        return;
+      }
 
       setHistory((prev) => {
         if (selectedVehicleIdRef.current !== liveVehicle.vehicleId) {
@@ -312,13 +329,14 @@ export default function OwnerGpsPage() {
         const point = toGpsPoint(liveVehicle);
         if (!point) return prev;
 
-        const exists = prev.some(
-          (p) =>
-            p.timestamp === point.timestamp ||
-            (p.vehicleId === point.vehicleId &&
-              p.latitude === point.latitude &&
-              p.longitude === point.longitude)
-        );
+        const last = prev[prev.length - 1];
+
+        const exists =
+          last &&
+          last.vehicleId === point.vehicleId &&
+          last.latitude === point.latitude &&
+          last.longitude === point.longitude &&
+          last.timestamp === point.timestamp;
 
         if (exists) return prev;
 
@@ -327,22 +345,27 @@ export default function OwnerGpsPage() {
     });
 
     subscribeEventsLive<VehicleEventDTO>((event) => {
-      if (!event || !isDangerEvent(event)) return;
+      if (!event) return;
+
+      if (isMissionCompletedEvent(event)) {
+        markVehicleMissionCompleted(event.vehicleId);
+        return;
+      }
+
+      if (!isDangerEvent(event)) return;
 
       setGlobalEvents((prev) => upsertEvent(prev, event));
 
       if (event.vehicleId === selectedVehicleIdRef.current) {
         setVehicleEvents((prev) => upsertEvent(prev, event));
       }
-
-      showEventToast(event);
     });
 
     return () => {
       unsubscribeGpsLive();
       unsubscribeEventsLive();
     };
-  }, [showEventToast]);
+  }, [markVehicleMissionCompleted]);
 
   useEffect(() => {
     if (selectedVehicleId) {
