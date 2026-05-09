@@ -13,7 +13,14 @@ import type { LatLngTuple } from "leaflet";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
 import { useEffect, useMemo } from "react";
-import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
+import {
+  movingMarkerIcon,
+  completedMarkerIcon,
+  dangerMarkerIcon,
+  stoppedMarkerIcon,
+  offlineMarkerIcon,
+  defaultMarkerIcon,
+} from "@/components/gps/leafletIcon";
 
 function MapResizeController({ center }: { center: LatLngTuple }) {
   const map = useMap();
@@ -41,6 +48,27 @@ interface FleetLiveMapProps {
   selectedVehicleId: number | null;
   setSelectedVehicleId: (id: number) => void;
   history: GpsData[];
+}
+
+function getVehicleMarkerIcon(status?: string | null) {
+  switch (status) {
+    case "MOVING":
+      return movingMarkerIcon;
+    case "MISSION_COMPLETED":
+    case "COMPLETED":
+      return completedMarkerIcon;
+    case "OFF_ROUTE":
+    case "BREAKDOWN":
+      return dangerMarkerIcon;
+    case "STOPPED":
+    case "PARKED":
+      return stoppedMarkerIcon;
+    case "OFFLINE":
+    case "NO_DATA":
+      return offlineMarkerIcon;
+    default:
+      return defaultMarkerIcon;
+  }
 }
 
 function isValidCoordinate(lat?: number | null, lng?: number | null) {
@@ -134,12 +162,7 @@ export default function FleetLiveMap({
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="h-[540px] w-full">
-        <MapContainer
-          center={center}
-          zoom={12}
-          scrollWheelZoom
-          className="h-full w-full"
-        >
+        <MapContainer center={center} zoom={12} scrollWheelZoom className="h-full w-full">
           <MapResizeController center={center} />
 
           <TileLayer
@@ -149,39 +172,24 @@ export default function FleetLiveMap({
 
           {validVehicles.map((vehicle) => (
             <Marker
-              key={vehicle.vehicleId}
+              key={`${vehicle.vehicleId}-${vehicle.liveStatus}`}
               position={[vehicle.latitude!, vehicle.longitude!]}
-              icon={gpsMarkerIcon}
+              icon={getVehicleMarkerIcon(vehicle.liveStatus)}
               eventHandlers={{
                 click: () => setSelectedVehicleId(vehicle.vehicleId),
               }}
             >
               <Popup>
                 <div className="space-y-1 text-sm">
-                  <p>
-                    <strong>Véhicule :</strong> {vehicle.vehicleName}
-                  </p>
-                  <p>
-                    <strong>Statut :</strong> {getStatusLabel(vehicle.liveStatus)}
-                  </p>
-                  <p>
-                    <strong>Vitesse :</strong> {vehicle.speed} km/h
-                  </p>
-                  <p>
-                    <strong>Moteur :</strong> {vehicle.engineOn ? "ON" : "OFF"}
-                  </p>
-                  <p>
-                    <strong>Mission active :</strong> {vehicle.missionActive ? "Oui" : "Non"}
-                  </p>
-                  <p>
-                    <strong>Driver :</strong> {vehicle.currentDriverName || "Aucun"}
-                  </p>
-                  <p>
-                    <strong>Route source :</strong> {vehicle.routeSource || "-"}
-                  </p>
-                  <p>
-                    <strong>Timestamp :</strong> {formatTimestamp(vehicle.timestamp)}
-                  </p>
+                  <p><strong>Véhicule :</strong> {vehicle.vehicleName}</p>
+                  <p><strong>Statut :</strong> {getStatusLabel(vehicle.liveStatus)}</p>
+                  <p><strong>Vitesse :</strong> {vehicle.speed} km/h</p>
+                  <p><strong>Moteur :</strong> {vehicle.engineOn ? "ON" : "OFF"}</p>
+                  <p><strong>Mission active :</strong> {vehicle.missionActive ? "Oui" : "Non"}</p>
+                  <p><strong>Mission status :</strong> {vehicle.missionStatus || "-"}</p>
+                  <p><strong>Driver :</strong> {vehicle.currentDriverName || "Aucun"}</p>
+                  <p><strong>Route source :</strong> {vehicle.routeSource || "-"}</p>
+                  <p><strong>Timestamp :</strong> {formatTimestamp(vehicle.timestamp)}</p>
                 </div>
               </Popup>
             </Marker>
