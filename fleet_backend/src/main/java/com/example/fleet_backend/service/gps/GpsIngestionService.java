@@ -98,6 +98,25 @@ public class GpsIngestionService {
                 healthDecision.reason()
         );
 
+        boolean missionJustCompleted =
+                statusResult.isMissionCompleted()
+                        && context.isMissionActive()
+                        && context.getMission() != null;
+
+        if (missionJustCompleted) {
+            Long completedMissionId = context.getMissionId();
+
+            missionService.completeMissionFromGps(context.getMission());
+
+            gpsWebSocketPublisher.publishMissionCompleted(
+                    vehicle,
+                    gpsData,
+                    completedMissionId
+            );
+
+            return;
+        }
+
         vehicleEventService.analyzeAndCreateEvents(
                 vehicle,
                 previousGps,
@@ -105,7 +124,7 @@ public class GpsIngestionService {
                 context.isMissionActive(),
                 context.getMissionId(),
                 statusResult.isOffRoute(),
-                statusResult.isMissionCompleted()
+                false
         );
 
         if (shouldAnalyzeObd(previousGps, gpsData)) {
@@ -122,10 +141,6 @@ public class GpsIngestionService {
                 statusResult.getLiveStatus(),
                 context
         );
-
-        if (statusResult.isMissionCompleted() && context.getMission() != null) {
-            missionService.completeMissionFromGps(context.getMission());
-        }
     }
 
     private GpsData buildGpsData(Vehicle vehicle,

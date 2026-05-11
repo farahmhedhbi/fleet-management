@@ -9,10 +9,21 @@ import {
   TileLayer,
   useMap,
 } from "react-leaflet";
+
 import type { LatLngTuple } from "leaflet";
 import type { Dispatch, SetStateAction } from "react";
+
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
-import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
+
+import {
+  movingMarkerIcon,
+  completedMarkerIcon,
+  dangerMarkerIcon,
+  stoppedMarkerIcon,
+  offlineMarkerIcon,
+  defaultMarkerIcon,
+} from "@/components/gps/leafletIcon";
+
 import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
 
 interface GpsLiveMapClientProps {
@@ -20,6 +31,32 @@ interface GpsLiveMapClientProps {
   selectedVehicleId: number | null;
   setSelectedVehicleId: Dispatch<SetStateAction<number | null>>;
   history: GpsData[];
+}
+
+function getVehicleMarkerIcon(status?: string | null) {
+  switch (status) {
+    case "MOVING":
+      return movingMarkerIcon;
+
+    case "MISSION_COMPLETED":
+    case "COMPLETED":
+      return completedMarkerIcon;
+
+    case "OFF_ROUTE":
+    case "BREAKDOWN":
+      return dangerMarkerIcon;
+
+    case "STOPPED":
+    case "PARKED":
+      return stoppedMarkerIcon;
+
+    case "OFFLINE":
+    case "NO_DATA":
+      return offlineMarkerIcon;
+
+    default:
+      return defaultMarkerIcon;
+  }
 }
 
 function isValidLatLng(
@@ -43,7 +80,8 @@ function normalizeHistory(history: GpsData[]): GpsData[] {
     .filter((item) => isValidLatLng(item.latitude, item.longitude))
     .sort(
       (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        new Date(a.timestamp).getTime() -
+        new Date(b.timestamp).getTime()
     );
 }
 
@@ -53,8 +91,12 @@ function normalizeMissionRoute(
   if (!vehicle || !Array.isArray(vehicle.missionRoute)) return [];
 
   return vehicle.missionRoute
-    .filter((point) => isValidLatLng(point.latitude, point.longitude))
-    .map((point): LatLngTuple => [point.latitude, point.longitude]);
+    .filter((point) =>
+      isValidLatLng(point.latitude, point.longitude)
+    )
+    .map(
+      (point): LatLngTuple => [point.latitude, point.longitude]
+    );
 }
 
 function MapResizeController() {
@@ -73,6 +115,7 @@ function MapResizeController() {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.clearTimeout(t3);
+
       window.removeEventListener("resize", fix);
     };
   }, [map]);
@@ -90,12 +133,20 @@ function FollowSelectedVehicle({
   useEffect(() => {
     if (
       selectedVehicle &&
-      isValidLatLng(selectedVehicle.latitude, selectedVehicle.longitude)
+      isValidLatLng(
+        selectedVehicle.latitude,
+        selectedVehicle.longitude
+      )
     ) {
       map.setView(
-        [selectedVehicle.latitude!, selectedVehicle.longitude!],
+        [
+          selectedVehicle.latitude!,
+          selectedVehicle.longitude!,
+        ],
         map.getZoom() < 13 ? 13 : map.getZoom(),
-        { animate: true }
+        {
+          animate: true,
+        }
       );
     }
   }, [
@@ -117,17 +168,25 @@ export default function GpsLiveMapClient({
 }: GpsLiveMapClientProps) {
   const validVehicles = useMemo(() => {
     return vehicles.filter((vehicle) =>
-      isValidLatLng(vehicle.latitude, vehicle.longitude)
+      isValidLatLng(
+        vehicle.latitude,
+        vehicle.longitude
+      )
     );
   }, [vehicles]);
 
   const selectedVehicle = useMemo(() => {
-    if (selectedVehicleId === null) return validVehicles[0] ?? null;
+    if (selectedVehicleId === null) {
+      return validVehicles[0] ?? null;
+    }
 
     return (
       validVehicles.find(
-        (vehicle) => vehicle.vehicleId === selectedVehicleId
-      ) ?? validVehicles[0] ?? null
+        (vehicle) =>
+          vehicle.vehicleId === selectedVehicleId
+      ) ??
+      validVehicles[0] ??
+      null
     );
   }, [validVehicles, selectedVehicleId]);
 
@@ -135,8 +194,14 @@ export default function GpsLiveMapClient({
 
   const center: LatLngTuple =
     selectedVehicle &&
-    isValidLatLng(selectedVehicle.latitude, selectedVehicle.longitude)
-      ? [selectedVehicle.latitude!, selectedVehicle.longitude!]
+    isValidLatLng(
+      selectedVehicle.latitude,
+      selectedVehicle.longitude
+    )
+      ? [
+          selectedVehicle.latitude!,
+          selectedVehicle.longitude!,
+        ]
       : defaultCenter;
 
   const normalizedHistory = useMemo(
@@ -146,7 +211,10 @@ export default function GpsLiveMapClient({
 
   const historyPositions: LatLngTuple[] = useMemo(() => {
     return normalizedHistory.map(
-      (item): LatLngTuple => [item.latitude, item.longitude]
+      (item): LatLngTuple => [
+        item.latitude,
+        item.longitude,
+      ]
     );
   }, [normalizedHistory]);
 
@@ -164,7 +232,10 @@ export default function GpsLiveMapClient({
           className="h-full w-full"
         >
           <MapResizeController />
-          <FollowSelectedVehicle selectedVehicle={selectedVehicle} />
+
+          <FollowSelectedVehicle
+            selectedVehicle={selectedVehicle}
+          />
 
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
@@ -174,49 +245,71 @@ export default function GpsLiveMapClient({
           {missionRoutePositions.length > 1 && (
             <Polyline
               positions={missionRoutePositions}
-              pathOptions={{ color: "green", weight: 4 }}
+              pathOptions={{
+                color: "green",
+                weight: 4,
+              }}
             />
           )}
 
           {historyPositions.length > 1 && (
             <Polyline
               positions={historyPositions}
-              pathOptions={{ color: "blue", weight: 4 }}
+              pathOptions={{
+                color: "blue",
+                weight: 4,
+              }}
             />
           )}
 
           {validVehicles.map((vehicle) => (
             <Marker
               key={`${vehicle.vehicleId}-${vehicle.timestamp}-${vehicle.latitude}-${vehicle.longitude}`}
-              position={[vehicle.latitude!, vehicle.longitude!]}
-              icon={gpsMarkerIcon}
+              position={[
+                vehicle.latitude!,
+                vehicle.longitude!,
+              ]}
+              icon={getVehicleMarkerIcon(
+                vehicle.liveStatus
+              )}
               eventHandlers={{
-                click: () => setSelectedVehicleId(vehicle.vehicleId),
+                click: () =>
+                  setSelectedVehicleId(
+                    vehicle.vehicleId
+                  ),
               }}
             >
               <Popup>
                 <div className="space-y-1 text-sm">
                   <p>
-                    <strong>Véhicule :</strong> {vehicle.vehicleName}
+                    <strong>Véhicule :</strong>{" "}
+                    {vehicle.vehicleName}
                   </p>
 
                   <p>
                     <strong>Statut :</strong>{" "}
-                    {getStatusLabel(vehicle.liveStatus)}
+                    {getStatusLabel(
+                      vehicle.liveStatus
+                    )}
                   </p>
 
                   <p>
-                    <strong>Vitesse :</strong> {vehicle.speed ?? 0} km/h
+                    <strong>Vitesse :</strong>{" "}
+                    {vehicle.speed ?? 0} km/h
                   </p>
 
                   <p>
                     <strong>Moteur :</strong>{" "}
-                    {vehicle.engineOn ? "ON" : "OFF"}
+                    {vehicle.engineOn
+                      ? "ON"
+                      : "OFF"}
                   </p>
 
                   <p>
                     <strong>Mission active :</strong>{" "}
-                    {vehicle.missionActive ? "Oui" : "Non"}
+                    {vehicle.missionActive
+                      ? "Oui"
+                      : "Non"}
                   </p>
 
                   <p>
@@ -231,7 +324,8 @@ export default function GpsLiveMapClient({
 
                   <p>
                     <strong>Driver :</strong>{" "}
-                    {vehicle.currentDriverName || "Aucun"}
+                    {vehicle.currentDriverName ||
+                      "Aucun"}
                   </p>
 
                   <p>
@@ -241,7 +335,9 @@ export default function GpsLiveMapClient({
 
                   <p>
                     <strong>Timestamp :</strong>{" "}
-                    {formatTimestamp(vehicle.timestamp)}
+                    {formatTimestamp(
+                      vehicle.timestamp
+                    )}
                   </p>
                 </div>
               </Popup>

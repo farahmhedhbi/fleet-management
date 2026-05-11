@@ -260,10 +260,10 @@ public class ObdEventService {
             return;
         }
 
-        notificationService.createUniqueForUser(
+        notificationService.createVehicleProblemNotification(
                 event.getVehicle().getOwner().getId(),
-                event.getEventType().name(),
-                event.getMessage(),
+                event.getVehicle().getId(),
+                event.getVehicle().getRegistrationNumber(),
                 event.getMissionId()
         );
     }

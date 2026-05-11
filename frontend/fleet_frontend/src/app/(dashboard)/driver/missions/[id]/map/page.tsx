@@ -14,8 +14,7 @@ import { missionService } from "@/lib/services/missionService";
 import type { Mission } from "@/types/mission";
 import type { GpsData, VehicleEventDTO, VehicleLiveStatusDTO } from "@/types/gps";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 const CONFIRMABLE_EVENTS = new Set([
   "OFF_ROUTE",
@@ -28,6 +27,13 @@ const CONFIRMABLE_EVENTS = new Set([
   "OBD_CHECK_ENGINE",
   "ENGINE_FAILURE",
   "MISSION_INTERRUPTED",
+]);
+
+const IGNORED_AFTER_COMPLETED = new Set([
+  "ENGINE_OFF",
+  "STOP_LONG",
+  "OFF_ROUTE",
+  "NO_SIGNAL",
 ]);
 
 function formatDateTime(value?: string) {
@@ -69,13 +75,54 @@ export default function DriverMissionMapPage() {
   const isValidMissionId = Number.isFinite(missionId) && missionId > 0;
 
   const stompRef = useRef<Client | null>(null);
+  const completedToastShownRef = useRef(false);
 
   const [mission, setMission] = useState<Mission | null>(null);
+  const [missionStatus, setMissionStatus] = useState<string>("");
   const [live, setLive] = useState<VehicleLiveStatusDTO | null>(null);
   const [history, setHistory] = useState<GpsData[]>([]);
   const [events, setEvents] = useState<VehicleEventDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
+
+  const effectiveMissionStatus =
+    live?.missionStatus || missionStatus || mission?.status || "—";
+
+  const isMissionCompleted = effectiveMissionStatus === "COMPLETED";
+
+  const handleMissionCompleted = useCallback((data?: VehicleLiveStatusDTO) => {
+    setMissionStatus("COMPLETED");
+
+  setMission((prev) => {
+  if (!prev) return prev;
+
+  return {
+    ...prev,
+    status: "COMPLETED" as Mission["status"],
+    finishedAt: prev.finishedAt || data?.timestamp || undefined,
+  };
+});
+
+    setLive((prev) =>
+      prev
+        ? {
+            ...prev,
+            missionStatus: "COMPLETED",
+            missionActive: false,
+            liveStatus: data?.liveStatus ?? prev.liveStatus,
+          }
+        : data ?? prev
+    );
+
+    setEvents((prev) =>
+      prev.filter((event) => !IGNORED_AFTER_COMPLETED.has(event.eventType))
+    );
+
+    if (!completedToastShownRef.current) {
+      completedToastShownRef.current = true;
+      toast.success("Mission terminée automatiquement");
+    }
+  }, []);
 
   const loadMissionMap = useCallback(async () => {
     if (!isValidMissionId) {
@@ -91,8 +138,16 @@ export default function DriverMissionMapPage() {
       ]);
 
       setMission(missionData);
+      setMissionStatus(missionData?.status || liveData?.missionStatus || "");
       setLive(liveData);
-      setHistory(historyData);
+      setHistory(historyData || []);
+
+      if (
+        missionData?.status === "COMPLETED" ||
+        liveData?.missionStatus === "COMPLETED"
+      ) {
+        handleMissionCompleted(liveData);
+      }
     } catch (e: any) {
       toast.error(
         e?.response?.data?.message ||
@@ -103,7 +158,7 @@ export default function DriverMissionMapPage() {
     } finally {
       setLoading(false);
     }
-  }, [missionId, isValidMissionId]);
+  }, [missionId, isValidMissionId, handleMissionCompleted]);
 
   useEffect(() => {
     loadMissionMap();
@@ -115,23 +170,30 @@ export default function DriverMissionMapPage() {
     const vehicleId = live.vehicleId;
 
     const client = new Client({
-  webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
-  reconnectDelay: 5000,
+      webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
+      reconnectDelay: 5000,
 
-  debug: (msg) => {
-    console.log("[STOMP]", msg);
-  },
+      debug: (msg) => {
+        console.log("[STOMP]", msg);
+      },
 
-  onConnect: () => {
-    console.log("✅ WebSocket connected");
-    setWsConnected(true);
+      onConnect: () => {
+        setWsConnected(true);
 
-        client.subscribe(`/topic/vehicles/${vehicleId}/live`, (message: IMessage) => {
+        const handleLiveMessage = (message: IMessage) => {
           const data = JSON.parse(message.body) as VehicleLiveStatusDTO;
 
           if (data.vehicleId !== vehicleId) return;
 
           setLive(data);
+
+          if (data.missionStatus) {
+            setMissionStatus(data.missionStatus);
+          }
+
+          if (data.missionStatus === "COMPLETED") {
+            handleMissionCompleted(data);
+          }
 
           if (data.latitude != null && data.longitude != null) {
             setHistory((prev) => {
@@ -150,29 +212,21 @@ export default function DriverMissionMapPage() {
               return [...prev.slice(-499), point];
             });
           }
-        });
+        };
 
-        client.subscribe(`/topic/vehicles/${vehicleId}/events`, (message: IMessage) => {
+        const handleEventMessage = (message: IMessage, fallbackMessage: string) => {
           const event = JSON.parse(message.body) as VehicleEventDTO;
 
           if (event.vehicleId !== vehicleId) return;
           if (event.missionId && event.missionId !== missionId) return;
           if (event.severity !== "WARNING" && event.severity !== "CRITICAL") return;
 
-          setEvents((prev) => {
-            const exists = prev.some((e) => e.id === event.id);
-            if (exists) return prev;
-            return [event, ...prev].slice(0, 20);
-          });
-
-          toast.warning(event.message || "Nouvelle alerte détectée");
-        });
-
-        client.subscribe(`/topic/missions/${missionId}/events`, (message: IMessage) => {
-          const event = JSON.parse(message.body) as VehicleEventDTO;
-
-          if (event.missionId && event.missionId !== missionId) return;
-          if (event.severity !== "WARNING" && event.severity !== "CRITICAL") return;
+          if (
+            effectiveMissionStatus === "COMPLETED" ||
+            IGNORED_AFTER_COMPLETED.has(event.eventType)
+          ) {
+            return;
+          }
 
           setEvents((prev) => {
             const exists = prev.some((e) => e.id === event.id);
@@ -180,8 +234,19 @@ export default function DriverMissionMapPage() {
             return [event, ...prev].slice(0, 20);
           });
 
-          toast.warning(event.message || "Nouvelle alerte mission");
-        });
+          toast.warning(event.message || fallbackMessage);
+        };
+
+        client.subscribe(`/topic/vehicles/${vehicleId}/live`, handleLiveMessage);
+        client.subscribe(`/topic/missions/${missionId}/live`, handleLiveMessage);
+
+        client.subscribe(`/topic/vehicles/${vehicleId}/events`, (message) =>
+          handleEventMessage(message, "Nouvelle alerte détectée")
+        );
+
+        client.subscribe(`/topic/missions/${missionId}/events`, (message) =>
+          handleEventMessage(message, "Nouvelle alerte mission")
+        );
       },
 
       onStompError: () => {
@@ -201,7 +266,13 @@ export default function DriverMissionMapPage() {
       stompRef.current = null;
       setWsConnected(false);
     };
-  }, [live?.vehicleId, missionId, isValidMissionId]);
+  }, [
+    live?.vehicleId,
+    missionId,
+    isValidMissionId,
+    handleMissionCompleted,
+    effectiveMissionStatus,
+  ]);
 
   useEffect(() => {
     if (!isValidMissionId) return;
@@ -210,20 +281,30 @@ export default function DriverMissionMapPage() {
       if (wsConnected) return;
 
       try {
-        const [liveData, historyData] = await Promise.all([
+        const [missionData, liveData, historyData] = await Promise.all([
+          missionService.getById(missionId),
           missionService.getLive(missionId),
           missionService.getHistory(missionId),
         ]);
 
+        setMission(missionData);
+        setMissionStatus(missionData?.status || liveData?.missionStatus || "");
         setLive(liveData);
-        setHistory(historyData);
+        setHistory(historyData || []);
+
+        if (
+          missionData?.status === "COMPLETED" ||
+          liveData?.missionStatus === "COMPLETED"
+        ) {
+          handleMissionCompleted(liveData);
+        }
       } catch (e) {
         console.error("Erreur fallback refresh carte mission :", e);
       }
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [missionId, isValidMissionId, wsConnected]);
+  }, [missionId, isValidMissionId, wsConnected, handleMissionCompleted]);
 
   const vehicles = useMemo(() => {
     return live ? [live] : [];
@@ -273,14 +354,37 @@ export default function DriverMissionMapPage() {
           </div>
 
           <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-2 xl:grid-cols-4">
-            <div><strong>Véhicule :</strong> {mission?.vehicleRegistrationNumber || "—"}</div>
-            <div><strong>Statut :</strong> {mission?.status || "—"}</div>
-            <div><strong>Début :</strong> {formatDateTime(mission?.startedAt || mission?.startDate)}</div>
-            <div><strong>Fin :</strong> {formatDateTime(mission?.finishedAt || mission?.endDate)}</div>
+            <div>
+              <strong>Véhicule :</strong>{" "}
+              {mission?.vehicleRegistrationNumber || "—"}
+            </div>
+
+            <div>
+              <strong>Statut :</strong>{" "}
+              <span
+                className={
+                  isMissionCompleted
+                    ? "font-bold text-emerald-700"
+                    : "font-bold text-slate-800"
+                }
+              >
+                {effectiveMissionStatus}
+              </span>
+            </div>
+
+            <div>
+              <strong>Début :</strong>{" "}
+              {formatDateTime(mission?.startedAt || mission?.startDate)}
+            </div>
+
+            <div>
+              <strong>Fin :</strong>{" "}
+              {formatDateTime(mission?.finishedAt || mission?.endDate)}
+            </div>
           </div>
         </div>
 
-        {events.length > 0 && (
+        {!isMissionCompleted && events.length > 0 && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-bold text-red-700">
               Alertes GPS / OBD
@@ -297,9 +401,11 @@ export default function DriverMissionMapPage() {
                       <div className="font-bold text-slate-900">
                         {event.eventType}
                       </div>
+
                       <div className="mt-1 text-sm text-slate-600">
                         {event.message || "Aucun message"}
                       </div>
+
                       <div className="mt-2 text-xs text-slate-500">
                         {formatDateTime(event.createdAt)}
                       </div>
@@ -325,6 +431,13 @@ export default function DriverMissionMapPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {isMissionCompleted && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 shadow-sm">
+            Mission terminée automatiquement. Aucune alerte normale de fin de
+            trajet ne sera affichée.
           </div>
         )}
 

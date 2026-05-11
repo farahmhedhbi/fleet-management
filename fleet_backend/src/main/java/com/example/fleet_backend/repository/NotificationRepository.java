@@ -3,6 +3,7 @@ package com.example.fleet_backend.repository;
 import com.example.fleet_backend.model.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,9 +15,28 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     Optional<Notification> findByIdAndRecipientId(Long id, Long recipientId);
 
-    boolean existsByRecipientIdAndMissionIdAndTitle(Long recipientId, Long missionId, String title);
+    boolean existsByRecipientIdAndMissionIdAndTitle(
+            Long recipientId,
+            Long missionId,
+            String title
+    );
 
-    List<Notification> findByRecipientIdAndMissionIdAndTitle(Long recipientId, Long missionId, String title);
+    boolean existsByRecipientIdAndVehicleIdAndTitleAndCreatedAtAfter(
+            Long recipientId,
+            Long vehicleId,
+            String title,
+            LocalDateTime createdAt
+    );
 
-    void deleteByRecipientIdAndMissionIdAndTitle(Long recipientId, Long missionId, String title);
+    List<Notification> findByRecipientIdAndMissionIdAndTitle(
+            Long recipientId,
+            Long missionId,
+            String title
+    );
+
+    void deleteByRecipientIdAndMissionIdAndTitle(
+            Long recipientId,
+            Long missionId,
+            String title
+    );
 }

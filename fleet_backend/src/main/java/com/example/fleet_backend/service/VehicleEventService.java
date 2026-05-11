@@ -1,11 +1,7 @@
 package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.VehicleEventDTO;
-import com.example.fleet_backend.model.EventSeverity;
-import com.example.fleet_backend.model.GpsData;
-import com.example.fleet_backend.model.Vehicle;
-import com.example.fleet_backend.model.VehicleEvent;
-import com.example.fleet_backend.model.VehicleEventType;
+import com.example.fleet_backend.model.*;
 import com.example.fleet_backend.repository.VehicleEventRepository;
 import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
 import org.springframework.stereotype.Service;
@@ -27,17 +23,18 @@ public class VehicleEventService {
     private final VehicleEventRepository vehicleEventRepository;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
     private final PredictiveAnalysisService predictiveAnalysisService;
-
+    private final NotificationService notificationService;
 
     public VehicleEventService(
             VehicleEventRepository vehicleEventRepository,
             GpsWebSocketPublisher gpsWebSocketPublisher,
-            PredictiveAnalysisService predictiveAnalysisService
+            PredictiveAnalysisService predictiveAnalysisService,
+            NotificationService notificationService
     ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
         this.predictiveAnalysisService = predictiveAnalysisService;
-
+        this.notificationService = notificationService;
     }
 
     public void analyzeAndCreateEvents(
@@ -49,9 +46,7 @@ public class VehicleEventService {
             boolean offRoute,
             boolean missionCompleted
     ) {
-        if (vehicle == null || currentGps == null) {
-            return;
-        }
+        if (vehicle == null || currentGps == null) return;
 
         handleEngineTransitions(vehicle, previousGps, currentGps, missionId, missionActive);
         handleOverspeed(vehicle, currentGps, missionId);
@@ -103,11 +98,7 @@ public class VehicleEventService {
         }
     }
 
-    private void handleOverspeed(
-            Vehicle vehicle,
-            GpsData currentGps,
-            Long missionId
-    ) {
+    private void handleOverspeed(Vehicle vehicle, GpsData currentGps, Long missionId) {
         Double speed = currentGps.getSpeed();
 
         if (speed != null && speed > OVERSPEED_THRESHOLD) {
@@ -205,6 +196,9 @@ public class VehicleEventService {
             String message,
             GpsData gpsData
     ) {
+        if (vehicle == null || vehicle.getId() == null) return;
+        if (eventType == null || severity == null || gpsData == null) return;
+
         LocalDateTime now = LocalDateTime.now();
 
         Optional<VehicleEvent> lastOpt;
@@ -227,12 +221,13 @@ public class VehicleEventService {
         if (lastOpt.isPresent()) {
             VehicleEvent last = lastOpt.get();
 
-            long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
+            if (last.getCreatedAt() != null) {
+                long minutes = Duration.between(last.getCreatedAt(), now).toMinutes();
+                boolean sameSeverity = last.getSeverity() == severity;
 
-            boolean sameSeverity = last.getSeverity() == severity;
-
-            if (sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
-                return;
+                if (sameSeverity && minutes < EVENT_COOLDOWN_MINUTES) {
+                    return;
+                }
             }
         }
 
@@ -250,14 +245,67 @@ public class VehicleEventService {
 
         VehicleEvent saved = vehicleEventRepository.save(event);
 
-        runPredictiveAnalysisSafely(vehicle.getId());
-
-
         gpsWebSocketPublisher.publishEvent(toDto(saved));
+
+        notifyOwnerSafely(saved);
+        runPredictiveAnalysisSafely(vehicle.getId());
     }
 
+    private void notifyOwnerSafely(VehicleEvent event) {
+        try {
+            notifyOwnerForGpsProblem(event);
+        } catch (Exception e) {
+            System.err.println("Notification failed for event "
+                    + event.getId() + ": " + e.getMessage());
+        }
+    }
 
+    private void notifyOwnerForGpsProblem(VehicleEvent event) {
+        if (event == null || event.getVehicle() == null) return;
 
+        Vehicle vehicle = event.getVehicle();
+
+        if (vehicle.getOwner() == null) return;
+        if (!shouldNotifyOwner(event)) return;
+
+        notificationService.createVehicleProblemNotification(
+                vehicle.getOwner().getId(),
+                vehicle.getId(),
+                vehicle.getRegistrationNumber(),
+                event.getMissionId()
+        );
+    }
+
+    private boolean shouldNotifyOwner(VehicleEvent event) {
+        if (event.getEventType() == null || event.getSeverity() == null) {
+            return false;
+        }
+
+        if (event.getEventType() == VehicleEventType.ENGINE_ON
+                || event.getEventType() == VehicleEventType.MISSION_STARTED
+                || event.getEventType() == VehicleEventType.MISSION_COMPLETED) {
+            return false;
+        }
+
+        if (event.getSeverity() == EventSeverity.CRITICAL) {
+            return true;
+        }
+
+        return event.getSeverity() == EventSeverity.WARNING
+                && (event.getEventType() == VehicleEventType.STOP_LONG
+                || event.getEventType() == VehicleEventType.ENGINE_OFF);
+    }
+
+    private void runPredictiveAnalysisSafely(Long vehicleId) {
+        if (vehicleId == null) return;
+
+        try {
+            predictiveAnalysisService.analyzeVehicle(vehicleId);
+        } catch (Exception e) {
+            System.err.println("Predictive analysis failed for vehicle "
+                    + vehicleId + ": " + e.getMessage());
+        }
+    }
 
     public List<VehicleEventDTO> getLatestEvents() {
         return vehicleEventRepository.findTop50ByOrderByCreatedAtDesc()
@@ -276,34 +324,7 @@ public class VehicleEventService {
                 .map(this::toDto)
                 .toList();
     }
-    private void runPredictiveAnalysisSafely(Long vehicleId) {
-        if (vehicleId == null) {
-            return;
-        }
 
-        try {
-            predictiveAnalysisService.analyzeVehicle(vehicleId);
-        } catch (Exception e) {
-            System.err.println("Predictive analysis failed for vehicle "
-                    + vehicleId + ": " + e.getMessage());
-        }
-    }
-
-    private VehicleEventDTO toDto(VehicleEvent event) {
-        return new VehicleEventDTO(
-                event.getId(),
-                event.getVehicle() != null ? event.getVehicle().getId() : null,
-                event.getMissionId(),
-                event.getEventType() != null ? event.getEventType().name() : null,
-                event.getSeverity() != null ? event.getSeverity().name() : null,
-                event.getMessage(),
-                event.getLatitude(),
-                event.getLongitude(),
-                event.getSpeed(),
-                event.getCreatedAt(),
-                event.isAcknowledged()
-        );
-    }
     public void createObdEventIfAllowed(
             Vehicle vehicle,
             Long missionId,
@@ -328,6 +349,22 @@ public class VehicleEventService {
                 severity,
                 message,
                 gpsData
+        );
+    }
+
+    private VehicleEventDTO toDto(VehicleEvent event) {
+        return new VehicleEventDTO(
+                event.getId(),
+                event.getVehicle() != null ? event.getVehicle().getId() : null,
+                event.getMissionId(),
+                event.getEventType() != null ? event.getEventType().name() : null,
+                event.getSeverity() != null ? event.getSeverity().name() : null,
+                event.getMessage(),
+                event.getLatitude(),
+                event.getLongitude(),
+                event.getSpeed(),
+                event.getCreatedAt(),
+                event.isAcknowledged()
         );
     }
 }

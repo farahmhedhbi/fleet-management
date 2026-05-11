@@ -18,12 +18,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
 @Service
+@Transactional
 public class MissionLifecycleService {
 
     private static final double FINISH_RADIUS_METERS = 30.0;
@@ -52,22 +54,18 @@ public class MissionLifecycleService {
     }
 
     public Mission startMission(Mission mission, Authentication auth) {
-        if (!AuthUtil.hasRole(auth, "DRIVER")) {
-            throw new AccessDeniedException("Forbidden");
-        }
+        validateDriverAuth(auth);
 
         Driver driver = driverRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        if (mission.getDriver() == null || !mission.getDriver().getId().equals(driver.getId())) {
-            throw new AccessDeniedException("Not your mission");
-        }
+        validateMissionBelongsToDriver(mission, driver);
 
         if (mission.getStatus() != Mission.MissionStatus.PLANNED) {
             throw new IllegalArgumentException("Only planned missions can be started");
         }
 
-        if (mission.getVehicle() == null) {
+        if (mission.getVehicle() == null || mission.getVehicle().getId() == null) {
             throw new IllegalArgumentException("Mission vehicle is missing");
         }
 
@@ -81,32 +79,19 @@ public class MissionLifecycleService {
             throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
         }
 
-        boolean maintenanceConflict = maintenanceRepository.hasMaintenanceConflict(
-                vehicle.getId(),
-                List.of(
-                        MaintenanceStatus.PLANNED,
-                        MaintenanceStatus.IN_PROGRESS,
-                        MaintenanceStatus.OVERDUE
-                ),
-                mission.getStartDate(),
-                mission.getEndDate()
-        );
-
-        if (maintenanceConflict) {
-            throw new IllegalArgumentException(
-                    "Impossible de démarrer la mission : ce véhicule est en maintenance pendant cette période."
-            );
-        }
+        validateMaintenanceConflictForMission(vehicle, mission);
 
         if (missionRepository.existsByVehicleIdAndStatus(
                 vehicle.getId(),
-                Mission.MissionStatus.IN_PROGRESS)) {
+                Mission.MissionStatus.IN_PROGRESS
+        )) {
             throw new IllegalArgumentException("This vehicle already has an active mission");
         }
 
         if (missionRepository.existsByDriverIdAndStatus(
                 mission.getDriver().getId(),
-                Mission.MissionStatus.IN_PROGRESS)) {
+                Mission.MissionStatus.IN_PROGRESS
+        )) {
             throw new IllegalArgumentException("This driver already has an active mission");
         }
 
@@ -123,27 +108,26 @@ public class MissionLifecycleService {
     }
 
     public Mission finishMission(Mission mission, Authentication auth) {
-        if (!AuthUtil.hasRole(auth, "DRIVER")) {
-            throw new AccessDeniedException("Forbidden");
-        }
+        validateDriverAuth(auth);
 
         Driver driver = driverRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        if (mission.getDriver() == null || !mission.getDriver().getId().equals(driver.getId())) {
-            throw new AccessDeniedException("Not your mission");
-        }
+        validateMissionBelongsToDriver(mission, driver);
 
         if (mission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
             throw new IllegalArgumentException("Only missions in progress can be finished");
         }
 
-        if (mission.getVehicle() == null) {
+        if (mission.getVehicle() == null || mission.getVehicle().getId() == null) {
             throw new IllegalArgumentException("Mission vehicle is missing");
         }
 
-        VehicleLiveState liveState = vehicleLiveStateRepository.findByVehicleId(mission.getVehicle().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Live GPS position not found for this vehicle"));
+        VehicleLiveState liveState = vehicleLiveStateRepository
+                .findByVehicleId(mission.getVehicle().getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Live GPS position not found for this vehicle"
+                ));
 
         List<MissionRoutePointDTO> route = parseMissionRoute(mission.getRouteJson());
 
@@ -155,6 +139,10 @@ public class MissionLifecycleService {
 
         if (lastPoint.getLatitude() == null || lastPoint.getLongitude() == null) {
             throw new IllegalArgumentException("Mission destination coordinates are invalid");
+        }
+
+        if (liveState.getLatitude() == null || liveState.getLongitude() == null) {
+            throw new IllegalArgumentException("Live GPS coordinates are invalid");
         }
 
         double remainingDistance = distanceMeters(
@@ -184,6 +172,10 @@ public class MissionLifecycleService {
     }
 
     public Mission cancelMission(Mission mission) {
+        if (mission == null || mission.getId() == null) {
+            throw new ResourceNotFoundException("Mission not found");
+        }
+
         if (mission.getStatus() == Mission.MissionStatus.COMPLETED) {
             throw new IllegalArgumentException("Completed mission cannot be canceled");
         }
@@ -200,7 +192,9 @@ public class MissionLifecycleService {
     }
 
     public Mission completeMissionFromGps(Mission mission) {
-        if (mission == null) return null;
+        if (mission == null || mission.getId() == null) {
+            return null;
+        }
 
         Mission managed = missionRepository.findById(mission.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
@@ -222,6 +216,46 @@ public class MissionLifecycleService {
         managed.setLateAlertSent(false);
 
         return missionRepository.save(managed);
+    }
+
+    private void validateDriverAuth(Authentication auth) {
+        if (auth == null || !AuthUtil.hasRole(auth, "DRIVER")) {
+            throw new AccessDeniedException("Forbidden");
+        }
+    }
+
+    private void validateMissionBelongsToDriver(Mission mission, Driver driver) {
+        if (mission == null || mission.getId() == null) {
+            throw new ResourceNotFoundException("Mission not found");
+        }
+
+        if (mission.getDriver() == null || driver == null
+                || !mission.getDriver().getId().equals(driver.getId())) {
+            throw new AccessDeniedException("Not your mission");
+        }
+    }
+
+    private void validateMaintenanceConflictForMission(Vehicle vehicle, Mission mission) {
+        if (vehicle == null || vehicle.getId() == null) {
+            return;
+        }
+
+        boolean maintenanceConflict = maintenanceRepository.hasMaintenanceConflict(
+                vehicle.getId(),
+                List.of(
+                        MaintenanceStatus.PLANNED,
+                        MaintenanceStatus.IN_PROGRESS,
+                        MaintenanceStatus.OVERDUE
+                ),
+                mission.getStartDate(),
+                mission.getEndDate()
+        );
+
+        if (maintenanceConflict) {
+            throw new IllegalArgumentException(
+                    "Impossible de démarrer la mission : ce véhicule est en maintenance pendant cette période."
+            );
+        }
     }
 
     private void refreshVehicleStatusAfterMission(Vehicle vehicle) {
@@ -249,7 +283,8 @@ public class MissionLifecycleService {
         try {
             vehicle.setStatus(status);
             vehicleRepository.save(vehicle);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.err.println("Failed to update vehicle status: " + e.getMessage());
         }
     }
 
@@ -268,14 +303,23 @@ public class MissionLifecycleService {
         }
     }
 
-    private double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    private double distanceMeters(
+            double lat1,
+            double lon1,
+            double lat2,
+            double lon2
+    ) {
         double earthRadius = 6371000.0;
+
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
 
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                        + Math.cos(Math.toRadians(lat1))
+                        * Math.cos(Math.toRadians(lat2))
+                        * Math.sin(dLon / 2)
+                        * Math.sin(dLon / 2);
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 

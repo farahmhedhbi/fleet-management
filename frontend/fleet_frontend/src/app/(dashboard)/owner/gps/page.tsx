@@ -27,8 +27,6 @@ const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
 type EventMode = "vehicle" | "global";
 type StatusFilter = "ALL" | "MOVING" | "OFFLINE" | "MISSION" | "ALERT";
 
-const EVENT_TOAST_COOLDOWN_MS = 10 * 60 * 1000;
-
 const CONFIRMABLE_EVENTS = new Set([
   "OFF_ROUTE",
   "STOP_LONG",
@@ -50,14 +48,21 @@ function eventKey(event: VehicleEventDTO) {
       }-${event.severity}-${event.createdAt}`;
 }
 
-function eventSpamKey(event: VehicleEventDTO) {
-  return `${event.vehicleId}-${event.missionId ?? "no-mission"}-${
-    event.eventType
-  }-${event.severity}`;
-}
-
 function isDangerEvent(event: VehicleEventDTO) {
   return event.severity === "CRITICAL" || event.severity === "WARNING";
+}
+
+function isMissionCompletedEvent(event: VehicleEventDTO) {
+  return event.eventType === "MISSION_COMPLETED";
+}
+
+function isLiveMissionFinished(live: VehicleLiveStatusDTO) {
+  return (
+    live.missionActive === false ||
+    live.missionStatus === "COMPLETED" ||
+    live.missionStatus === "CANCELED" ||
+    live.liveStatus === "MISSION_COMPLETED"
+  );
 }
 
 function canConfirmAsIncident(event: VehicleEventDTO) {
@@ -78,28 +83,19 @@ function isObdEvent(event: VehicleEventDTO) {
   );
 }
 
-function isRecentEvent(event: VehicleEventDTO) {
-  if (!event.createdAt) return true;
-
-  const createdAt = new Date(event.createdAt).getTime();
-  if (Number.isNaN(createdAt)) return true;
-
-  return Date.now() - createdAt <= EVENT_TOAST_COOLDOWN_MS;
-}
-
 function toGpsPoint(live: VehicleLiveStatusDTO): GpsData | null {
   if (live.latitude == null || live.longitude == null || !live.timestamp) {
     return null;
   }
 
   return {
-    id: Date.now(),
+    id: Number(`${live.vehicleId}${Date.now()}`),
     vehicleId: live.vehicleId,
     missionId: live.missionId,
     latitude: live.latitude,
     longitude: live.longitude,
-    speed: live.speed,
-    engineOn: live.engineOn,
+    speed: live.speed ?? 0,
+    engineOn: live.engineOn ?? false,
     timestamp: live.timestamp,
     routeId: live.routeId,
     routeSource: live.routeSource,
@@ -117,6 +113,8 @@ function formatDate(value?: string | null) {
 
 function getEventLabel(type?: string | null) {
   switch (type) {
+    case "MISSION_COMPLETED":
+      return "Mission terminée";
     case "OBD_LOW_FUEL":
       return "Carburant faible";
     case "OBD_HIGH_TEMP":
@@ -155,6 +153,50 @@ function upsertEvent(list: VehicleEventDTO[], event: VehicleEventDTO) {
   return [event, ...list].slice(0, 50);
 }
 
+function getStatusBadgeClasses(status?: string | null) {
+  switch (status) {
+    case "MOVING":
+      return "border-emerald-200 bg-emerald-100 text-emerald-700";
+    case "MISSION_COMPLETED":
+      return "border-blue-200 bg-blue-100 text-blue-700";
+    case "OFF_ROUTE":
+    case "BREAKDOWN":
+      return "border-red-200 bg-red-100 text-red-700";
+    case "STOPPED":
+    case "PARKED":
+      return "border-amber-200 bg-amber-100 text-amber-700";
+    case "OFFLINE":
+    case "NO_DATA":
+      return "border-slate-300 bg-slate-200 text-slate-700";
+    default:
+      return "border-slate-200 bg-slate-100 text-slate-700";
+  }
+}
+
+function getVehicleCardClasses(vehicle: VehicleLiveStatusDTO, selected: boolean) {
+  const base = "w-full border-b px-5 py-4 text-left transition hover:shadow-sm";
+
+  if (selected) return `${base} border-sky-200 bg-sky-50`;
+
+  switch (vehicle.liveStatus) {
+    case "MOVING":
+      return `${base} border-emerald-100 bg-emerald-50 hover:bg-emerald-100`;
+    case "MISSION_COMPLETED":
+      return `${base} border-blue-100 bg-blue-50 hover:bg-blue-100`;
+    case "OFF_ROUTE":
+    case "BREAKDOWN":
+      return `${base} border-red-100 bg-red-50 hover:bg-red-100`;
+    case "STOPPED":
+    case "PARKED":
+      return `${base} border-amber-100 bg-amber-50 hover:bg-amber-100`;
+    case "OFFLINE":
+    case "NO_DATA":
+      return `${base} border-slate-100 bg-slate-50 hover:bg-slate-100`;
+    default:
+      return `${base} border-slate-100 bg-white hover:bg-slate-50`;
+  }
+}
+
 export default function OwnerGpsPage() {
   const [vehicles, setVehicles] = useState<VehicleLiveStatusDTO[]>([]);
   const [globalEvents, setGlobalEvents] = useState<VehicleEventDTO[]>([]);
@@ -170,51 +212,15 @@ export default function OwnerGpsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   const selectedVehicleIdRef = useRef<number | null>(null);
-  const shownToastRef = useRef<Map<string, number>>(new Map());
+  const vehiclesRef = useRef<VehicleLiveStatusDTO[]>([]);
 
   useEffect(() => {
     selectedVehicleIdRef.current = selectedVehicleId;
   }, [selectedVehicleId]);
 
-  const canShowToast = useCallback((event: VehicleEventDTO) => {
-    const key = eventSpamKey(event);
-    const now = Date.now();
-    const lastShownAt = shownToastRef.current.get(key);
-
-    if (lastShownAt && now - lastShownAt < EVENT_TOAST_COOLDOWN_MS) {
-      return false;
-    }
-
-    shownToastRef.current.set(key, now);
-
-    for (const [storedKey, storedTime] of Array.from(
-      shownToastRef.current.entries()
-    )) {
-      if (now - storedTime > EVENT_TOAST_COOLDOWN_MS * 2) {
-        shownToastRef.current.delete(storedKey);
-      }
-    }
-
-    return true;
-  }, []);
-
-  const showEventToast = useCallback(
-    (event: VehicleEventDTO) => {
-      if (!isDangerEvent(event)) return;
-      if (!isRecentEvent(event)) return;
-      if (!canShowToast(event)) return;
-
-      const message = event.message || getEventLabel(event.eventType);
-      const toastId = eventSpamKey(event);
-
-      if (event.severity === "CRITICAL") {
-        toast.error(message, { toastId });
-      } else {
-        toast.warning(message, { toastId });
-      }
-    },
-    [canShowToast]
-  );
+  useEffect(() => {
+    vehiclesRef.current = vehicles;
+  }, [vehicles]);
 
   const loadFleet = useCallback(async () => {
     try {
@@ -254,36 +260,64 @@ export default function OwnerGpsPage() {
     }
   }, []);
 
-  const loadVehicleDetails = useCallback(
-    async (vehicleId: number) => {
-      setHistoryLoading(true);
+  const loadVehicleDetails = useCallback(async (vehicleId: number) => {
+    setHistoryLoading(true);
 
-      try {
-        const vehicle = vehicles.find((v) => v.vehicleId === vehicleId);
+    try {
+      const vehicle = vehiclesRef.current.find(
+        (v) => v.vehicleId === vehicleId
+      );
 
-        const eventsPromise = gpsService.getVehicleEvents(vehicleId);
+      const eventsPromise = gpsService.getVehicleEvents(vehicleId);
 
-        const historyPromise =
-          vehicle?.missionActive && vehicle.missionId
-            ? gpsService.getMissionHistory(vehicle.missionId)
-            : Promise.resolve([]);
+      const historyPromise =
+        vehicle?.missionActive && vehicle.missionId
+          ? gpsService.getMissionHistory(vehicle.missionId)
+          : Promise.resolve([]);
 
-        const [h, events] = await Promise.all([historyPromise, eventsPromise]);
+      const [h, events] = await Promise.all([historyPromise, eventsPromise]);
 
-        setHistory(Array.isArray(h) ? h : []);
-        setVehicleEvents(
-          Array.isArray(events) ? events.filter(isDangerEvent).slice(0, 50) : []
-        );
-      } catch (e) {
-        console.error("Erreur détail véhicule:", e);
-        toast.error("Erreur lors du chargement du détail véhicule");
+      setHistory(Array.isArray(h) ? h : []);
+      setVehicleEvents(
+        Array.isArray(events) ? events.filter(isDangerEvent).slice(0, 50) : []
+      );
+    } catch (e) {
+      console.error("Erreur détail véhicule:", e);
+      toast.error("Erreur lors du chargement du détail véhicule");
+      setHistory([]);
+      setVehicleEvents([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const markVehicleMissionCompleted = useCallback(
+    (vehicleId: number) => {
+      setVehicles((prev) =>
+        prev.map((vehicle) =>
+          vehicle.vehicleId === vehicleId
+            ? {
+                ...vehicle,
+                missionActive: false,
+                missionId: null,
+                missionStatus: "COMPLETED",
+                liveStatus: "MISSION_COMPLETED",
+                routeSource: "STATIC",
+              }
+            : vehicle
+        )
+      );
+
+      if (vehicleId === selectedVehicleIdRef.current) {
         setHistory([]);
         setVehicleEvents([]);
-      } finally {
-        setHistoryLoading(false);
       }
+
+      setTimeout(() => {
+        loadFleet();
+      }, 300);
     },
-    [vehicles]
+    [loadFleet]
   );
 
   useEffect(() => {
@@ -293,16 +327,43 @@ export default function OwnerGpsPage() {
   useEffect(() => {
     subscribeGpsLive<VehicleLiveStatusDTO>((liveVehicle) => {
       setVehicles((prev) => {
-        const exists = prev.some((v) => v.vehicleId === liveVehicle.vehicleId);
+        const fixedLiveVehicle = isLiveMissionFinished(liveVehicle)
+          ? {
+              ...liveVehicle,
+              missionActive: false,
+              missionId:
+                liveVehicle.missionStatus === "COMPLETED" ||
+                liveVehicle.missionStatus === "CANCELED"
+                  ? null
+                  : liveVehicle.missionId,
+              routeSource:
+                liveVehicle.missionStatus === "COMPLETED" ||
+                liveVehicle.missionStatus === "CANCELED"
+                  ? "STATIC"
+                  : liveVehicle.routeSource,
+            }
+          : liveVehicle;
 
-        if (!exists) return [...prev, liveVehicle];
+        const exists = prev.some(
+          (v) => v.vehicleId === fixedLiveVehicle.vehicleId
+        );
+
+        if (!exists) return [...prev, fixedLiveVehicle];
 
         return prev.map((v) =>
-          v.vehicleId === liveVehicle.vehicleId ? liveVehicle : v
+          v.vehicleId === fixedLiveVehicle.vehicleId ? fixedLiveVehicle : v
         );
       });
 
       setSelectedVehicleId((prev) => prev ?? liveVehicle.vehicleId);
+
+      if (
+        liveVehicle.vehicleId === selectedVehicleIdRef.current &&
+        isLiveMissionFinished(liveVehicle)
+      ) {
+        setHistory([]);
+        return;
+      }
 
       setHistory((prev) => {
         if (selectedVehicleIdRef.current !== liveVehicle.vehicleId) {
@@ -312,13 +373,14 @@ export default function OwnerGpsPage() {
         const point = toGpsPoint(liveVehicle);
         if (!point) return prev;
 
-        const exists = prev.some(
-          (p) =>
-            p.timestamp === point.timestamp ||
-            (p.vehicleId === point.vehicleId &&
-              p.latitude === point.latitude &&
-              p.longitude === point.longitude)
-        );
+        const last = prev[prev.length - 1];
+
+        const exists =
+          last &&
+          last.vehicleId === point.vehicleId &&
+          last.latitude === point.latitude &&
+          last.longitude === point.longitude &&
+          last.timestamp === point.timestamp;
 
         if (exists) return prev;
 
@@ -327,22 +389,27 @@ export default function OwnerGpsPage() {
     });
 
     subscribeEventsLive<VehicleEventDTO>((event) => {
-      if (!event || !isDangerEvent(event)) return;
+      if (!event) return;
+
+      if (isMissionCompletedEvent(event)) {
+        markVehicleMissionCompleted(event.vehicleId);
+        return;
+      }
+
+      if (!isDangerEvent(event)) return;
 
       setGlobalEvents((prev) => upsertEvent(prev, event));
 
       if (event.vehicleId === selectedVehicleIdRef.current) {
         setVehicleEvents((prev) => upsertEvent(prev, event));
       }
-
-      showEventToast(event);
     });
 
     return () => {
       unsubscribeGpsLive();
       unsubscribeEventsLive();
     };
-  }, [showEventToast]);
+  }, [markVehicleMissionCompleted]);
 
   useEffect(() => {
     if (selectedVehicleId) {
@@ -352,6 +419,10 @@ export default function OwnerGpsPage() {
       setVehicleEvents([]);
     }
   }, [selectedVehicleId, loadVehicleDetails]);
+
+  const alertVehicleIds = useMemo(() => {
+    return new Set(globalEvents.map((event) => event.vehicleId).filter(Boolean));
+  }, [globalEvents]);
 
   const filteredVehicles = useMemo(() => {
     if (statusFilter === "ALL") return vehicles;
@@ -374,9 +445,10 @@ export default function OwnerGpsPage() {
       (v) =>
         v.liveStatus === "OFF_ROUTE" ||
         v.liveStatus === "MISSION_COMPLETED" ||
-        v.liveStatus === "BREAKDOWN"
+        v.liveStatus === "BREAKDOWN" ||
+        alertVehicleIds.has(v.vehicleId)
     );
-  }, [vehicles, statusFilter]);
+  }, [vehicles, statusFilter, alertVehicleIds]);
 
   const selectedVehicle = useMemo(() => {
     return (
@@ -387,6 +459,100 @@ export default function OwnerGpsPage() {
   }, [filteredVehicles, vehicles, selectedVehicleId]);
 
   const eventsToShow = eventMode === "vehicle" ? vehicleEvents : globalEvents;
+
+  const renderAlertsPanel = () => (
+    <div className="rounded-2xl border border-red-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-red-100 bg-red-50 px-5 py-4">
+        <h2 className="text-lg font-extrabold text-red-700">
+          Dangers / alertes
+        </h2>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEventMode("vehicle")}
+            className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
+              eventMode === "vehicle"
+                ? "bg-red-600 text-white"
+                : "bg-white text-red-700 hover:bg-red-100"
+            }`}
+          >
+            Vehicle
+          </button>
+
+          <button
+            onClick={() => setEventMode("global")}
+            className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
+              eventMode === "global"
+                ? "bg-red-600 text-white"
+                : "bg-white text-red-700 hover:bg-red-100"
+            }`}
+          >
+            Global
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-[360px] overflow-auto divide-y divide-slate-100">
+        {eventsToShow.length === 0 ? (
+          <div className="p-5 text-sm text-slate-500">
+            Aucune alerte récente.
+          </div>
+        ) : (
+          eventsToShow.map((event) => (
+            <div key={eventKey(event)} className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-bold text-slate-900">
+                  {getEventLabel(event.eventType)}
+                </p>
+
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-bold ${
+                    event.severity === "CRITICAL"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {event.severity}
+                </span>
+              </div>
+
+              <p className="mt-1 text-sm text-slate-600">{event.message}</p>
+
+              <p className="mt-2 text-xs text-slate-400">
+                Vehicle #{event.vehicleId}
+                {event.missionId ? ` — Mission #${event.missionId}` : ""}
+                {" — "}
+                {formatDate(event.createdAt)}
+              </p>
+
+              {isObdEvent(event) && (
+                <p className="mt-1 text-xs font-bold text-blue-600">
+                  OBD danger
+                </p>
+              )}
+
+              {canConfirmAsIncident(event) && (
+                <div className="mt-3 flex justify-end">
+                  <ConfirmEventAsIncidentButton
+                    event={event}
+                    onConfirmed={() => {
+                      setGlobalEvents((prev) =>
+                        prev.filter((e) => eventKey(e) !== eventKey(event))
+                      );
+
+                      setVehicleEvents((prev) =>
+                        prev.filter((e) => eventKey(e) !== eventKey(event))
+                      );
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <ProtectedRoute allowedRoles={["ROLE_OWNER"]}>
@@ -411,8 +577,12 @@ export default function OwnerGpsPage() {
                 onClick={() => setStatusFilter(f)}
                 className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
                   statusFilter === f
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    ? f === "ALERT"
+                      ? "border-red-600 bg-red-600 text-white"
+                      : "border-slate-900 bg-slate-900 text-white"
+                    : f === "ALERT"
+                      ? "border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
                 {f}
@@ -420,6 +590,8 @@ export default function OwnerGpsPage() {
             ))}
           </div>
         </div>
+
+        {statusFilter === "ALERT" && renderAlertsPanel()}
 
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm">
@@ -452,11 +624,10 @@ export default function OwnerGpsPage() {
                       <button
                         key={vehicle.vehicleId}
                         onClick={() => setSelectedVehicleId(vehicle.vehicleId)}
-                        className={`w-full border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50 ${
+                        className={getVehicleCardClasses(
+                          vehicle,
                           selectedVehicleId === vehicle.vehicleId
-                            ? "bg-sky-50"
-                            : "bg-white"
-                        }`}
+                        )}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div>
@@ -474,8 +645,12 @@ export default function OwnerGpsPage() {
                             </p>
                           </div>
 
-                          <span className="rounded-full border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700">
-                            {vehicle.liveStatus}
+                          <span
+                            className={`rounded-full border px-2 py-1 text-xs font-bold ${getStatusBadgeClasses(
+                              vehicle.liveStatus
+                            )}`}
+                          >
+                            {vehicle.liveStatus || "UNKNOWN"}
                           </span>
                         </div>
                       </button>
@@ -536,106 +711,6 @@ export default function OwnerGpsPage() {
                       />
                     </div>
                   )}
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <h2 className="text-lg font-extrabold text-slate-900">
-                      Dangers / alertes
-                    </h2>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setEventMode("vehicle")}
-                        className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
-                          eventMode === "vehicle"
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        Vehicle
-                      </button>
-
-                      <button
-                        onClick={() => setEventMode("global")}
-                        className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
-                          eventMode === "global"
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        Global
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-[360px] overflow-auto divide-y divide-slate-100">
-                    {eventsToShow.length === 0 ? (
-                      <div className="p-5 text-sm text-slate-500">
-                        Aucune alerte récente.
-                      </div>
-                    ) : (
-                      eventsToShow.map((event) => (
-                        <div key={eventKey(event)} className="p-5">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-bold text-slate-900">
-                              {getEventLabel(event.eventType)}
-                            </p>
-
-                            <span
-                              className={`rounded-full px-2 py-1 text-xs font-bold ${
-                                event.severity === "CRITICAL"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-amber-100 text-amber-700"
-                              }`}
-                            >
-                              {event.severity}
-                            </span>
-                          </div>
-
-                          <p className="mt-1 text-sm text-slate-600">
-                            {event.message}
-                          </p>
-
-                          <p className="mt-2 text-xs text-slate-400">
-                            Vehicle #{event.vehicleId}
-                            {event.missionId
-                              ? ` — Mission #${event.missionId}`
-                              : ""}
-                            {" — "}
-                            {formatDate(event.createdAt)}
-                          </p>
-
-                          {isObdEvent(event) && (
-                            <p className="mt-1 text-xs font-bold text-blue-600">
-                              OBD danger
-                            </p>
-                          )}
-
-                          {canConfirmAsIncident(event) && (
-                            <div className="mt-3 flex justify-end">
-                              <ConfirmEventAsIncidentButton
-                                event={event}
-                                onConfirmed={() => {
-                                  setGlobalEvents((prev) =>
-                                    prev.filter(
-                                      (e) => eventKey(e) !== eventKey(event)
-                                    )
-                                  );
-
-                                  setVehicleEvents((prev) =>
-                                    prev.filter(
-                                      (e) => eventKey(e) !== eventKey(event)
-                                    )
-                                  );
-                                }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
                 </div>
 
                 {historyLoading ? (

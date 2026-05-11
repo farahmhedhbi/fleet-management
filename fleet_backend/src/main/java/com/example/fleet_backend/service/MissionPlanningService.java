@@ -16,11 +16,13 @@ import com.example.fleet_backend.security.AuthUtil;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional
 public class MissionPlanningService {
 
     private static final long MIN_DURATION_SECONDS = 120;
@@ -60,24 +62,17 @@ public class MissionPlanningService {
         Driver driver = driverRepository.findById(dto.getDriverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        if (AuthUtil.hasRole(auth, "OWNER")) {
-            if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("You can only use your own vehicles");
-            }
-
-            if (driver.getOwner() == null || !driver.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("You can only use your own drivers");
-            }
-        }
+        validateOwnerAccess(auth, owner, vehicle, driver);
 
         RoutePlanResult plan = routePlannerService.buildRoutePlan(
                 dto.getDeparture().trim(),
                 dto.getDestination().trim()
         );
 
-        long baseDuration = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds());
-        long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
-        LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
+        LocalDateTime estimatedEndDate = calculateEstimatedEndDate(
+                dto.getStartDate(),
+                plan.getDurationSeconds()
+        );
 
         validateDriverLicense(driver, estimatedEndDate);
 
@@ -109,6 +104,10 @@ public class MissionPlanningService {
     public Mission updateMission(Mission mission, MissionDTO dto, Authentication auth) {
         validateMissionInput(dto);
 
+        if (mission == null || mission.getId() == null) {
+            throw new ResourceNotFoundException("Mission not found");
+        }
+
         if (mission.getStatus() != Mission.MissionStatus.PLANNED) {
             throw new IllegalArgumentException("Only planned missions can be edited");
         }
@@ -125,24 +124,17 @@ public class MissionPlanningService {
         Driver driver = driverRepository.findById(dto.getDriverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        if (AuthUtil.hasRole(auth, "OWNER")) {
-            if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("You can only use your own vehicles");
-            }
-
-            if (driver.getOwner() == null || !driver.getOwner().getId().equals(owner.getId())) {
-                throw new AccessDeniedException("You can only use your own drivers");
-            }
-        }
+        validateOwnerAccess(auth, owner, vehicle, driver);
 
         RoutePlanResult plan = routePlannerService.buildRoutePlan(
                 dto.getDeparture().trim(),
                 dto.getDestination().trim()
         );
 
-        long baseDuration = Math.max(MIN_DURATION_SECONDS, plan.getDurationSeconds());
-        long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
-        LocalDateTime estimatedEndDate = dto.getStartDate().plusSeconds(estimatedSeconds);
+        LocalDateTime estimatedEndDate = calculateEstimatedEndDate(
+                dto.getStartDate(),
+                plan.getDurationSeconds()
+        );
 
         validateDriverLicense(driver, estimatedEndDate);
 
@@ -167,6 +159,35 @@ public class MissionPlanningService {
         return missionRepository.save(mission);
     }
 
+    private void validateOwnerAccess(
+            Authentication auth,
+            User owner,
+            Vehicle vehicle,
+            Driver driver
+    ) {
+        if (!AuthUtil.hasRole(auth, "OWNER")) {
+            return;
+        }
+
+        if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
+            throw new AccessDeniedException("You can only use your own vehicles");
+        }
+
+        if (driver.getOwner() == null || !driver.getOwner().getId().equals(owner.getId())) {
+            throw new AccessDeniedException("You can only use your own drivers");
+        }
+    }
+
+    private LocalDateTime calculateEstimatedEndDate(
+            LocalDateTime startDate,
+            long routeDurationSeconds
+    ) {
+        long baseDuration = Math.max(MIN_DURATION_SECONDS, routeDurationSeconds);
+        long estimatedSeconds = baseDuration + Math.round(baseDuration * 0.10);
+
+        return startDate.plusSeconds(estimatedSeconds);
+    }
+
     private void validateDriverLicense(Driver driver, LocalDateTime missionEndDate) {
         if (driver.getStatus() != Driver.DriverStatus.ACTIVE) {
             throw new IllegalArgumentException("Ce chauffeur n'est pas actif");
@@ -189,23 +210,42 @@ public class MissionPlanningService {
             LocalDateTime endDate,
             Long currentMissionId
     ) {
+        if (vehicle == null || vehicle.getId() == null) {
+            throw new IllegalArgumentException("Vehicle is required");
+        }
+
+        if (driverId == null) {
+            throw new IllegalArgumentException("Driver is required");
+        }
+
         Long vehicleId = vehicle.getId();
 
         if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
             throw new IllegalArgumentException("Ce véhicule est hors service.");
         }
 
-        if (missionRepository.existsByVehicleIdAndStatus(vehicleId, Mission.MissionStatus.IN_PROGRESS)) {
+        if (missionRepository.existsByVehicleIdAndStatus(
+                vehicleId,
+                Mission.MissionStatus.IN_PROGRESS
+        )) {
             throw new IllegalArgumentException("Ce véhicule a déjà une mission en cours.");
         }
 
-        if (missionRepository.existsByDriverIdAndStatus(driverId, Mission.MissionStatus.IN_PROGRESS)) {
+        if (missionRepository.existsByDriverIdAndStatus(
+                driverId,
+                Mission.MissionStatus.IN_PROGRESS
+        )) {
             throw new IllegalArgumentException("Ce chauffeur a déjà une mission en cours.");
         }
 
         boolean vehicleOverlap = currentMissionId == null
                 ? missionRepository.existsVehicleOverlap(vehicleId, startDate, endDate)
-                : missionRepository.existsVehicleOverlapExcludingMission(vehicleId, startDate, endDate, currentMissionId);
+                : missionRepository.existsVehicleOverlapExcludingMission(
+                vehicleId,
+                startDate,
+                endDate,
+                currentMissionId
+        );
 
         if (vehicleOverlap) {
             throw new IllegalArgumentException("Ce véhicule est déjà réservé dans cette période.");
@@ -213,7 +253,12 @@ public class MissionPlanningService {
 
         boolean driverOverlap = currentMissionId == null
                 ? missionRepository.existsDriverOverlap(driverId, startDate, endDate)
-                : missionRepository.existsDriverOverlapExcludingMission(driverId, startDate, endDate, currentMissionId);
+                : missionRepository.existsDriverOverlapExcludingMission(
+                driverId,
+                startDate,
+                endDate,
+                currentMissionId
+        );
 
         if (driverOverlap) {
             throw new IllegalArgumentException("Ce chauffeur est déjà réservé dans cette période.");
@@ -238,6 +283,10 @@ public class MissionPlanningService {
     }
 
     private void validateMissionInput(MissionDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("mission data is required");
+        }
+
         if (dto.getTitle() == null || dto.getTitle().isBlank()) {
             throw new IllegalArgumentException("title is required");
         }
@@ -260,6 +309,10 @@ public class MissionPlanningService {
 
         if (dto.getStartDate() == null) {
             throw new IllegalArgumentException("startDate is required");
+        }
+
+        if (dto.getStartDate().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("startDate cannot be in the past");
         }
     }
 }

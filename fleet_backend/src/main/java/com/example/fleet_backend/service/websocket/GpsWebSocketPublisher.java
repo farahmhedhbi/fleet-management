@@ -62,30 +62,61 @@ public class GpsWebSocketPublisher {
         );
 
         VehicleLiveSocketDTO liveSocketDto = toLiveSocketDto(fullDto);
-        ObdLiveSocketDTO obdSocketDto = toObdSocketDto(state , gpsData);
+        ObdLiveSocketDTO obdSocketDto = toObdSocketDto(state, gpsData);
 
-        // GPS live global léger
         messagingTemplate.convertAndSend("/topic/gps/live", liveSocketDto);
 
-        // GPS live véhicule léger
         messagingTemplate.convertAndSend(
                 "/topic/vehicles/" + liveSocketDto.getVehicleId() + "/live",
                 liveSocketDto
         );
 
-        // OBD live véhicule léger
         messagingTemplate.convertAndSend(
                 "/topic/vehicles/" + liveSocketDto.getVehicleId() + "/obd",
                 obdSocketDto
         );
 
-        // GPS live mission léger
         if (liveSocketDto.getMissionId() != null) {
             messagingTemplate.convertAndSend(
                     "/topic/missions/" + liveSocketDto.getMissionId() + "/live",
                     liveSocketDto
             );
         }
+    }
+
+    public void publishMissionCompleted(Vehicle vehicle,
+                                        GpsData gpsData,
+                                        Long missionId) {
+        if (vehicle == null || vehicle.getId() == null || gpsData == null || missionId == null) {
+            return;
+        }
+
+        VehicleLiveSocketDTO liveSocketDto = new VehicleLiveSocketDTO(
+                vehicle.getId(),
+                vehicle.getRegistrationNumber(),
+                gpsData.getLatitude(),
+                gpsData.getLongitude(),
+                gpsData.getSpeed(),
+                gpsData.isEngineOn(),
+                gpsData.getTimestamp(),
+                LiveStatus.STOPPED.name(),
+                false,
+                missionId,
+                "COMPLETED",
+                gpsData.getRouteSource()
+        );
+
+        messagingTemplate.convertAndSend("/topic/gps/live", liveSocketDto);
+
+        messagingTemplate.convertAndSend(
+                "/topic/vehicles/" + vehicle.getId() + "/live",
+                liveSocketDto
+        );
+
+        messagingTemplate.convertAndSend(
+                "/topic/missions/" + missionId + "/live",
+                liveSocketDto
+        );
     }
 
     private VehicleLiveSocketDTO toLiveSocketDto(VehicleLiveStatusDTO dto) {

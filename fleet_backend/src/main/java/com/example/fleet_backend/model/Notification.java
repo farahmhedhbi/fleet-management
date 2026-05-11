@@ -10,6 +10,7 @@ public class Notification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
     private User recipient;
@@ -29,12 +30,14 @@ public class Notification {
     @Column(name = "mission_id")
     private Long missionId;
 
+    @Column(name = "vehicle_id")
+    private Long vehicleId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
 
-    // getters / setters
     public Long getId() { return id; }
 
     public User getRecipient() { return recipient; }
@@ -53,4 +56,7 @@ public class Notification {
 
     public Long getMissionId() { return missionId; }
     public void setMissionId(Long missionId) { this.missionId = missionId; }
+
+    public Long getVehicleId() { return vehicleId; }
+    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
 }
