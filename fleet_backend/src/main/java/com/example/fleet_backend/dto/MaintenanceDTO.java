@@ -1,5 +1,6 @@
 package com.example.fleet_backend.dto;
 
+import com.example.fleet_backend.model.MaintenancePriority;
 import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.model.MaintenanceType;
 
@@ -15,6 +16,7 @@ public class MaintenanceDTO {
 
     private MaintenanceType type;
     private MaintenanceStatus status;
+    private MaintenancePriority priority;
 
     private String title;
     private String description;
@@ -32,12 +34,18 @@ public class MaintenanceDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private Long incidentId;
+    private String incidentTitle;
+    private Long workOrderId;
+    private String workOrderTitle;
+
     public MaintenanceDTO(
             Long id,
             Long vehicleId,
             String vehicleRegistrationNumber,
             MaintenanceType type,
             MaintenanceStatus status,
+            MaintenancePriority priority,
             String title,
             String description,
             LocalDateTime maintenanceDate,
@@ -48,13 +56,18 @@ public class MaintenanceDTO {
             Long createdByUserId,
             String createdByEmail,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            LocalDateTime updatedAt,
+            Long incidentId,
+            String incidentTitle,
+            Long workOrderId,
+            String workOrderTitle
     ) {
         this.id = id;
         this.vehicleId = vehicleId;
         this.vehicleRegistrationNumber = vehicleRegistrationNumber;
         this.type = type;
         this.status = status;
+        this.priority = priority;
         this.title = title;
         this.description = description;
         this.maintenanceDate = maintenanceDate;
@@ -66,6 +79,10 @@ public class MaintenanceDTO {
         this.createdByEmail = createdByEmail;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.incidentId = incidentId;
+        this.incidentTitle = incidentTitle;
+        this.workOrderId = workOrderId;
+        this.workOrderTitle = workOrderTitle;
     }
 
     public Long getId() {
@@ -86,6 +103,10 @@ public class MaintenanceDTO {
 
     public MaintenanceStatus getStatus() {
         return status;
+    }
+
+    public MaintenancePriority getPriority() {
+        return priority;
     }
 
     public String getTitle() {
@@ -115,6 +136,13 @@ public class MaintenanceDTO {
     public BigDecimal getCost() {
         return cost;
     }
+    public Long getWorkOrderId() {
+        return workOrderId;
+    }
+
+    public String getWorkOrderTitle() {
+        return workOrderTitle;
+    }
 
     public Long getCreatedByUserId() {
         return createdByUserId;
@@ -130,5 +158,13 @@ public class MaintenanceDTO {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Long getIncidentId() {
+        return incidentId;
+    }
+
+    public String getIncidentTitle() {
+        return incidentTitle;
     }
 }

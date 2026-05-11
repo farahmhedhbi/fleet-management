@@ -6,8 +6,11 @@ import com.example.fleet_backend.dto.IncidentFromEventRequest;
 import com.example.fleet_backend.dto.IncidentUpdateStatusRequest;
 import com.example.fleet_backend.service.IncidentService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import com.example.fleet_backend.dto.IncidentHistoryDTO;
 
 import java.util.List;
 
@@ -27,6 +30,15 @@ public class IncidentController {
             Authentication auth
     ) {
         return incidentService.createManualIncident(request, auth);
+    }
+
+    @PostMapping(value = "/with-photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public IncidentDTO createIncidentWithPhotos(
+            @Valid @RequestPart("data") IncidentCreateRequest request,
+            @RequestPart(value = "photos", required = false) List<MultipartFile> photos,
+            Authentication auth
+    ) {
+        return incidentService.createManualIncidentWithPhotos(request, photos, auth);
     }
 
     @PostMapping("/from-event")
@@ -72,5 +84,16 @@ public class IncidentController {
             Authentication auth
     ) {
         return incidentService.updateStatus(id, request, auth);
+    }
+    @GetMapping("/{id}/history")
+    public List<IncidentHistoryDTO> getIncidentHistory(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
+        return incidentService.getIncidentHistory(id, auth);
+    }
+    @GetMapping("/history")
+    public List<IncidentHistoryDTO> getLatestIncidentHistories(Authentication auth) {
+        return incidentService.getLatestIncidentHistories(auth);
     }
 }

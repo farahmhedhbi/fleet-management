@@ -26,14 +26,17 @@ public class VehicleEventService {
 
     private final VehicleEventRepository vehicleEventRepository;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
+    private final PredictiveAnalysisService predictiveAnalysisService;
 
 
     public VehicleEventService(
             VehicleEventRepository vehicleEventRepository,
-            GpsWebSocketPublisher gpsWebSocketPublisher
+            GpsWebSocketPublisher gpsWebSocketPublisher,
+            PredictiveAnalysisService predictiveAnalysisService
     ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
+        this.predictiveAnalysisService = predictiveAnalysisService;
 
     }
 
@@ -247,6 +250,7 @@ public class VehicleEventService {
 
         VehicleEvent saved = vehicleEventRepository.save(event);
 
+        runPredictiveAnalysisSafely(vehicle.getId());
 
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
@@ -271,6 +275,18 @@ public class VehicleEventService {
                         || event.getSeverity() == EventSeverity.WARNING)
                 .map(this::toDto)
                 .toList();
+    }
+    private void runPredictiveAnalysisSafely(Long vehicleId) {
+        if (vehicleId == null) {
+            return;
+        }
+
+        try {
+            predictiveAnalysisService.analyzeVehicle(vehicleId);
+        } catch (Exception e) {
+            System.err.println("Predictive analysis failed for vehicle "
+                    + vehicleId + ": " + e.getMessage());
+        }
     }
 
     private VehicleEventDTO toDto(VehicleEvent event) {

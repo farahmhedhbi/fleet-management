@@ -3,11 +3,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { ArrowLeft, AlertTriangle, Car, ClipboardList, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  AlertTriangle,
+  Car,
+  ClipboardList,
+  ShieldAlert,
+  ImageIcon,
+  MapPin,
+  Clock3,
+} from "lucide-react";
 
 import { incidentService } from "@/lib/services/incidentService";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import type { IncidentDTO } from "@/types/incident";
+import type { IncidentDTO, IncidentHistoryDTO } from "@/types/incident";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080";
+
+function getFileUrl(url?: string | null) {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${API_BASE_URL}${url}`;
+}
+
+function getIncidentPhotos(incident: IncidentDTO) {
+  if (incident.photoUrls && incident.photoUrls.length > 0) {
+    return incident.photoUrls.map(getFileUrl).filter(Boolean) as string[];
+  }
+
+  const fallback = getFileUrl(incident.photoUrl);
+  return fallback ? [fallback] : [];
+}
 
 function severityClass(severity?: string) {
   switch (severity) {
@@ -26,19 +53,29 @@ function severityClass(severity?: string) {
 
 function statusClass(status?: string) {
   switch (status) {
-    case "REPORTED":
+    case "OPEN":
       return "bg-blue-100 text-blue-700 border-blue-200";
-    case "VALIDATED":
-      return "bg-purple-100 text-purple-700 border-purple-200";
     case "IN_PROGRESS":
       return "bg-yellow-100 text-yellow-700 border-yellow-200";
     case "RESOLVED":
       return "bg-green-100 text-green-700 border-green-200";
-    case "REJECTED":
+    case "CLOSED":
       return "bg-gray-100 text-gray-700 border-gray-200";
     default:
       return "bg-gray-100 text-gray-700 border-gray-200";
   }
+}
+
+function historyLabel(h: IncidentHistoryDTO) {
+  if (h.action === "INCIDENT_CREATED") return "Incident déclaré";
+  if (h.action === "INCIDENT_CREATED_FROM_EVENT") return "Incident confirmé depuis une alerte";
+  if (h.action === "STATUS_CHANGED") return "Changement de statut";
+  return h.action;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("fr-FR");
 }
 
 export default function DriverIncidentDetailPage() {
@@ -48,9 +85,11 @@ export default function DriverIncidentDetailPage() {
   const id = Number(params.id);
 
   const [incident, setIncident] = useState<IncidentDTO | null>(null);
+  const [history, setHistory] = useState<IncidentHistoryDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   const isValidId = useMemo(() => !!id && !Number.isNaN(id), [id]);
+  const photos = incident ? getIncidentPhotos(incident) : [];
 
   useEffect(() => {
     async function load() {
@@ -60,8 +99,13 @@ export default function DriverIncidentDetailPage() {
       }
 
       try {
-        const data = await incidentService.getById(id);
-        setIncident(data);
+        const [incidentData, historyData] = await Promise.all([
+          incidentService.getById(id),
+          incidentService.getHistory(id),
+        ]);
+
+        setIncident(incidentData);
+        setHistory(historyData);
       } catch {
         toast.error("Incident introuvable");
       } finally {
@@ -86,9 +130,7 @@ export default function DriverIncidentDetailPage() {
 
           {loading ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-              <div className="h-6 w-48 animate-pulse rounded bg-slate-200" />
-              <div className="mt-4 h-4 w-full animate-pulse rounded bg-slate-100" />
-              <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+              Chargement...
             </div>
           ) : !incident ? (
             <div className="rounded-2xl border border-red-100 bg-white p-8 text-center shadow-sm">
@@ -96,9 +138,6 @@ export default function DriverIncidentDetailPage() {
               <h2 className="text-lg font-bold text-slate-900">
                 Incident introuvable
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Aucun incident ne correspond à cet identifiant.
-              </p>
             </div>
           ) : (
             <>
@@ -146,7 +185,6 @@ export default function DriverIncidentDetailPage() {
                       <Car size={20} className="text-red-600" />
                       <h2 className="font-bold">Véhicule</h2>
                     </div>
-
                     <p className="text-sm text-slate-500">Matricule</p>
                     <p className="mt-1 text-lg font-semibold text-slate-900">
                       {incident.vehicleRegistrationNumber ?? "-"}
@@ -158,7 +196,6 @@ export default function DriverIncidentDetailPage() {
                       <ClipboardList size={20} className="text-red-600" />
                       <h2 className="font-bold">Mission</h2>
                     </div>
-
                     <p className="text-sm text-slate-500">Mission liée</p>
                     <p className="mt-1 text-lg font-semibold text-slate-900">
                       {incident.missionTitle ?? "-"}
@@ -167,39 +204,90 @@ export default function DriverIncidentDetailPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  Informations générales
-                </h2>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-medium uppercase text-slate-400">
-                      Type
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {incident.type ?? "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium uppercase text-slate-400">
-                      Source
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {incident.source ?? "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium uppercase text-slate-400">
-                      Urgence
-                    </p>
-                    <p className="mt-1 font-semibold text-slate-800">
-                      {incident.emergency ? "Oui" : "Non"}
-                    </p>
-                  </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-2 text-blue-800">
+                  <MapPin size={20} />
+                  <h2 className="text-lg font-bold">Position de l’incident</h2>
                 </div>
+                <p className="font-semibold text-blue-900">
+                  {incident.locationName ?? "Position inconnue"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <ImageIcon className="text-red-600" size={20} />
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Photos de l’incident
+                  </h2>
+                </div>
+
+                {photos.length > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {photos.map((src, index) => (
+                      <img
+                        key={src}
+                        src={src}
+                        alt={`Photo incident ${index + 1}`}
+                        className="h-64 w-full rounded-2xl border object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Aucune photo ajoutée pour cet incident.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <Clock3 className="text-blue-600" size={20} />
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Historique de l’incident
+                  </h2>
+                </div>
+
+                {history.length > 0 ? (
+                  <div className="space-y-4">
+                    {history.map((h, index) => (
+                      <div key={h.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="h-3 w-3 rounded-full bg-blue-600" />
+                          {index !== history.length - 1 && (
+                            <div className="h-full min-h-10 w-px bg-slate-200" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 pb-2">
+                          <p className="text-sm font-bold text-slate-800">
+                            {historyLabel(h)}
+                          </p>
+
+                          {h.comment && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {h.comment}
+                            </p>
+                          )}
+
+                          {h.oldStatus && h.newStatus && (
+                            <p className="mt-1 text-xs font-semibold text-slate-600">
+                              {h.oldStatus} → {h.newStatus}
+                            </p>
+                          )}
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            {h.userEmail ?? "Système"} • {formatDate(h.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Aucun historique disponible.
+                  </p>
+                )}
               </div>
             </>
           )}

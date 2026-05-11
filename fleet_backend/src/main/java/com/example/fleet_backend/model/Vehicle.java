@@ -38,7 +38,7 @@ public class Vehicle {
     @Enumerated(EnumType.STRING)
     private TransmissionType transmission;
 
-    @Column(name = "status")
+    @Column(name = "status", length = 50)
     @Enumerated(EnumType.STRING)
     private VehicleStatus status;
 

@@ -20,6 +20,8 @@ import {
   UserCircle2,
   MapPinned,
   AlertTriangle,
+  Wrench,
+  Brain,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
@@ -71,6 +73,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Incidents", href: "/owner/incidents", icon: AlertTriangle, show: isOwnerActive || isAdmin },
     { name: "Maintenances", href: "/owner/maintenances", icon: ClipboardList, show: isOwnerActive || isAdmin },
     { name: "Maintenances à venir", href: "/owner/maintenances/upcoming", icon: Calendar, show: isOwnerActive || isAdmin },
+    {name: "Work Orders",href: "/owner/maintenance-work-orders",icon: Wrench,show: isOwnerActive || isAdmin,
+},
+    {name: "Analyse IA",href: "/owner/predictive",icon: Brain,show: isOwnerActive || isAdmin},
 
     // OWNER billing
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },

@@ -3,10 +3,12 @@ package com.example.fleet_backend.service;
 import com.example.fleet_backend.dto.MissionRoutePointDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
+import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.model.VehicleLiveState;
 import com.example.fleet_backend.repository.DriverRepository;
+import com.example.fleet_backend.repository.MaintenanceRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleLiveStateRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
@@ -30,17 +32,22 @@ public class MissionLifecycleService {
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final VehicleLiveStateRepository vehicleLiveStateRepository;
+    private final MaintenanceRepository maintenanceRepository;
     private final ObjectMapper objectMapper;
 
-    public MissionLifecycleService(MissionRepository missionRepository,
-                                   DriverRepository driverRepository,
-                                   VehicleRepository vehicleRepository,
-                                   VehicleLiveStateRepository vehicleLiveStateRepository,
-                                   ObjectMapper objectMapper) {
+    public MissionLifecycleService(
+            MissionRepository missionRepository,
+            DriverRepository driverRepository,
+            VehicleRepository vehicleRepository,
+            VehicleLiveStateRepository vehicleLiveStateRepository,
+            MaintenanceRepository maintenanceRepository,
+            ObjectMapper objectMapper
+    ) {
         this.missionRepository = missionRepository;
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
         this.vehicleLiveStateRepository = vehicleLiveStateRepository;
+        this.maintenanceRepository = maintenanceRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -64,8 +71,35 @@ public class MissionLifecycleService {
             throw new IllegalArgumentException("Mission vehicle is missing");
         }
 
+        Vehicle vehicle = mission.getVehicle();
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
+            throw new IllegalArgumentException("Ce véhicule est hors service.");
+        }
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.UNDER_MAINTENANCE) {
+            throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
+        }
+
+        boolean maintenanceConflict = maintenanceRepository.hasMaintenanceConflict(
+                vehicle.getId(),
+                List.of(
+                        MaintenanceStatus.PLANNED,
+                        MaintenanceStatus.IN_PROGRESS,
+                        MaintenanceStatus.OVERDUE
+                ),
+                mission.getStartDate(),
+                mission.getEndDate()
+        );
+
+        if (maintenanceConflict) {
+            throw new IllegalArgumentException(
+                    "Impossible de démarrer la mission : ce véhicule est en maintenance pendant cette période."
+            );
+        }
+
         if (missionRepository.existsByVehicleIdAndStatus(
-                mission.getVehicle().getId(),
+                vehicle.getId(),
                 Mission.MissionStatus.IN_PROGRESS)) {
             throw new IllegalArgumentException("This vehicle already has an active mission");
         }
@@ -82,7 +116,7 @@ public class MissionLifecycleService {
             mission.setStartedAt(LocalDateTime.now());
         }
 
-        setVehicleStatus(mission.getVehicle(), Vehicle.VehicleStatus.IN_USE);
+        setVehicleStatus(vehicle, Vehicle.VehicleStatus.IN_USE);
         mission.setLateAlertSent(false);
 
         return missionRepository.save(mission);
@@ -112,11 +146,13 @@ public class MissionLifecycleService {
                 .orElseThrow(() -> new IllegalArgumentException("Live GPS position not found for this vehicle"));
 
         List<MissionRoutePointDTO> route = parseMissionRoute(mission.getRouteJson());
+
         if (route.isEmpty()) {
             throw new IllegalArgumentException("Mission route is missing");
         }
 
         MissionRoutePointDTO lastPoint = route.get(route.size() - 1);
+
         if (lastPoint.getLatitude() == null || lastPoint.getLongitude() == null) {
             throw new IllegalArgumentException("Mission destination coordinates are invalid");
         }
@@ -141,7 +177,7 @@ public class MissionLifecycleService {
             mission.setFinishedAt(LocalDateTime.now());
         }
 
-        setVehicleStatus(mission.getVehicle(), Vehicle.VehicleStatus.AVAILABLE);
+        refreshVehicleStatusAfterMission(mission.getVehicle());
         mission.setLateAlertSent(false);
 
         return missionRepository.save(mission);
@@ -155,7 +191,7 @@ public class MissionLifecycleService {
         mission.setStatus(Mission.MissionStatus.CANCELED);
 
         if (mission.getVehicle() != null) {
-            setVehicleStatus(mission.getVehicle(), Vehicle.VehicleStatus.AVAILABLE);
+            refreshVehicleStatusAfterMission(mission.getVehicle());
         }
 
         mission.setLateAlertSent(false);
@@ -180,12 +216,33 @@ public class MissionLifecycleService {
         }
 
         if (managed.getVehicle() != null) {
-            setVehicleStatus(managed.getVehicle(), Vehicle.VehicleStatus.AVAILABLE);
+            refreshVehicleStatusAfterMission(managed.getVehicle());
         }
 
         managed.setLateAlertSent(false);
 
         return missionRepository.save(managed);
+    }
+
+    private void refreshVehicleStatusAfterMission(Vehicle vehicle) {
+        if (vehicle == null || vehicle.getId() == null) {
+            return;
+        }
+
+        boolean hasActiveMaintenance = maintenanceRepository.hasActiveMaintenance(
+                vehicle.getId(),
+                List.of(
+                        MaintenanceStatus.PLANNED,
+                        MaintenanceStatus.IN_PROGRESS,
+                        MaintenanceStatus.OVERDUE
+                )
+        );
+
+        if (hasActiveMaintenance) {
+            setVehicleStatus(vehicle, Vehicle.VehicleStatus.UNDER_MAINTENANCE);
+        } else {
+            setVehicleStatus(vehicle, Vehicle.VehicleStatus.AVAILABLE);
+        }
     }
 
     private void setVehicleStatus(Vehicle vehicle, Vehicle.VehicleStatus status) {
@@ -202,7 +259,10 @@ public class MissionLifecycleService {
         }
 
         try {
-            return objectMapper.readValue(routeJson, new TypeReference<List<MissionRoutePointDTO>>() {});
+            return objectMapper.readValue(
+                    routeJson,
+                    new TypeReference<List<MissionRoutePointDTO>>() {}
+            );
         } catch (Exception e) {
             return Collections.emptyList();
         }
@@ -218,6 +278,7 @@ public class MissionLifecycleService {
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
         return earthRadius * c;
     }
 }

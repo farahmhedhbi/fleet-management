@@ -3,10 +3,12 @@ package com.example.fleet_backend.service;
 import com.example.fleet_backend.dto.MissionDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
+import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.model.User;
 import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.repository.DriverRepository;
+import com.example.fleet_backend.repository.MaintenanceRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.UserRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
@@ -16,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class MissionPlanningService {
@@ -27,17 +30,22 @@ public class MissionPlanningService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
     private final RoutePlannerService routePlannerService;
+    private final MaintenanceRepository maintenanceRepository;
 
-    public MissionPlanningService(MissionRepository missionRepository,
-                                  VehicleRepository vehicleRepository,
-                                  DriverRepository driverRepository,
-                                  UserRepository userRepository,
-                                  RoutePlannerService routePlannerService) {
+    public MissionPlanningService(
+            MissionRepository missionRepository,
+            VehicleRepository vehicleRepository,
+            DriverRepository driverRepository,
+            UserRepository userRepository,
+            RoutePlannerService routePlannerService,
+            MaintenanceRepository maintenanceRepository
+    ) {
         this.missionRepository = missionRepository;
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
         this.routePlannerService = routePlannerService;
+        this.maintenanceRepository = maintenanceRepository;
     }
 
     public Mission createMission(MissionDTO dto, Authentication auth) {
@@ -74,7 +82,7 @@ public class MissionPlanningService {
         validateDriverLicense(driver, estimatedEndDate);
 
         validateVehicleAndDriverAvailability(
-                vehicle.getId(),
+                vehicle,
                 driver.getId(),
                 dto.getStartDate(),
                 estimatedEndDate,
@@ -106,6 +114,7 @@ public class MissionPlanningService {
         }
 
         User owner = mission.getOwner();
+
         if (owner == null) {
             throw new IllegalArgumentException("Mission owner is missing");
         }
@@ -138,7 +147,7 @@ public class MissionPlanningService {
         validateDriverLicense(driver, estimatedEndDate);
 
         validateVehicleAndDriverAvailability(
-                vehicle.getId(),
+                vehicle,
                 driver.getId(),
                 dto.getStartDate(),
                 estimatedEndDate,
@@ -167,23 +176,31 @@ public class MissionPlanningService {
             throw new IllegalArgumentException("La date d'expiration du permis est manquante");
         }
 
-        if (driver.getLicenseExpiry().isBefore(missionEndDate) || driver.getLicenseExpiry().isEqual(missionEndDate)) {
+        if (driver.getLicenseExpiry().isBefore(missionEndDate)
+                || driver.getLicenseExpiry().isEqual(missionEndDate)) {
             throw new IllegalArgumentException("Le permis du chauffeur expire avant la fin de la mission");
         }
     }
 
-    private void validateVehicleAndDriverAvailability(Long vehicleId,
-                                                      Long driverId,
-                                                      LocalDateTime startDate,
-                                                      LocalDateTime endDate,
-                                                      Long currentMissionId) {
+    private void validateVehicleAndDriverAvailability(
+            Vehicle vehicle,
+            Long driverId,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Long currentMissionId
+    ) {
+        Long vehicleId = vehicle.getId();
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
+            throw new IllegalArgumentException("Ce véhicule est hors service.");
+        }
 
         if (missionRepository.existsByVehicleIdAndStatus(vehicleId, Mission.MissionStatus.IN_PROGRESS)) {
-            throw new IllegalArgumentException("Ce véhicule a déjà une mission en cours");
+            throw new IllegalArgumentException("Ce véhicule a déjà une mission en cours.");
         }
 
         if (missionRepository.existsByDriverIdAndStatus(driverId, Mission.MissionStatus.IN_PROGRESS)) {
-            throw new IllegalArgumentException("Ce chauffeur a déjà une mission en cours");
+            throw new IllegalArgumentException("Ce chauffeur a déjà une mission en cours.");
         }
 
         boolean vehicleOverlap = currentMissionId == null
@@ -191,7 +208,7 @@ public class MissionPlanningService {
                 : missionRepository.existsVehicleOverlapExcludingMission(vehicleId, startDate, endDate, currentMissionId);
 
         if (vehicleOverlap) {
-            throw new IllegalArgumentException("Ce véhicule est déjà réservé dans cette période");
+            throw new IllegalArgumentException("Ce véhicule est déjà réservé dans cette période.");
         }
 
         boolean driverOverlap = currentMissionId == null
@@ -199,7 +216,24 @@ public class MissionPlanningService {
                 : missionRepository.existsDriverOverlapExcludingMission(driverId, startDate, endDate, currentMissionId);
 
         if (driverOverlap) {
-            throw new IllegalArgumentException("Ce chauffeur est déjà réservé dans cette période");
+            throw new IllegalArgumentException("Ce chauffeur est déjà réservé dans cette période.");
+        }
+
+        boolean maintenanceConflict = maintenanceRepository.hasMaintenanceConflict(
+                vehicleId,
+                List.of(
+                        MaintenanceStatus.PLANNED,
+                        MaintenanceStatus.IN_PROGRESS,
+                        MaintenanceStatus.OVERDUE
+                ),
+                startDate,
+                endDate
+        );
+
+        if (maintenanceConflict) {
+            throw new IllegalArgumentException(
+                    "Ce véhicule est indisponible pendant cette période car il est en maintenance."
+            );
         }
     }
 

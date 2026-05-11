@@ -1,12 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { Camera, MapPin, X } from "lucide-react";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { incidentService } from "@/lib/services/incidentService";
 import type { IncidentSeverity, IncidentType } from "@/types/incident";
+
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
 export default function DriverReportIncidentPage() {
   const params = useParams<{ id: string }>();
@@ -19,7 +23,131 @@ export default function DriverReportIncidentPage() {
   const [type, setType] = useState<IncidentType>("ACCIDENT");
   const [severity, setSeverity] = useState<IncidentSeverity>("MEDIUM");
   const [emergency, setEmergency] = useState(false);
+
+  const [photos, setPhotos] = useState<File[]>([]);
+
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+
   const [loading, setLoading] = useState(false);
+
+  const photoPreviews = useMemo(() => {
+    return photos.map((file) => URL.createObjectURL(file));
+  }, [photos]);
+
+  async function getAddressFromCoords(lat: number, lng: number) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=fr`
+      );
+
+      if (!res.ok) return "Position inconnue";
+
+      const data = await res.json();
+      const address = data.address ?? {};
+
+      const localPlace =
+        address.village ||
+        address.town ||
+        address.suburb ||
+        address.neighbourhood ||
+        address.hamlet ||
+        address.municipality ||
+        address.city ||
+        address.county ||
+        address.state;
+
+      const region = address.city || address.town || address.county || address.state;
+
+      if (localPlace && region && localPlace !== region) {
+        return `${localPlace} (${region})`;
+      }
+
+      return localPlace || data.display_name || "Position inconnue";
+    } catch (error) {
+      console.error("Reverse geocoding error:", error);
+      return "Position inconnue";
+    }
+  }
+
+  function getCurrentLocation() {
+    if (!navigator.geolocation) {
+      toast.error("La géolocalisation n'est pas supportée");
+      return;
+    }
+
+    setLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setLatitude(lat);
+        setLongitude(lng);
+
+        const address = await getAddressFromCoords(lat, lng);
+        setLocationName(address);
+
+        toast.success("Position récupérée");
+        setLocating(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+
+        if (error.code === 1) toast.error("Permission localisation refusée");
+        else if (error.code === 2)
+          toast.error("Position indisponible. Active la localisation Windows.");
+        else if (error.code === 3) toast.error("Délai dépassé. Réessaie.");
+        else toast.error("Impossible de récupérer la position");
+
+        setLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
+  }
+
+  function handlePhotosChange(files?: FileList | null) {
+    if (!files) return;
+
+    const selected = Array.from(files);
+    const remainingSlots = MAX_PHOTOS - photos.length;
+
+    if (remainingSlots <= 0) {
+      toast.error(`Maximum ${MAX_PHOTOS} photos`);
+      return;
+    }
+
+    const validPhotos: File[] = [];
+
+    for (const file of selected) {
+      if (validPhotos.length >= remainingSlots) break;
+
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} n'est pas une image`);
+        continue;
+      }
+
+      if (file.size > MAX_PHOTO_SIZE) {
+        toast.error(`${file.name} dépasse 5MB`);
+        continue;
+      }
+
+      validPhotos.push(file);
+    }
+
+    setPhotos((prev) => [...prev, ...validPhotos]);
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -37,14 +165,20 @@ export default function DriverReportIncidentPage() {
     try {
       setLoading(true);
 
-      await incidentService.create({
-  title,
-  description,
-  type,
-  severity,
-  missionId: Number(missionId),
-  emergency,
-});
+      await incidentService.createWithPhotos(
+        {
+          title: title.trim(),
+          description: description.trim(),
+          type,
+          severity,
+          missionId,
+          emergency,
+          latitude: latitude ?? undefined,
+          longitude: longitude ?? undefined,
+          locationName: locationName ?? undefined,
+        },
+        photos
+      );
 
       toast.success("Incident déclaré avec succès");
       router.push("/driver/incidents");
@@ -129,6 +263,73 @@ export default function DriverReportIncidentPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          <div className="rounded-xl border bg-slate-50 p-4">
+            <label className="mb-2 block text-sm font-semibold">Position de l’incident</label>
+
+            <button
+              type="button"
+              onClick={getCurrentLocation}
+              disabled={locating}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 p-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              <MapPin size={18} />
+              {locating ? "Récupération..." : "Récupérer ma position actuelle"}
+            </button>
+
+            {locationName && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                📍 Position : <span className="font-semibold">{locationName}</span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold">
+              Photos de l’incident ({photos.length}/{MAX_PHOTOS})
+            </label>
+
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:bg-slate-100">
+              <Camera className="mb-2 text-slate-500" size={32} />
+              <span className="font-semibold text-slate-700">
+                Ajouter une ou plusieurs photos
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                JPG, PNG, WEBP — max 5MB/photo — maximum {MAX_PHOTOS}
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handlePhotosChange(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+
+            {photoPreviews.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {photoPreviews.map((src, index) => (
+                  <div key={src} className="relative overflow-hidden rounded-xl border">
+                    <img
+                      src={src}
+                      alt={`Prévisualisation ${index + 1}`}
+                      className="h-36 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white hover:bg-black"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <button

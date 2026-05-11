@@ -6,6 +6,7 @@ import com.example.fleet_backend.dto.MaintenanceUpdateStatusRequest;
 import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.service.MaintenanceService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,13 +63,31 @@ public class MaintenanceController {
         return maintenanceService.getUpcomingMaintenances(auth);
     }
 
+    @GetMapping("/incident/{incidentId}")
+    public MaintenanceDTO getMaintenanceByIncident(
+            @PathVariable Long incidentId,
+            Authentication auth
+    ) {
+        return maintenanceService.getMaintenanceByIncident(incidentId, auth);
+    }
+
+    @PostMapping("/from-incident/{incidentId}")
+    public MaintenanceDTO createFromIncident(
+            @PathVariable Long incidentId,
+            Authentication auth
+    ) {
+        return maintenanceService.createFromIncident(incidentId, auth);
+    }
+
     @PutMapping("/{id}/status")
-    public MaintenanceDTO updateStatus(
+    public ResponseEntity<MaintenanceDTO> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody MaintenanceUpdateStatusRequest request,
             Authentication auth
     ) {
-        return maintenanceService.updateStatus(id, request, auth);
+        return ResponseEntity.ok(
+                maintenanceService.updateStatus(id, request, auth)
+        );
     }
 
     @PutMapping("/{id}/cancel")

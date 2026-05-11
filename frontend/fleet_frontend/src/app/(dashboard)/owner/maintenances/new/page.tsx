@@ -33,16 +33,16 @@ export default function NewMaintenancePage() {
       setLoading(true);
 
       await maintenanceService.create({
-        vehicleId: Number(vehicleId),
-        type,
-        status,
-        title,
-        description,
-        plannedDate: plannedDate ? plannedDate : undefined,
-        maintenanceDate: maintenanceDate ? maintenanceDate : undefined,
-        mileage: mileage ? Number(mileage) : undefined,
-        cost: cost ? Number(cost) : undefined,
-      });
+  vehicleId: Number(vehicleId),
+  type,
+  status,
+  title: title.trim(),
+  description: description.trim() || undefined,
+  plannedDate: toLocalDateTime(plannedDate),
+  maintenanceDate: toLocalDateTime(maintenanceDate),
+  mileage: mileage ? Number(mileage) : undefined,
+  cost: cost ? Number(cost) : undefined,
+});
 
       toast.success("Maintenance créée");
       router.push("/owner/maintenances");
@@ -53,6 +53,10 @@ export default function NewMaintenancePage() {
     }
   }
 
+  function toLocalDateTime(value: string) {
+  if (!value) return undefined;
+  return value.length === 16 ? `${value}:00` : value;
+}
   return (
     <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
       <div className="mx-auto max-w-2xl p-6">

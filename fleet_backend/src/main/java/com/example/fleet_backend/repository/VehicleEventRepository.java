@@ -4,6 +4,7 @@ import com.example.fleet_backend.model.VehicleEvent;
 import com.example.fleet_backend.model.VehicleEventType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,5 +26,9 @@ public interface VehicleEventRepository extends JpaRepository<VehicleEvent, Long
     Optional<VehicleEvent> findTopByVehicleIdAndMissionIdIsNullAndEventTypeOrderByCreatedAtDesc(
             Long vehicleId,
             VehicleEventType eventType
+    );
+    List<VehicleEvent> findByVehicleIdAndCreatedAtAfterOrderByCreatedAtDesc(
+            Long vehicleId,
+            LocalDateTime createdAt
     );
 }

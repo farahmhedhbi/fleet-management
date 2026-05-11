@@ -17,36 +17,43 @@ public class Maintenance {
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "incident_id")
+    private Incident incident;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MaintenanceType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private MaintenanceStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MaintenancePriority priority = MaintenancePriority.MEDIUM;
 
     @Column(nullable = false)
     private String title;
 
+
     @Column(length = 2000)
     private String description;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "work_order_id")
+    private MaintenanceWorkOrder workOrder;
 
     private LocalDateTime maintenanceDate;
-
     private LocalDateTime plannedDate;
-
     private LocalDateTime completedAt;
 
     private Integer mileage;
-
     private BigDecimal cost;
 
     private Long createdByUserId;
-
     private String createdByEmail;
 
     private LocalDateTime createdAt;
-
     private LocalDateTime updatedAt;
 
     @PrePersist
@@ -55,6 +62,10 @@ public class Maintenance {
 
         if (status == null) {
             status = MaintenanceStatus.PLANNED;
+        }
+
+        if (priority == null) {
+            priority = MaintenancePriority.MEDIUM;
         }
 
         if (createdAt == null) {
@@ -73,6 +84,14 @@ public class Maintenance {
         return id;
     }
 
+    public MaintenanceWorkOrder getWorkOrder() {
+        return workOrder;
+    }
+
+    public void setWorkOrder(MaintenanceWorkOrder workOrder) {
+        this.workOrder = workOrder;
+    }
+
     public Vehicle getVehicle() {
         return vehicle;
     }
@@ -80,6 +99,15 @@ public class Maintenance {
     public void setVehicle(Vehicle vehicle) {
         this.vehicle = vehicle;
     }
+
+    public Incident getIncident() {
+        return incident;
+    }
+
+    public void setIncident(Incident incident) {
+        this.incident = incident;
+    }
+
 
     public MaintenanceType getType() {
         return type;
@@ -95,6 +123,14 @@ public class Maintenance {
 
     public void setStatus(MaintenanceStatus status) {
         this.status = status;
+    }
+
+    public MaintenancePriority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(MaintenancePriority priority) {
+        this.priority = priority;
     }
 
     public String getTitle() {

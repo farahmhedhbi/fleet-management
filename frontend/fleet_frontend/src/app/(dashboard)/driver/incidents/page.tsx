@@ -99,12 +99,11 @@ export default function DriverIncidentsPage() {
                 </div>
 
                 <Link
-                  href="/driver/incidents/new"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50"
-                >
-                  <PlusCircle size={18} />
-                  Déclarer incident
-                </Link>
+                    href="/driver/incidents/history"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50"
+                  >
+                    Historique
+                  </Link>
               </div>
             </div>
 

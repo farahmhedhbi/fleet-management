@@ -1,5 +1,6 @@
 package com.example.fleet_backend.dto;
 
+import com.example.fleet_backend.model.MaintenancePriority;
 import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.model.MaintenanceType;
 import jakarta.validation.constraints.NotBlank;
@@ -16,6 +17,8 @@ public class MaintenanceCreateRequest {
     @NotNull
     private MaintenanceType type;
 
+    private MaintenancePriority priority;
+
     @NotBlank
     private String title;
 
@@ -31,12 +34,19 @@ public class MaintenanceCreateRequest {
 
     private BigDecimal cost;
 
+    private Long incidentId;
+
+
     public Long getVehicleId() {
         return vehicleId;
     }
 
     public MaintenanceType getType() {
         return type;
+    }
+
+    public MaintenancePriority getPriority() {
+        return priority;
     }
 
     public String getTitle() {
@@ -65,5 +75,9 @@ public class MaintenanceCreateRequest {
 
     public BigDecimal getCost() {
         return cost;
+    }
+
+    public Long getIncidentId() {
+        return incidentId;
     }
 }

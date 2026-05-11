@@ -9,13 +9,14 @@ import {
   Eye,
   FileWarning,
   Loader2,
-  PlusCircle,
   ShieldAlert,
+  Wrench,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { incidentService } from "@/lib/services/incidentService";
+import { maintenanceService } from "@/lib/services/maintenanceService";
 import type { IncidentDTO, IncidentStatus } from "@/types/incident";
 
 function severityClass(severity?: string) {
@@ -50,10 +51,6 @@ function statusClass(status?: string) {
 
 function nextStatusLabel(status: IncidentStatus) {
   switch (status) {
-    case "OPEN":
-      return "Prendre en charge";
-    case "IN_PROGRESS":
-      return "Résoudre";
     case "RESOLVED":
       return "Clôturer";
     default:
@@ -63,10 +60,6 @@ function nextStatusLabel(status: IncidentStatus) {
 
 function nextStatus(status: IncidentStatus): IncidentStatus | null {
   switch (status) {
-    case "OPEN":
-      return "IN_PROGRESS";
-    case "IN_PROGRESS":
-      return "RESOLVED";
     case "RESOLVED":
       return "CLOSED";
     default:
@@ -78,6 +71,8 @@ export default function OwnerIncidentsPage() {
   const [items, setItems] = useState<IncidentDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [maintenanceCreatingId, setMaintenanceCreatingId] =
+    useState<number | null>(null);
 
   async function load() {
     try {
@@ -100,6 +95,19 @@ export default function OwnerIncidentsPage() {
       toast.error("Impossible de modifier le statut");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function createMaintenanceFromIncident(id: number) {
+    try {
+      setMaintenanceCreatingId(id);
+      await maintenanceService.createFromIncident(id);
+      toast.success("Maintenance créée. Incident passé en cours de traitement.");
+      await load();
+    } catch {
+      toast.error("Impossible de créer la maintenance");
+    } finally {
+      setMaintenanceCreatingId(null);
     }
   }
 
@@ -138,17 +146,15 @@ export default function OwnerIncidentsPage() {
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm text-white/90">
-                    Suivi des incidents déclarés par les drivers ou confirmés à
-                    partir des alertes système.
+                    Suivi des incidents déclarés et transformation en actions de maintenance.
                   </p>
                 </div>
 
                 <Link
-                  href="/owner/incidents/new"
+                  href="/owner/incidents/history"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50"
                 >
-                  <PlusCircle size={18} />
-                  Déclarer incident
+                  Historique
                 </Link>
               </div>
             </div>
@@ -164,18 +170,14 @@ export default function OwnerIncidentsPage() {
               </div>
 
               <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
-                <p className="text-sm font-medium text-red-600">
-                  Critiques
-                </p>
+                <p className="text-sm font-medium text-red-600">Critiques</p>
                 <p className="mt-2 text-3xl font-bold text-red-700">
                   {stats.critical}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
-                <p className="text-sm font-medium text-orange-600">
-                  Actifs
-                </p>
+                <p className="text-sm font-medium text-orange-600">Actifs</p>
                 <p className="mt-2 text-3xl font-bold text-orange-700">
                   {stats.active}
                 </p>
@@ -198,15 +200,6 @@ export default function OwnerIncidentsPage() {
                 <Loader2 className="animate-spin" size={22} />
                 <span className="font-medium">Chargement des incidents...</span>
               </div>
-
-              <div className="mt-6 space-y-3">
-                {[1, 2, 3, 4].map((item) => (
-                  <div
-                    key={item}
-                    className="h-14 animate-pulse rounded-2xl bg-slate-100"
-                  />
-                ))}
-              </div>
             </div>
           ) : items.length === 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
@@ -217,10 +210,6 @@ export default function OwnerIncidentsPage() {
               <h2 className="text-xl font-bold text-slate-900">
                 Aucun incident trouvé
               </h2>
-
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                Aucun incident n’a encore été déclaré ou confirmé.
-              </p>
             </div>
           ) : (
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -232,7 +221,7 @@ export default function OwnerIncidentsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-sm">
+                <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-5 py-4 text-left">Incident</th>
@@ -250,19 +239,14 @@ export default function OwnerIncidentsPage() {
                       const targetStatus = nextStatus(i.status);
                       const targetLabel = nextStatusLabel(i.status);
                       const isUpdating = updatingId === i.id;
+                      const isCreatingMaintenance = maintenanceCreatingId === i.id;
 
                       return (
-                        <tr
-                          key={i.id}
-                          className="transition hover:bg-slate-50"
-                        >
+                        <tr key={i.id} className="transition hover:bg-slate-50">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-50">
-                                <ClipboardList
-                                  className="text-red-600"
-                                  size={20}
-                                />
+                                <ClipboardList className="text-red-600" size={20} />
                               </div>
 
                               <div>
@@ -322,19 +306,29 @@ export default function OwnerIncidentsPage() {
                                 Détail
                               </Link>
 
+                              {i.status === "OPEN" && (
+                                <button
+                                  onClick={() => createMaintenanceFromIncident(i.id)}
+                                  disabled={isCreatingMaintenance || isUpdating}
+                                  className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isCreatingMaintenance ? (
+                                    <Loader2 className="animate-spin" size={15} />
+                                  ) : (
+                                    <Wrench size={15} />
+                                  )}
+                                  Maintenance
+                                </button>
+                              )}
+
                               {targetStatus && targetLabel && (
                                 <button
-                                  onClick={() =>
-                                    updateStatus(i.id, targetStatus)
-                                  }
-                                  disabled={isUpdating}
-                                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  onClick={() => updateStatus(i.id, targetStatus)}
+                                  disabled={isUpdating || isCreatingMaintenance}
+                                  className="inline-flex items-center gap-2 rounded-xl bg-slate-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   {isUpdating ? (
-                                    <Loader2
-                                      className="animate-spin"
-                                      size={15}
-                                    />
+                                    <Loader2 className="animate-spin" size={15} />
                                   ) : (
                                     <CheckCircle2 size={15} />
                                   )}

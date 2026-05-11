@@ -28,19 +28,22 @@ public class ObdEventService {
     private final ObdAnalysisService obdAnalysisService;
     private final NotificationService notificationService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
+    private final PredictiveAnalysisService predictiveAnalysisService;
 
 
     public ObdEventService(
             VehicleEventRepository eventRepository,
             ObdAnalysisService obdAnalysisService,
             NotificationService notificationService,
-            GpsWebSocketPublisher gpsWebSocketPublisher
+            GpsWebSocketPublisher gpsWebSocketPublisher,
+            PredictiveAnalysisService predictiveAnalysisService
 
     ) {
         this.eventRepository = eventRepository;
         this.obdAnalysisService = obdAnalysisService;
         this.notificationService = notificationService;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
+        this.predictiveAnalysisService = predictiveAnalysisService;
 
     }
 
@@ -182,7 +185,7 @@ public class ObdEventService {
 
         VehicleEvent saved = eventRepository.save(event);
 
-
+        runPredictiveAnalysisSafely(vehicle.getId());
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
 
@@ -263,6 +266,19 @@ public class ObdEventService {
                 event.getMessage(),
                 event.getMissionId()
         );
+    }
+
+    private void runPredictiveAnalysisSafely(Long vehicleId) {
+        if (vehicleId == null) {
+            return;
+        }
+
+        try {
+            predictiveAnalysisService.analyzeVehicle(vehicleId);
+        } catch (Exception e) {
+            System.err.println("Predictive analysis failed for vehicle "
+                    + vehicleId + ": " + e.getMessage());
+        }
     }
 
     private VehicleEventDTO toDto(VehicleEvent event) {

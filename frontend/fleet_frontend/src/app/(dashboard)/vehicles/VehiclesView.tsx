@@ -678,6 +678,13 @@ export default function VehiclesView({
                               <BarChart3 size={16} />
                               <span>Historique OBD</span>
                             </Link>
+                            <Link
+                                href={`/vehicles/${vehicle.id}/maintenance-history`}
+                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                              >
+                                <Wrench size={14} />
+                                Historique
+                              </Link>
                           </div>
                         </td>
                       </tr>
@@ -836,6 +843,7 @@ export default function VehiclesView({
               Voir les statistiques détaillées
               <ChevronRight className="h-4 w-4" />
             </button>
+            
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ package com.example.fleet_backend.dto;
 import com.example.fleet_backend.model.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class IncidentDTO {
 
@@ -43,6 +44,10 @@ public class IncidentDTO {
     private Double longitude;
     private Boolean emergency;
 
+    private String photoUrl;
+    private String locationName;
+    private List<String> photoUrls;
+
     public IncidentDTO(
             Long id,
             String title,
@@ -70,7 +75,10 @@ public class IncidentDTO {
             LocalDateTime lastEventAt,
             Double latitude,
             Double longitude,
-            Boolean emergency
+            Boolean emergency,
+            String photoUrl,
+            String locationName,
+            List<String> photoUrls
     ) {
         this.id = id;
         this.title = title;
@@ -99,6 +107,9 @@ public class IncidentDTO {
         this.latitude = latitude;
         this.longitude = longitude;
         this.emergency = emergency;
+        this.photoUrl = photoUrl;
+        this.locationName = locationName;
+        this.photoUrls = photoUrls;
     }
 
     public Long getId() { return id; }
@@ -128,4 +139,11 @@ public class IncidentDTO {
     public Double getLatitude() { return latitude; }
     public Double getLongitude() { return longitude; }
     public Boolean getEmergency() { return emergency; }
+    public String getPhotoUrl() { return photoUrl; }
+    public String getLocationName() {
+        return locationName;
+    }
+    public List<String> getPhotoUrls() {
+        return photoUrls;
+    }
 }

@@ -4,6 +4,7 @@ import com.example.fleet_backend.model.Incident;
 import com.example.fleet_backend.model.IncidentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +23,9 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
     Optional<Incident> findByVehicleEventId(Long vehicleEventId);
 
     boolean existsByVehicleEventId(Long vehicleEventId);
+    boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<IncidentStatus> statuses);
+    List<Incident> findByVehicleIdAndCreatedAtAfterOrderByCreatedAtDesc(
+            Long vehicleId,
+            LocalDateTime createdAt
+    );
 }

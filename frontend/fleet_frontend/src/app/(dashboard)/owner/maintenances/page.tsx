@@ -1,23 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  Plus,
+  Search,
+  Wrench,
+  XCircle,
+} from "lucide-react";
 import { toast } from "react-toastify";
+
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { maintenanceService } from "@/lib/services/maintenanceService";
 import type { MaintenanceDTO, MaintenanceStatus } from "@/types/maintenance";
-import Link from "next/link";
+
+type FilterStatus = "ALL" | MaintenanceStatus;
+
+function statusBadgeClass(status: MaintenanceStatus) {
+  switch (status) {
+    case "DONE":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "CANCELED":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "OVERDUE":
+      return "border-orange-200 bg-orange-50 text-orange-700";
+    case "IN_PROGRESS":
+      return "border-yellow-200 bg-yellow-50 text-yellow-700";
+    case "PLANNED":
+    default:
+      return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+}
+
+function priorityBadgeClass(priority: string) {
+  switch (priority) {
+    case "CRITICAL":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "HIGH":
+      return "border-orange-200 bg-orange-50 text-orange-700";
+    case "MEDIUM":
+      return "border-yellow-200 bg-yellow-50 text-yellow-700";
+    case "LOW":
+    default:
+      return "border-green-200 bg-green-50 text-green-700";
+  }
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("fr-FR");
+}
+
+function typeLabel(type: string) {
+  return type.replaceAll("_", " ");
+}
 
 export default function OwnerMaintenancesPage() {
   const [items, setItems] = useState<MaintenanceDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>("ALL");
 
   async function load() {
     try {
       setLoading(true);
-      const data = await maintenanceService.getAll();
-      setItems(data);
-    } catch {
-      toast.error("Erreur lors du chargement des maintenances");
+      setItems(await maintenanceService.getAll());
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          "Erreur lors du chargement des maintenances"
+      );
     } finally {
       setLoading(false);
     }
@@ -25,21 +82,39 @@ export default function OwnerMaintenancesPage() {
 
   async function changeStatus(id: number, status: MaintenanceStatus) {
     try {
+      setUpdatingId(id);
       await maintenanceService.updateStatus(id, status);
-      toast.success("Statut mis à jour");
+
+      if (status === "IN_PROGRESS") toast.success("Maintenance démarrée");
+      else if (status === "DONE") toast.success("Maintenance terminée");
+      else toast.success("Statut mis à jour");
+
       await load();
-    } catch {
-      toast.error("Impossible de modifier le statut");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Impossible de modifier le statut"
+      );
+    } finally {
+      setUpdatingId(null);
     }
   }
 
   async function cancel(id: number) {
     try {
+      setUpdatingId(id);
       await maintenanceService.cancel(id);
       toast.success("Maintenance annulée");
       await load();
-    } catch {
-      toast.error("Impossible d'annuler la maintenance");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Impossible d'annuler la maintenance"
+      );
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -47,95 +122,342 @@ export default function OwnerMaintenancesPage() {
     load();
   }, []);
 
+  const stats = useMemo(() => {
+    return {
+      total: items.length,
+      planned: items.filter((m) => m.status === "PLANNED").length,
+      inProgress: items.filter((m) => m.status === "IN_PROGRESS").length,
+      overdue: items.filter((m) => m.status === "OVERDUE").length,
+      done: items.filter((m) => m.status === "DONE").length,
+      linked: items.filter((m) => m.incidentId).length,
+    };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    return items.filter((m) => {
+      const matchStatus = statusFilter === "ALL" || m.status === statusFilter;
+
+      const matchSearch =
+        !q ||
+        m.title.toLowerCase().includes(q) ||
+        m.type.toLowerCase().includes(q) ||
+        m.priority.toLowerCase().includes(q) ||
+        (m.vehicleRegistrationNumber ?? "").toLowerCase().includes(q) ||
+        (m.incidentTitle ?? "").toLowerCase().includes(q) ||
+        (m.workOrderTitle ?? "").toLowerCase().includes(q);
+
+      return matchStatus && matchSearch;
+    });
+  }, [items, query, statusFilter]);
+
   return (
     <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Gestion des maintenances</h1>
-            <p className="text-gray-500">Suivi technique des véhicules</p>
+      <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="bg-gradient-to-r from-blue-700 via-cyan-600 to-emerald-500 p-6 text-white">
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">
+                    <Wrench size={16} />
+                    Module maintenance PRO
+                  </div>
+
+                  <h1 className="text-2xl font-black md:text-3xl">
+                    Gestion des maintenances
+                  </h1>
+
+                  <p className="mt-2 max-w-2xl text-sm text-white/90">
+                    Maintenances, priorités, incidents liés et interventions garage.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href="/owner/maintenance-work-orders"
+                    className="rounded-2xl bg-white/20 px-5 py-3 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/30"
+                  >
+                    Work Orders
+                  </Link>
+
+                  <Link
+                    href="/owner/maintenances/new"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-blue-700 shadow-sm hover:bg-blue-50"
+                  >
+                    <Plus size={18} />
+                    Ajouter maintenance
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 p-6 md:grid-cols-6">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-slate-500">Total</p>
+                <p className="mt-2 text-3xl font-black">{stats.total}</p>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                <p className="text-sm font-semibold text-blue-600">Planifiées</p>
+                <p className="mt-2 text-3xl font-black text-blue-700">
+                  {stats.planned}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-yellow-100 bg-yellow-50 p-5">
+                <p className="text-sm font-semibold text-yellow-700">En cours</p>
+                <p className="mt-2 text-3xl font-black text-yellow-700">
+                  {stats.inProgress}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
+                <p className="text-sm font-semibold text-orange-600">En retard</p>
+                <p className="mt-2 text-3xl font-black text-orange-700">
+                  {stats.overdue}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
+                <p className="text-sm font-semibold text-emerald-600">Terminées</p>
+                <p className="mt-2 text-3xl font-black text-emerald-700">
+                  {stats.done}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-purple-100 bg-purple-50 p-5">
+                <p className="text-sm font-semibold text-purple-600">
+                  Incidents liés
+                </p>
+                <p className="mt-2 text-3xl font-black text-purple-700">
+                  {stats.linked}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <Link
-            href="/owner/maintenances/new"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white"
-          >
-            Ajouter maintenance
-          </Link>
-        </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="relative w-full md:max-w-md">
+                <Search
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Rechercher véhicule, titre, priorité, work order..."
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none focus:border-blue-400 focus:bg-white"
+                />
+              </div>
 
-        {loading ? (
-          <p>Chargement...</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 text-left">Véhicule</th>
-                  <th className="p-3 text-left">Type</th>
-                  <th className="p-3 text-left">Titre</th>
-                  <th className="p-3 text-left">Statut</th>
-                  <th className="p-3 text-left">Date prévue</th>
-                  <th className="p-3 text-left">Coût</th>
-                  <th className="p-3 text-left">Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {items.map((m) => (
-                  <tr key={m.id} className="border-t">
-                    <td className="p-3">{m.vehicleRegistrationNumber}</td>
-                    <td className="p-3">{m.type}</td>
-                    <td className="p-3">{m.title}</td>
-                    <td className="p-3">
-                      <span className="rounded-full bg-gray-100 px-3 py-1">
-                        {m.status}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {m.plannedDate ? new Date(m.plannedDate).toLocaleString() : "-"}
-                    </td>
-                    <td className="p-3">{m.cost ?? "-"}</td>
-                    <td className="p-3 space-x-2">
-                      <Link
-                        href={`/owner/maintenances/${m.id}`}
-                        className="text-blue-600"
-                      >
-                        Détail
-                      </Link>
-
-                      {m.status !== "DONE" && m.status !== "CANCELED" && (
-                        <>
-                          <button
-                            onClick={() => changeStatus(m.id, "DONE")}
-                            className="text-green-600"
-                          >
-                            DONE
-                          </button>
-
-                          <button
-                            onClick={() => cancel(m.id)}
-                            className="text-red-600"
-                          >
-                            CANCEL
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    "ALL",
+                    "PLANNED",
+                    "IN_PROGRESS",
+                    "OVERDUE",
+                    "DONE",
+                    "CANCELED",
+                  ] as FilterStatus[]
+                ).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`rounded-2xl px-4 py-2 text-xs font-black ${
+                      statusFilter === s
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {s}
+                  </button>
                 ))}
-
-                {items.length === 0 && (
-                  <tr>
-                    <td className="p-4 text-center text-gray-500" colSpan={7}>
-                      Aucune maintenance trouvée
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-        )}
+
+          {loading ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex items-center gap-3 text-slate-600">
+                <Loader2 className="animate-spin" size={22} />
+                <span className="font-semibold">
+                  Chargement des maintenances...
+                </span>
+              </div>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                <Wrench className="text-blue-600" size={34} />
+              </div>
+              <h2 className="text-xl font-black text-slate-900">
+                Aucune maintenance trouvée
+              </h2>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="font-black text-slate-900">
+                    Liste des maintenances
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {filteredItems.length} résultat(s)
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1250px] text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-5 py-4 text-left">Véhicule</th>
+                      <th className="px-5 py-4 text-left">Maintenance</th>
+                      <th className="px-5 py-4 text-left">Priorité</th>
+                      <th className="px-5 py-4 text-left">Incident</th>
+                      <th className="px-5 py-4 text-left">WorkOrder</th>
+                      <th className="px-5 py-4 text-left">Statut</th>
+                      <th className="px-5 py-4 text-left">Date prévue</th>
+                      <th className="px-5 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredItems.map((m) => {
+                      const isUpdating = updatingId === m.id;
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50">
+                          <td className="px-5 py-4 font-bold">
+                            {m.vehicleRegistrationNumber ?? "-"}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <p className="font-black text-slate-900">{m.title}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {typeLabel(m.type)}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-black ${priorityBadgeClass(
+                                m.priority
+                              )}`}
+                            >
+                              {m.priority}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {m.incidentId ? (
+                              <Link
+                                href={`/owner/incidents/${m.incidentId}`}
+                                className="text-xs font-bold text-orange-600 hover:underline"
+                              >
+                                #{m.incidentId} - {m.incidentTitle ?? "Incident"}
+                              </Link>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {m.workOrderId ? (
+                              <Link
+                                href={`/owner/maintenance-work-orders/${m.workOrderId}`}
+                                className="text-xs font-bold text-blue-600 hover:underline"
+                              >
+                                #{m.workOrderId} -{" "}
+                                {m.workOrderTitle ?? "WorkOrder"}
+                              </Link>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${statusBadgeClass(
+                                m.status
+                              )}`}
+                            >
+                              {m.status === "DONE" && <CheckCircle2 size={14} />}
+                              {m.status === "CANCELED" && <XCircle size={14} />}
+                              {m.status === "OVERDUE" && (
+                                <AlertTriangle size={14} />
+                              )}
+                              {m.status === "IN_PROGRESS" && <Wrench size={14} />}
+                              {m.status === "PLANNED" && <Clock3 size={14} />}
+                              {m.status}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {formatDate(m.plannedDate)}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-2">
+                              <Link
+                                href={`/owner/maintenances/${m.id}`}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50"
+                              >
+                                Détail
+                              </Link>
+
+                              {m.status !== "DONE" &&
+                                m.status !== "CANCELED" && (
+                                  <>
+                                    {(m.status === "PLANNED" ||
+                                      m.status === "OVERDUE") && (
+                                      <button
+                                        onClick={() =>
+                                          changeStatus(m.id, "IN_PROGRESS")
+                                        }
+                                        disabled={isUpdating}
+                                        className="rounded-xl bg-yellow-600 px-3 py-2 text-xs font-black text-white hover:bg-yellow-700 disabled:opacity-50"
+                                      >
+                                        {isUpdating ? "..." : "START"}
+                                      </button>
+                                    )}
+
+                                    {m.status === "IN_PROGRESS" && (
+                                      <button
+                                        onClick={() =>
+                                          changeStatus(m.id, "DONE")
+                                        }
+                                        disabled={isUpdating}
+                                        className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                                      >
+                                        {isUpdating ? "..." : "DONE"}
+                                      </button>
+                                    )}
+
+                                    <button
+                                      onClick={() => cancel(m.id)}
+                                      disabled={isUpdating}
+                                      className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white hover:bg-red-700 disabled:opacity-50"
+                                    >
+                                      {isUpdating ? "..." : "CANCEL"}
+                                    </button>
+                                  </>
+                                )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );

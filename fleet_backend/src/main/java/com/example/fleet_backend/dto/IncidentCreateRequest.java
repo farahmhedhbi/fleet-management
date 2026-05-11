@@ -24,6 +24,7 @@ public class IncidentCreateRequest {
     private Double latitude;
     private Double longitude;
     private Boolean emergency;
+    private String locationName;
 
     public String getTitle() {
         return title;
@@ -59,5 +60,8 @@ public class IncidentCreateRequest {
 
     public Boolean getEmergency() {
         return emergency;
+    }
+    public String getLocationName() {
+        return locationName;
     }
 }

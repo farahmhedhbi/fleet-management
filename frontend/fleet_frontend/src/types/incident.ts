@@ -23,23 +23,46 @@ export interface IncidentDTO {
   severity: IncidentSeverity;
   status: IncidentStatus;
   source: IncidentSource;
+
   vehicleId: number | null;
   vehicleRegistrationNumber: string | null;
+
   missionId: number | null;
   missionTitle: string | null;
+
   vehicleEventId: number | null;
+
   reportedByUserId: number | null;
   reportedByEmail: string | null;
+
   handledByUserId: number | null;
   handledByEmail: string | null;
+
   reportedAt: string | null;
   validatedAt: string | null;
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+
   latitude: number | null;
   longitude: number | null;
   emergency: boolean;
+
+  photoUrl: string | null;
+  locationName: string | null;
+  photoUrls: string[];
+}
+
+export interface IncidentHistoryDTO {
+  id: number;
+  incidentId: number;
+  action: string;
+  oldStatus: IncidentStatus | null;
+  newStatus: IncidentStatus | null;
+  userId: number | null;
+  userEmail: string | null;
+  comment: string | null;
+  createdAt: string;
 }
 
 export interface IncidentCreateRequest {
@@ -52,6 +75,7 @@ export interface IncidentCreateRequest {
   latitude?: number;
   longitude?: number;
   emergency?: boolean;
+  locationName?: string;
 }
 
 export interface IncidentFromEventRequest {

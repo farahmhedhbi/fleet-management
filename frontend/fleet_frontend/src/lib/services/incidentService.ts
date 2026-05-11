@@ -3,6 +3,7 @@ import type {
   IncidentCreateRequest,
   IncidentDTO,
   IncidentFromEventRequest,
+  IncidentHistoryDTO,
   IncidentStatus,
 } from "@/types/incident";
 
@@ -24,6 +25,37 @@ export const incidentService = {
 
   async create(payload: IncidentCreateRequest): Promise<IncidentDTO> {
     const res = await api.post("/api/incidents", payload);
+    return res.data;
+  },
+
+  async createWithPhotos(
+    payload: IncidentCreateRequest,
+    photos?: File[]
+  ): Promise<IncidentDTO> {
+    const formData = new FormData();
+
+    formData.append(
+      "data",
+      new Blob([JSON.stringify(payload)], {
+        type: "application/json",
+      })
+    );
+
+    photos?.forEach((photo) => {
+      formData.append("photos", photo);
+    });
+
+    const res = await api.post("/api/incidents/with-photos", formData);
+    return res.data;
+  },
+
+  async getHistory(id: number): Promise<IncidentHistoryDTO[]> {
+    const res = await api.get(`/api/incidents/${id}/history`);
+    return res.data;
+  },
+
+  async getAllHistory(): Promise<IncidentHistoryDTO[]> {
+    const res = await api.get("/api/incidents/history");
     return res.data;
   },
 

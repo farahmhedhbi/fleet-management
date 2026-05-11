@@ -80,6 +80,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/drivers/**")
                         .hasAuthority("ROLE_OWNER")
+                        .requestMatchers("/api/predictive-alerts/**")
+                        .hasAnyRole("OWNER", "ADMIN")
 
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_OWNER")

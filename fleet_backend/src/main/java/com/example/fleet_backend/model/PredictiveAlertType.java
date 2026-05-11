@@ -1,0 +1,12 @@
+package com.example.fleet_backend.model;
+
+public enum PredictiveAlertType {
+    ENGINE_FAILURE_RISK,
+    BATTERY_REPLACEMENT_RISK,
+    HIGH_TEMPERATURE_RISK,
+    LOW_FUEL_RISK,
+    MAINTENANCE_RECOMMENDED,
+    DRIVER_RISK_BEHAVIOR,
+    OFF_ROUTE_REPEATED,
+    OVERSPEED_REPEATED
+}

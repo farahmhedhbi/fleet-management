@@ -96,5 +96,6 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             Mission.MissionStatus status
     );
 
+    boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<Mission.MissionStatus> statuses);
 
 }
