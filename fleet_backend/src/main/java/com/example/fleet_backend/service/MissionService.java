@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.fleet_backend.dto.RouteCheckResultDTO;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,6 +30,7 @@ public class MissionService {
     private final MissionPlanningService missionPlanningService;
     private final MissionLifecycleService missionLifecycleService;
     private final MissionNotificationService missionNotificationService;
+    private final RouteVerificationService routeVerificationService;
 
     public MissionService(MissionRepository missionRepository,
                           UserRepository userRepository,
@@ -36,7 +38,7 @@ public class MissionService {
                           MissionAccessService missionAccessService,
                           MissionPlanningService missionPlanningService,
                           MissionLifecycleService missionLifecycleService,
-                          MissionNotificationService missionNotificationService) {
+                          MissionNotificationService missionNotificationService,RouteVerificationService routeVerificationService) {
         this.missionRepository = missionRepository;
         this.userRepository = userRepository;
         this.driverRepository = driverRepository;
@@ -44,6 +46,7 @@ public class MissionService {
         this.missionPlanningService = missionPlanningService;
         this.missionLifecycleService = missionLifecycleService;
         this.missionNotificationService = missionNotificationService;
+        this.routeVerificationService = routeVerificationService;
     }
 
     @Transactional(readOnly = true)
@@ -175,5 +178,8 @@ public class MissionService {
 
         missionNotificationService.clearDriverLateAlert(mission);
         missionRepository.delete(mission);
+    }
+    public RouteCheckResultDTO checkRoute(Long missionId, Authentication auth) {
+        return routeVerificationService.checkRoute(missionId, auth);
     }
 }

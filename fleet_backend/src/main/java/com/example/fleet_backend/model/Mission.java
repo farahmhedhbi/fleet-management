@@ -55,6 +55,32 @@ public class Mission {
     @Column(columnDefinition = "TEXT")
     private String routeJson;
 
+    @Column(columnDefinition = "TEXT")
+    private String originalRouteJson;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private RouteCheckStatus routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private RouteRiskLevel routeRiskLevel;
+
+    @Column(nullable = false)
+    private Boolean routeRecalculated = false;
+
+    private Integer originalDurationMinutes;
+    private Integer selectedDurationMinutes;
+    private Integer estimatedDelayMinutes;
+
+    private Double originalDistanceKm;
+    private Double selectedDistanceKm;
+
+    private LocalDateTime routeCheckedAt;
+
+    @Column(length = 1000)
+    private String routeCheckMessage;
+
     @Column(nullable = false)
     private Boolean lateAlertSent = false;
 
@@ -68,12 +94,11 @@ public class Mission {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
-        if (status == null) {
-            status = MissionStatus.PLANNED;
-        }
-        if (lateAlertSent == null) {
-            lateAlertSent = false;
-        }
+
+        if (status == null) status = MissionStatus.PLANNED;
+        if (lateAlertSent == null) lateAlertSent = false;
+        if (routeCheckStatus == null) routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
+        if (routeRecalculated == null) routeRecalculated = false;
     }
 
     @PreUpdate
@@ -83,131 +108,84 @@ public class Mission {
 
     public Mission() {}
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
 
-    public String getTitle() {
-        return title;
-    }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public String getDescription() {
-        return description;
-    }
+    public String getDeparture() { return departure; }
+    public void setDeparture(String departure) { this.departure = departure; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+    public String getDestination() { return destination; }
+    public void setDestination(String destination) { this.destination = destination; }
 
-    public String getDeparture() {
-        return departure;
-    }
+    public LocalDateTime getStartDate() { return startDate; }
+    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
 
-    public void setDeparture(String departure) {
-        this.departure = departure;
-    }
+    public LocalDateTime getEndDate() { return endDate; }
+    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
 
-    public String getDestination() {
-        return destination;
-    }
+    public MissionStatus getStatus() { return status; }
+    public void setStatus(MissionStatus status) { this.status = status; }
 
-    public void setDestination(String destination) {
-        this.destination = destination;
-    }
+    public User getOwner() { return owner; }
+    public void setOwner(User owner) { this.owner = owner; }
 
-    public LocalDateTime getStartDate() {
-        return startDate;
-    }
+    public Driver getDriver() { return driver; }
+    public void setDriver(Driver driver) { this.driver = driver; }
 
-    public void setStartDate(LocalDateTime startDate) {
-        this.startDate = startDate;
-    }
+    public Vehicle getVehicle() { return vehicle; }
+    public void setVehicle(Vehicle vehicle) { this.vehicle = vehicle; }
 
-    public LocalDateTime getEndDate() {
-        return endDate;
-    }
+    public String getRouteJson() { return routeJson; }
+    public void setRouteJson(String routeJson) { this.routeJson = routeJson; }
 
-    public void setEndDate(LocalDateTime endDate) {
-        this.endDate = endDate;
-    }
+    public String getOriginalRouteJson() { return originalRouteJson; }
+    public void setOriginalRouteJson(String originalRouteJson) { this.originalRouteJson = originalRouteJson; }
 
-    public MissionStatus getStatus() {
-        return status;
-    }
+    public RouteCheckStatus getRouteCheckStatus() { return routeCheckStatus; }
+    public void setRouteCheckStatus(RouteCheckStatus routeCheckStatus) { this.routeCheckStatus = routeCheckStatus; }
 
-    public void setStatus(MissionStatus status) {
-        this.status = status;
-    }
+    public RouteRiskLevel getRouteRiskLevel() { return routeRiskLevel; }
+    public void setRouteRiskLevel(RouteRiskLevel routeRiskLevel) { this.routeRiskLevel = routeRiskLevel; }
 
-    public User getOwner() {
-        return owner;
-    }
+    public Boolean getRouteRecalculated() { return routeRecalculated; }
+    public void setRouteRecalculated(Boolean routeRecalculated) { this.routeRecalculated = routeRecalculated; }
 
-    public void setOwner(User owner) {
-        this.owner = owner;
-    }
+    public Integer getOriginalDurationMinutes() { return originalDurationMinutes; }
+    public void setOriginalDurationMinutes(Integer originalDurationMinutes) { this.originalDurationMinutes = originalDurationMinutes; }
 
-    public Driver getDriver() {
-        return driver;
-    }
+    public Integer getSelectedDurationMinutes() { return selectedDurationMinutes; }
+    public void setSelectedDurationMinutes(Integer selectedDurationMinutes) { this.selectedDurationMinutes = selectedDurationMinutes; }
 
-    public void setDriver(Driver driver) {
-        this.driver = driver;
-    }
+    public Integer getEstimatedDelayMinutes() { return estimatedDelayMinutes; }
+    public void setEstimatedDelayMinutes(Integer estimatedDelayMinutes) { this.estimatedDelayMinutes = estimatedDelayMinutes; }
 
-    public Vehicle getVehicle() {
-        return vehicle;
-    }
+    public Double getOriginalDistanceKm() { return originalDistanceKm; }
+    public void setOriginalDistanceKm(Double originalDistanceKm) { this.originalDistanceKm = originalDistanceKm; }
 
-    public void setVehicle(Vehicle vehicle) {
-        this.vehicle = vehicle;
-    }
+    public Double getSelectedDistanceKm() { return selectedDistanceKm; }
+    public void setSelectedDistanceKm(Double selectedDistanceKm) { this.selectedDistanceKm = selectedDistanceKm; }
 
-    public String getRouteJson() {
-        return routeJson;
-    }
+    public LocalDateTime getRouteCheckedAt() { return routeCheckedAt; }
+    public void setRouteCheckedAt(LocalDateTime routeCheckedAt) { this.routeCheckedAt = routeCheckedAt; }
 
-    public void setRouteJson(String routeJson) {
-        this.routeJson = routeJson;
-    }
+    public String getRouteCheckMessage() { return routeCheckMessage; }
+    public void setRouteCheckMessage(String routeCheckMessage) { this.routeCheckMessage = routeCheckMessage; }
 
-    public Boolean getLateAlertSent() {
-        return lateAlertSent;
-    }
+    public Boolean getLateAlertSent() { return lateAlertSent; }
+    public boolean isLateAlertSent() { return lateAlertSent != null && lateAlertSent; }
+    public void setLateAlertSent(Boolean lateAlertSent) { this.lateAlertSent = lateAlertSent; }
 
-    public boolean isLateAlertSent() {
-        return lateAlertSent != null && lateAlertSent;
-    }
+    public LocalDateTime getStartedAt() { return startedAt; }
+    public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }
 
-    public void setLateAlertSent(Boolean lateAlertSent) {
-        this.lateAlertSent = lateAlertSent;
-    }
+    public LocalDateTime getFinishedAt() { return finishedAt; }
+    public void setFinishedAt(LocalDateTime finishedAt) { this.finishedAt = finishedAt; }
 
-    public LocalDateTime getStartedAt() {
-        return startedAt;
-    }
-
-    public void setStartedAt(LocalDateTime startedAt) {
-        this.startedAt = startedAt;
-    }
-
-    public LocalDateTime getFinishedAt() {
-        return finishedAt;
-    }
-
-    public void setFinishedAt(LocalDateTime finishedAt) {
-        this.finishedAt = finishedAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

@@ -19,7 +19,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.example.fleet_backend.model.RouteCheckStatus;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +63,10 @@ public class MissionLifecycleService {
 
         if (mission.getStatus() != Mission.MissionStatus.PLANNED) {
             throw new IllegalArgumentException("Only planned missions can be started");
+        }
+        if (mission.getRouteCheckStatus() == null
+                || mission.getRouteCheckStatus() == RouteCheckStatus.NOT_CHECKED) {
+            throw new IllegalArgumentException("Veuillez vérifier la route avant de commencer la mission.");
         }
 
         if (mission.getVehicle() == null || mission.getVehicle().getId() == null) {

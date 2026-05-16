@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.fleet_backend.dto.RouteCheckResultDTO;
 
 @RestController
 @RequestMapping("/api/missions")
@@ -60,6 +61,13 @@ public class MissionController {
     @PostMapping
     public ResponseEntity<MissionDTO> create(@Valid @RequestBody MissionDTO dto, Authentication auth) {
         return ResponseEntity.ok(missionService.createMission(dto, auth));
+    }
+    @PostMapping("/{id}/check-route")
+    public ResponseEntity<RouteCheckResultDTO> checkRoute(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
+        return ResponseEntity.ok(missionService.checkRoute(id, auth));
     }
 
     @PostMapping("/{id}/start")
