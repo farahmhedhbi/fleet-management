@@ -55,6 +55,32 @@ public class Mission {
     @Column(columnDefinition = "TEXT")
     private String routeJson;
 
+    @Column(columnDefinition = "TEXT")
+    private String originalRouteJson;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private RouteCheckStatus routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private RouteRiskLevel routeRiskLevel;
+
+    @Column(nullable = false)
+    private Boolean routeRecalculated = false;
+
+    private Integer originalDurationMinutes;
+    private Integer selectedDurationMinutes;
+    private Integer estimatedDelayMinutes;
+
+    private Double originalDistanceKm;
+    private Double selectedDistanceKm;
+
+    private LocalDateTime routeCheckedAt;
+
+    @Column(length = 1000)
+    private String routeCheckMessage;
+
     @Column(nullable = false)
     private Boolean lateAlertSent = false;
 
@@ -68,11 +94,21 @@ public class Mission {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
+
         if (status == null) {
             status = MissionStatus.PLANNED;
         }
+
         if (lateAlertSent == null) {
             lateAlertSent = false;
+        }
+
+        if (routeCheckStatus == null) {
+            routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
+        }
+
+        if (routeRecalculated == null) {
+            routeRecalculated = false;
         }
     }
 
@@ -173,6 +209,94 @@ public class Mission {
 
     public void setRouteJson(String routeJson) {
         this.routeJson = routeJson;
+    }
+
+    public String getOriginalRouteJson() {
+        return originalRouteJson;
+    }
+
+    public void setOriginalRouteJson(String originalRouteJson) {
+        this.originalRouteJson = originalRouteJson;
+    }
+
+    public RouteCheckStatus getRouteCheckStatus() {
+        return routeCheckStatus;
+    }
+
+    public void setRouteCheckStatus(RouteCheckStatus routeCheckStatus) {
+        this.routeCheckStatus = routeCheckStatus;
+    }
+
+    public RouteRiskLevel getRouteRiskLevel() {
+        return routeRiskLevel;
+    }
+
+    public void setRouteRiskLevel(RouteRiskLevel routeRiskLevel) {
+        this.routeRiskLevel = routeRiskLevel;
+    }
+
+    public Boolean getRouteRecalculated() {
+        return routeRecalculated;
+    }
+
+    public void setRouteRecalculated(Boolean routeRecalculated) {
+        this.routeRecalculated = routeRecalculated;
+    }
+
+    public Integer getOriginalDurationMinutes() {
+        return originalDurationMinutes;
+    }
+
+    public void setOriginalDurationMinutes(Integer originalDurationMinutes) {
+        this.originalDurationMinutes = originalDurationMinutes;
+    }
+
+    public Integer getSelectedDurationMinutes() {
+        return selectedDurationMinutes;
+    }
+
+    public void setSelectedDurationMinutes(Integer selectedDurationMinutes) {
+        this.selectedDurationMinutes = selectedDurationMinutes;
+    }
+
+    public Integer getEstimatedDelayMinutes() {
+        return estimatedDelayMinutes;
+    }
+
+    public void setEstimatedDelayMinutes(Integer estimatedDelayMinutes) {
+        this.estimatedDelayMinutes = estimatedDelayMinutes;
+    }
+
+    public Double getOriginalDistanceKm() {
+        return originalDistanceKm;
+    }
+
+    public void setOriginalDistanceKm(Double originalDistanceKm) {
+        this.originalDistanceKm = originalDistanceKm;
+    }
+
+    public Double getSelectedDistanceKm() {
+        return selectedDistanceKm;
+    }
+
+    public void setSelectedDistanceKm(Double selectedDistanceKm) {
+        this.selectedDistanceKm = selectedDistanceKm;
+    }
+
+    public LocalDateTime getRouteCheckedAt() {
+        return routeCheckedAt;
+    }
+
+    public void setRouteCheckedAt(LocalDateTime routeCheckedAt) {
+        this.routeCheckedAt = routeCheckedAt;
+    }
+
+    public String getRouteCheckMessage() {
+        return routeCheckMessage;
+    }
+
+    public void setRouteCheckMessage(String routeCheckMessage) {
+        this.routeCheckMessage = routeCheckMessage;
     }
 
     public Boolean getLateAlertSent() {

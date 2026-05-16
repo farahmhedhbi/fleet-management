@@ -3,7 +3,6 @@ package com.example.fleet_backend.dto;
 import com.example.fleet_backend.model.Vehicle;
 import java.time.LocalDateTime;
 
-
 public class VehicleDTO {
 
     private Long id;
@@ -22,6 +21,13 @@ public class VehicleDTO {
     private LocalDateTime lastMaintenanceDate;
     private LocalDateTime nextMaintenanceDate;
 
+    private Double currentLatitude;
+    private Double currentLongitude;
+    private String currentCity;
+
+    private String homeDepotCity;
+    private Double homeDepotLatitude;
+    private Double homeDepotLongitude;
 
     private Long driverId;
     private String driverName;
@@ -30,10 +36,14 @@ public class VehicleDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private Double lastFuelLevel;
     public VehicleDTO() {}
 
-
     public VehicleDTO(Vehicle vehicle) {
+        if (vehicle == null) {
+            return;
+        }
+
         this.id = vehicle.getId();
         this.registrationNumber = vehicle.getRegistrationNumber();
         this.brand = vehicle.getBrand();
@@ -48,10 +58,32 @@ public class VehicleDTO {
         this.lastMaintenanceDate = vehicle.getLastMaintenanceDate();
         this.nextMaintenanceDate = vehicle.getNextMaintenanceDate();
 
+        this.currentLatitude = vehicle.getCurrentLatitude();
+        this.currentLongitude = vehicle.getCurrentLongitude();
+        this.currentCity = vehicle.getCurrentCity();
+
+        this.homeDepotCity = vehicle.getHomeDepotCity();
+        this.homeDepotLatitude = vehicle.getHomeDepotLatitude();
+        this.homeDepotLongitude = vehicle.getHomeDepotLongitude();
+        this.lastFuelLevel = vehicle.getLastFuelLevel();
+
         if (vehicle.getDriver() != null) {
             this.driverId = vehicle.getDriver().getId();
-            this.driverName = vehicle.getDriver().getFirstName() + " " +
-                    vehicle.getDriver().getLastName();
+
+            String firstName = vehicle.getDriver().getFirstName() != null
+                    ? vehicle.getDriver().getFirstName()
+                    : "";
+
+            String lastName = vehicle.getDriver().getLastName() != null
+                    ? vehicle.getDriver().getLastName()
+                    : "";
+
+            String fullName = (firstName + " " + lastName).trim();
+
+            this.driverName = !fullName.isBlank()
+                    ? fullName
+                    : vehicle.getDriver().getEmail();
+
             this.driverEmail = vehicle.getDriver().getEmail();
         }
 
@@ -59,61 +91,72 @@ public class VehicleDTO {
         this.updatedAt = vehicle.getUpdatedAt();
     }
 
-    // =========================
-    // GETTERS & SETTERS
-    // =========================
-
     public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
     public String getRegistrationNumber() { return registrationNumber; }
-    public void setRegistrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; }
-
     public String getBrand() { return brand; }
-    public void setBrand(String brand) { this.brand = brand; }
-
     public String getModel() { return model; }
-    public void setModel(String model) { this.model = model; }
-
     public Integer getYear() { return year; }
-    public void setYear(Integer year) { this.year = year; }
-
     public String getColor() { return color; }
-    public void setColor(String color) { this.color = color; }
-
     public String getVin() { return vin; }
-    public void setVin(String vin) { this.vin = vin; }
 
     public Vehicle.FuelType getFuelType() { return fuelType; }
-    public void setFuelType(Vehicle.FuelType fuelType) { this.fuelType = fuelType; }
-
     public Vehicle.TransmissionType getTransmission() { return transmission; }
-    public void setTransmission(Vehicle.TransmissionType transmission) { this.transmission = transmission; }
-
     public Vehicle.VehicleStatus getStatus() { return status; }
-    public void setStatus(Vehicle.VehicleStatus status) { this.status = status; }
 
     public Double getMileage() { return mileage; }
-    public void setMileage(Double mileage) { this.mileage = mileage; }
-
     public LocalDateTime getLastMaintenanceDate() { return lastMaintenanceDate; }
-    public void setLastMaintenanceDate(LocalDateTime lastMaintenanceDate) { this.lastMaintenanceDate = lastMaintenanceDate; }
-
     public LocalDateTime getNextMaintenanceDate() { return nextMaintenanceDate; }
-    public void setNextMaintenanceDate(LocalDateTime nextMaintenanceDate) { this.nextMaintenanceDate = nextMaintenanceDate; }
+
+    public Double getCurrentLatitude() { return currentLatitude; }
+    public Double getCurrentLongitude() { return currentLongitude; }
+    public String getCurrentCity() { return currentCity; }
+
+    public String getHomeDepotCity() { return homeDepotCity; }
+    public Double getHomeDepotLatitude() { return homeDepotLatitude; }
+    public Double getHomeDepotLongitude() { return homeDepotLongitude; }
 
     public Long getDriverId() { return driverId; }
-    public void setDriverId(Long driverId) { this.driverId = driverId; }
-
     public String getDriverName() { return driverName; }
-    public void setDriverName(String driverName) { this.driverName = driverName; }
-
     public String getDriverEmail() { return driverEmail; }
-    public void setDriverEmail(String driverEmail) { this.driverEmail = driverEmail; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    public void setId(Long id) { this.id = id; }
+    public void setRegistrationNumber(String registrationNumber) { this.registrationNumber = registrationNumber; }
+    public void setBrand(String brand) { this.brand = brand; }
+    public void setModel(String model) { this.model = model; }
+    public void setYear(Integer year) { this.year = year; }
+    public void setColor(String color) { this.color = color; }
+    public void setVin(String vin) { this.vin = vin; }
+
+    public void setFuelType(Vehicle.FuelType fuelType) { this.fuelType = fuelType; }
+    public void setTransmission(Vehicle.TransmissionType transmission) { this.transmission = transmission; }
+    public void setStatus(Vehicle.VehicleStatus status) { this.status = status; }
+
+    public void setMileage(Double mileage) { this.mileage = mileage; }
+    public void setLastMaintenanceDate(LocalDateTime lastMaintenanceDate) { this.lastMaintenanceDate = lastMaintenanceDate; }
+    public void setNextMaintenanceDate(LocalDateTime nextMaintenanceDate) { this.nextMaintenanceDate = nextMaintenanceDate; }
+
+    public void setCurrentLatitude(Double currentLatitude) { this.currentLatitude = currentLatitude; }
+    public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
+    public void setCurrentCity(String currentCity) { this.currentCity = currentCity; }
+
+    public void setHomeDepotCity(String homeDepotCity) { this.homeDepotCity = homeDepotCity; }
+    public void setHomeDepotLatitude(Double homeDepotLatitude) { this.homeDepotLatitude = homeDepotLatitude; }
+    public void setHomeDepotLongitude(Double homeDepotLongitude) { this.homeDepotLongitude = homeDepotLongitude; }
+
+    public void setDriverId(Long driverId) { this.driverId = driverId; }
+    public void setDriverName(String driverName) { this.driverName = driverName; }
+    public void setDriverEmail(String driverEmail) { this.driverEmail = driverEmail; }
+    public Double getLastFuelLevel() {
+        return lastFuelLevel;
+    }
+
+    public void setLastFuelLevel(Double lastFuelLevel) {
+        this.lastFuelLevel = lastFuelLevel;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

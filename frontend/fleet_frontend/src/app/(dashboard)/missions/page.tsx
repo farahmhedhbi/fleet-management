@@ -460,8 +460,7 @@ export default function MissionsPage() {
         onPickDeparture={(value) => {
           setForm((p) => ({ ...p, departure: value }));
           setDepartureSuggestions([]);
-        }}
-        onPickDestination={(value) => {
+        }}onPickDestination={(value) => {
           setForm((p) => ({ ...p, destination: value }));
           setDestinationSuggestions([]);
         }}

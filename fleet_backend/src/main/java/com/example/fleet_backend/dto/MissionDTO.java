@@ -7,6 +7,7 @@ import com.example.fleet_backend.model.Vehicle;
 import java.time.LocalDateTime;
 
 public class MissionDTO {
+
     private Long id;
     private String title;
     private String description;
@@ -20,6 +21,8 @@ public class MissionDTO {
 
     private Long driverId;
     private String driverName;
+    private String driverStatus;
+    private LocalDateTime driverAvailableAt;
 
     private Long vehicleId;
     private String vehicleRegistrationNumber;
@@ -28,6 +31,18 @@ public class MissionDTO {
 
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
+
+    private String originalRouteJson;
+    private String routeCheckStatus;
+    private String routeRiskLevel;
+    private Boolean routeRecalculated;
+    private Integer originalDurationMinutes;
+    private Integer selectedDurationMinutes;
+    private Integer estimatedDelayMinutes;
+    private Double originalDistanceKm;
+    private Double selectedDistanceKm;
+    private LocalDateTime routeCheckedAt;
+    private String routeCheckMessage;
 
     public MissionDTO() {}
 
@@ -44,9 +59,29 @@ public class MissionDTO {
         this.startDate = mission.getStartDate();
         this.endDate = mission.getEndDate();
         this.status = mission.getStatus() != null ? mission.getStatus().name() : null;
+
         this.routeJson = mission.getRouteJson();
         this.startedAt = mission.getStartedAt();
         this.finishedAt = mission.getFinishedAt();
+
+        this.originalRouteJson = mission.getOriginalRouteJson();
+
+        this.routeCheckStatus = mission.getRouteCheckStatus() != null
+                ? mission.getRouteCheckStatus().name()
+                : null;
+
+        this.routeRiskLevel = mission.getRouteRiskLevel() != null
+                ? mission.getRouteRiskLevel().name()
+                : null;
+
+        this.routeRecalculated = mission.getRouteRecalculated();
+        this.originalDurationMinutes = mission.getOriginalDurationMinutes();
+        this.selectedDurationMinutes = mission.getSelectedDurationMinutes();
+        this.estimatedDelayMinutes = mission.getEstimatedDelayMinutes();
+        this.originalDistanceKm = mission.getOriginalDistanceKm();
+        this.selectedDistanceKm = mission.getSelectedDistanceKm();
+        this.routeCheckedAt = mission.getRouteCheckedAt();
+        this.routeCheckMessage = mission.getRouteCheckMessage();
 
         if (mission.getOwner() != null) {
             this.ownerId = mission.getOwner().getId();
@@ -61,6 +96,12 @@ public class MissionDTO {
             String fullName = (firstName + " " + lastName).trim();
 
             this.driverName = !fullName.isBlank() ? fullName : driver.getEmail();
+
+            this.driverStatus = driver.getStatus() != null
+                    ? driver.getStatus().name()
+                    : null;
+
+            this.driverAvailableAt = driver.getAvailableAt();
         }
 
         Vehicle vehicle = mission.getVehicle();
@@ -114,6 +155,14 @@ public class MissionDTO {
         return driverName;
     }
 
+    public String getDriverStatus() {
+        return driverStatus;
+    }
+
+    public LocalDateTime getDriverAvailableAt() {
+        return driverAvailableAt;
+    }
+
     public Long getVehicleId() {
         return vehicleId;
     }
@@ -132,6 +181,50 @@ public class MissionDTO {
 
     public LocalDateTime getFinishedAt() {
         return finishedAt;
+    }
+
+    public String getOriginalRouteJson() {
+        return originalRouteJson;
+    }
+
+    public String getRouteCheckStatus() {
+        return routeCheckStatus;
+    }
+
+    public String getRouteRiskLevel() {
+        return routeRiskLevel;
+    }
+
+    public Boolean getRouteRecalculated() {
+        return routeRecalculated;
+    }
+
+    public Integer getOriginalDurationMinutes() {
+        return originalDurationMinutes;
+    }
+
+    public Integer getSelectedDurationMinutes() {
+        return selectedDurationMinutes;
+    }
+
+    public Integer getEstimatedDelayMinutes() {
+        return estimatedDelayMinutes;
+    }
+
+    public Double getOriginalDistanceKm() {
+        return originalDistanceKm;
+    }
+
+    public Double getSelectedDistanceKm() {
+        return selectedDistanceKm;
+    }
+
+    public LocalDateTime getRouteCheckedAt() {
+        return routeCheckedAt;
+    }
+
+    public String getRouteCheckMessage() {
+        return routeCheckMessage;
     }
 
     public void setTitle(String title) {
@@ -168,5 +261,13 @@ public class MissionDTO {
 
     public void setRouteJson(String routeJson) {
         this.routeJson = routeJson;
+    }
+
+    public void setDriverStatus(String driverStatus) {
+        this.driverStatus = driverStatus;
+    }
+
+    public void setDriverAvailableAt(LocalDateTime driverAvailableAt) {
+        this.driverAvailableAt = driverAvailableAt;
     }
 }

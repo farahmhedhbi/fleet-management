@@ -3,22 +3,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
+import { driverRestService } from "@/lib/services/driverRestService";
 import type { Mission } from "@/types/mission";
 import type { VehicleLiveStatusDTO } from "@/types/gps";
 import { toast } from "react-toastify";
 import MyMissionsView from "./MyMissionsView";
 
-function formatDateTime(value?: string) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
+  return d.toLocaleString("fr-FR");
 }
 
-function toTimestamp(value?: string) {
+function toTimestamp(value?: string | null) {
   if (!value) return 0;
   const t = new Date(value).getTime();
   return Number.isNaN(t) ? 0 : t;
+}
+
+function formatRemaining(ms: number) {
+  if (ms <= 0) return "00:00";
+
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -33,8 +44,7 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadius * c;
+  return earthRadius * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 const FINISH_RADIUS_METERS = 30;
@@ -45,8 +55,12 @@ export default function MyMissionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
+  const [restLoading, setRestLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [liveByMissionId, setLiveByMissionId] = useState<Record<number, VehicleLiveStatusDTO>>({});
+
+  const [liveByMissionId, setLiveByMissionId] = useState<
+    Record<number, VehicleLiveStatusDTO>
+  >({});
 
   const load = useCallback(async (initial = false) => {
     if (initial) setLoading(true);
@@ -57,6 +71,11 @@ export default function MyMissionsPage() {
       setMissions(ms);
 
       const inProgress = ms.filter((m) => m.status === "IN_PROGRESS");
+
+      if (inProgress.length === 0) {
+        setLiveByMissionId({});
+        return;
+      }
 
       const liveEntries = await Promise.allSettled(
         inProgress.map(async (m) => ({
@@ -93,7 +112,7 @@ export default function MyMissionsPage() {
 
     const interval = window.setInterval(() => {
       load(false);
-    }, 3000);
+    }, 5000);
 
     return () => window.clearInterval(interval);
   }, [load]);
@@ -103,21 +122,38 @@ export default function MyMissionsPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const driverRestInfo = useMemo(() => {
+    const restingMission = missions.find(
+      (m) => m.driverStatus === "RESTING" && m.driverAvailableAt
+    );
+
+    if (!restingMission?.driverAvailableAt) {
+      return null;
+    }
+
+    const end = toTimestamp(restingMission.driverAvailableAt);
+    const remainingMs = end - now;
+
+    return {
+      status: restingMission.driverStatus,
+      availableAt: restingMission.driverAvailableAt,
+      remainingMs,
+      remainingText: formatRemaining(remainingMs),
+      canMarkReady: remainingMs <= 0,
+    };
+  }, [missions, now]);
+
   const sortedMissions = useMemo(() => {
     return [...missions].sort((a, b) => {
-      const aInProgress = a.status === "IN_PROGRESS" ? 1 : 0;
-      const bInProgress = b.status === "IN_PROGRESS" ? 1 : 0;
+      const priority = (status?: string) => {
+        if (status === "IN_PROGRESS") return 3;
+        if (status === "PLANNED") return 2;
+        if (status === "COMPLETED") return 1;
+        return 0;
+      };
 
-      if (aInProgress !== bInProgress) {
-        return bInProgress - aInProgress;
-      }
-
-      const aPlanned = a.status === "PLANNED" ? 1 : 0;
-      const bPlanned = b.status === "PLANNED" ? 1 : 0;
-
-      if (aPlanned !== bPlanned) {
-        return bPlanned - aPlanned;
-      }
+      const statusDiff = priority(b.status) - priority(a.status);
+      if (statusDiff !== 0) return statusDiff;
 
       return toTimestamp(b.startDate) - toTimestamp(a.startDate);
     });
@@ -149,12 +185,16 @@ export default function MyMissionsPage() {
     (mission: Mission) => {
       if (mission.status !== "PLANNED") return false;
 
+      if (driverRestInfo && !driverRestInfo.canMarkReady) {
+        return false;
+      }
+
       const startTime = toTimestamp(mission.startDate);
       if (!startTime) return true;
 
       return now >= startTime;
     },
-    [now]
+    [now, driverRestInfo]
   );
 
   const canFinishMission = useCallback(
@@ -183,8 +223,10 @@ export default function MyMissionsPage() {
 
   const getStartBlockedMessage = useCallback(
     (mission: Mission) => {
-      if (mission.status !== "PLANNED") {
-        return "Only a planned mission can be started";
+      if (mission.status !== "PLANNED") return null;
+
+      if (driverRestInfo && !driverRestInfo.canMarkReady) {
+        return `Vous êtes en repos. Temps restant : ${driverRestInfo.remainingText}`;
       }
 
       const startTime = toTimestamp(mission.startDate);
@@ -194,20 +236,16 @@ export default function MyMissionsPage() {
 
       return null;
     },
-    [now]
+    [now, driverRestInfo]
   );
 
   const getFinishBlockedMessage = useCallback(
     (mission: Mission) => {
-      if (mission.status !== "IN_PROGRESS") {
-        return "Only a mission in progress can be finished";
-      }
+      if (mission.status !== "IN_PROGRESS") return null;
 
       const live = liveByMissionId[mission.id];
-      if (!live) {
-        return "Live position unavailable";
-      }
 
+      if (!live) return "Live position unavailable";
       if (live.latitude == null || live.longitude == null) {
         return "Current vehicle position unavailable";
       }
@@ -217,6 +255,7 @@ export default function MyMissionsPage() {
       }
 
       const lastPoint = live.missionRoute[live.missionRoute.length - 1];
+
       if (lastPoint.latitude == null || lastPoint.longitude == null) {
         return "Mission destination unavailable";
       }
@@ -263,7 +302,7 @@ export default function MyMissionsPage() {
       try {
         setActingId(mission.id);
         await missionService.finish(mission.id);
-        toast.success("Mission terminée");
+        toast.success("Mission terminée. Vous êtes maintenant en période de repos.");
         await load(false);
       } catch (e: any) {
         toast.error(
@@ -279,6 +318,24 @@ export default function MyMissionsPage() {
     [load]
   );
 
+  const handleReady = useCallback(async () => {
+    try {
+      setRestLoading(true);
+      await driverRestService.markReady();
+      toast.success("Vous êtes maintenant disponible.");
+      await load(false);
+    } catch (e: any) {
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Le repos n'est pas encore terminé."
+      );
+    } finally {
+      setRestLoading(false);
+    }
+  }, [load]);
+
   return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
@@ -290,6 +347,9 @@ export default function MyMissionsPage() {
         setQ={setQ}
         actingId={actingId}
         now={now}
+        driverRestInfo={driverRestInfo}
+        restLoading={restLoading}
+        onReady={handleReady}
         onRefresh={() => load(false)}
         onStart={handleStart}
         onFinish={handleFinish}

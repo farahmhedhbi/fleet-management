@@ -75,6 +75,7 @@ public class MissionPlanningService {
         );
 
         validateDriverLicense(driver, estimatedEndDate);
+        validateDriverRestAvailability(driver, dto.getStartDate());
 
         validateVehicleAndDriverAvailability(
                 vehicle,
@@ -137,6 +138,7 @@ public class MissionPlanningService {
         );
 
         validateDriverLicense(driver, estimatedEndDate);
+        validateDriverRestAvailability(driver, dto.getStartDate());
 
         validateVehicleAndDriverAvailability(
                 vehicle,
@@ -165,8 +167,12 @@ public class MissionPlanningService {
             Vehicle vehicle,
             Driver driver
     ) {
-        if (!AuthUtil.hasRole(auth, "OWNER")) {
+        if (AuthUtil.isAdmin(auth)) {
             return;
+        }
+
+        if (!AuthUtil.hasRole(auth, "OWNER")) {
+            throw new AccessDeniedException("OWNER only");
         }
 
         if (vehicle.getOwner() == null || !vehicle.getOwner().getId().equals(owner.getId())) {
@@ -189,17 +195,48 @@ public class MissionPlanningService {
     }
 
     private void validateDriverLicense(Driver driver, LocalDateTime missionEndDate) {
-        if (driver.getStatus() != Driver.DriverStatus.ACTIVE) {
-            throw new IllegalArgumentException("Ce chauffeur n'est pas actif");
+        if (driver == null) {
+            throw new IllegalArgumentException("Driver is required");
+        }
+
+        if (driver.getStatus() == Driver.DriverStatus.UNAVAILABLE
+                || driver.getStatus() == Driver.DriverStatus.OFF_DUTY
+                || driver.getStatus() == Driver.DriverStatus.SUSPENDED
+                || driver.getStatus() == Driver.DriverStatus.INACTIVE
+                || driver.getStatus() == Driver.DriverStatus.ON_LEAVE) {
+            throw new IllegalArgumentException("Ce chauffeur n'est pas disponible");
         }
 
         if (driver.getLicenseExpiry() == null) {
             throw new IllegalArgumentException("La date d'expiration du permis est manquante");
         }
 
-        if (driver.getLicenseExpiry().isBefore(missionEndDate)
-                || driver.getLicenseExpiry().isEqual(missionEndDate)) {
+        if (!driver.getLicenseExpiry().isAfter(missionEndDate)) {
             throw new IllegalArgumentException("Le permis du chauffeur expire avant la fin de la mission");
+        }
+    }
+
+    private void validateDriverRestAvailability(Driver driver, LocalDateTime missionStartDate) {
+        if (driver == null) {
+            throw new IllegalArgumentException("Driver is required");
+        }
+
+        if (driver.getStatus() == Driver.DriverStatus.ON_MISSION) {
+            throw new IllegalArgumentException("Ce chauffeur est actuellement en mission");
+        }
+
+        if (driver.getStatus() == Driver.DriverStatus.RESERVED) {
+            throw new IllegalArgumentException("Ce chauffeur est déjà réservé.");
+        }
+
+        if (driver.getStatus() == Driver.DriverStatus.RESTING) {
+            LocalDateTime availableAt = driver.getAvailableAt();
+
+            if (availableAt != null && missionStartDate.isBefore(availableAt)) {
+                throw new IllegalArgumentException(
+                        "Ce chauffeur est en repos jusqu'à " + availableAt
+                );
+            }
         }
     }
 
@@ -222,6 +259,14 @@ public class MissionPlanningService {
 
         if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
             throw new IllegalArgumentException("Ce véhicule est hors service.");
+        }
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.UNDER_MAINTENANCE) {
+            throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
+        }
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.RESERVED) {
+            throw new IllegalArgumentException("Ce véhicule est déjà réservé.");
         }
 
         if (missionRepository.existsByVehicleIdAndStatus(

@@ -1,6 +1,7 @@
 package com.example.fleet_backend.service;
 
 import com.example.fleet_backend.dto.MissionDTO;
+import com.example.fleet_backend.dto.RouteCheckResultDTO;
 import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.model.Mission;
@@ -14,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,14 +31,18 @@ public class MissionService {
     private final MissionPlanningService missionPlanningService;
     private final MissionLifecycleService missionLifecycleService;
     private final MissionNotificationService missionNotificationService;
+    private final RouteVerificationService routeVerificationService;
 
-    public MissionService(MissionRepository missionRepository,
-                          UserRepository userRepository,
-                          DriverRepository driverRepository,
-                          MissionAccessService missionAccessService,
-                          MissionPlanningService missionPlanningService,
-                          MissionLifecycleService missionLifecycleService,
-                          MissionNotificationService missionNotificationService) {
+    public MissionService(
+            MissionRepository missionRepository,
+            UserRepository userRepository,
+            DriverRepository driverRepository,
+            MissionAccessService missionAccessService,
+            MissionPlanningService missionPlanningService,
+            MissionLifecycleService missionLifecycleService,
+            MissionNotificationService missionNotificationService,
+            RouteVerificationService routeVerificationService
+    ) {
         this.missionRepository = missionRepository;
         this.userRepository = userRepository;
         this.driverRepository = driverRepository;
@@ -44,6 +50,7 @@ public class MissionService {
         this.missionPlanningService = missionPlanningService;
         this.missionLifecycleService = missionLifecycleService;
         this.missionNotificationService = missionNotificationService;
+        this.routeVerificationService = routeVerificationService;
     }
 
     @Transactional(readOnly = true)
@@ -100,6 +107,7 @@ public class MissionService {
 
         Mission saved = missionPlanningService.createMission(dto, auth);
         missionNotificationService.notifyDriverAssigned(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -111,10 +119,15 @@ public class MissionService {
         Mission mission = missionAccessService.getAuthorizedMission(missionId, auth);
         Mission saved = missionPlanningService.updateMission(mission, dto, auth);
         missionNotificationService.notifyDriverUpdated(saved);
+
         return new MissionDTO(saved);
     }
 
     public MissionDTO startMission(Long missionId, Authentication auth) {
+        if (auth == null || !AuthUtil.hasRole(auth, "DRIVER")) {
+            throw new AccessDeniedException("Forbidden");
+        }
+
         Mission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + missionId));
 
@@ -122,9 +135,10 @@ public class MissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
         boolean startedLate = mission.getStartDate() != null
-                && java.time.LocalDateTime.now().isAfter(mission.getStartDate());
+                && LocalDateTime.now().isAfter(mission.getStartDate());
 
         Mission saved = missionLifecycleService.startMission(mission, auth);
+
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyOwnerMissionStarted(saved, driver, startedLate);
 
@@ -132,10 +146,15 @@ public class MissionService {
     }
 
     public MissionDTO finishMission(Long missionId, Authentication auth) {
+        if (auth == null || !AuthUtil.hasRole(auth, "DRIVER")) {
+            throw new AccessDeniedException("Forbidden");
+        }
+
         Mission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mission not found: " + missionId));
 
         Mission saved = missionLifecycleService.finishMission(mission, auth);
+
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyOwnerMissionFinished(saved);
 
@@ -144,10 +163,12 @@ public class MissionService {
 
     public Mission completeMissionFromGps(Mission mission) {
         Mission saved = missionLifecycleService.completeMissionFromGps(mission);
+
         if (saved != null) {
             missionNotificationService.clearDriverLateAlert(saved);
             missionNotificationService.notifyOwnerMissionFinished(saved);
         }
+
         return saved;
     }
 
@@ -158,6 +179,7 @@ public class MissionService {
 
         Mission mission = missionAccessService.getAuthorizedMission(missionId, auth);
         Mission saved = missionLifecycleService.cancelMission(mission);
+
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyDriverCanceled(saved);
     }
@@ -175,5 +197,9 @@ public class MissionService {
 
         missionNotificationService.clearDriverLateAlert(mission);
         missionRepository.delete(mission);
+    }
+
+    public RouteCheckResultDTO checkRoute(Long missionId, Authentication auth) {
+        return routeVerificationService.checkRoute(missionId, auth);
     }
 }

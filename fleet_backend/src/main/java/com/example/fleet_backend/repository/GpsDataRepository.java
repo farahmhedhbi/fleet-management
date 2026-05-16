@@ -26,4 +26,5 @@ public interface GpsDataRepository extends JpaRepository<GpsData, Long> {
             LocalDateTime to,
             Pageable pageable
     );
+
 }

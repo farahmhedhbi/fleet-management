@@ -4,28 +4,31 @@ export type MissionStatus =
   | "COMPLETED"
   | "CANCELED";
 
+  
 export interface Mission {
   id: number;
   title: string;
-  description?: string;
+  description?: string | null;
   departure: string;
   destination: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   status: MissionStatus;
 
-  ownerId?: number;
+  ownerId?: number | null;
 
-  driverId?: number;
-  driverName?: string;
+  driverId?: number | null;
+  driverName?: string | null;
 
-  vehicleId?: number;
-  vehicleRegistrationNumber?: string;
+  vehicleId?: number | null;
+  vehicleRegistrationNumber?: string | null;
 
-  routeJson?: string;
+  routeJson?: string | null;
 
-  startedAt?: string;
-  finishedAt?: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  driverStatus?: "AVAILABLE" | "ON_MISSION" | "RESTING" | "OFFLINE";
+  driverAvailableAt?: string | null;
 }
 
 export interface MissionDTO {
@@ -34,6 +37,7 @@ export interface MissionDTO {
   departure: string;
   destination: string;
   startDate?: string;
+  endDate?: string;
   driverId: number;
   vehicleId: number;
 }

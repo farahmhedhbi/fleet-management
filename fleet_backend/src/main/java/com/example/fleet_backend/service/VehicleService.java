@@ -17,7 +17,6 @@ import org.springframework.security.core.Authentication;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Service
 @Transactional
 public class VehicleService {
@@ -26,9 +25,11 @@ public class VehicleService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
 
-    public VehicleService(VehicleRepository vehicleRepository,
-                          DriverRepository driverRepository,
-                          UserRepository userRepository) {
+    public VehicleService(
+            VehicleRepository vehicleRepository,
+            DriverRepository driverRepository,
+            UserRepository userRepository
+    ) {
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
@@ -38,50 +39,71 @@ public class VehicleService {
         if (AuthUtil.isAdmin(auth)) {
             return vehicleRepository.findAll()
                     .stream()
-                    .map(VehicleDTO::new) // Entity -> DTO
+                    .map(VehicleDTO::new)
                     .collect(Collectors.toList());
         }
 
         if (AuthUtil.hasRole(auth, "OWNER")) {
             Long ownerId = AuthUtil.userId(auth);
+
             return vehicleRepository.findByOwnerId(ownerId)
                     .stream()
                     .map(VehicleDTO::new)
                     .collect(Collectors.toList());
         }
+
         if (AuthUtil.hasRole(auth, "DRIVER")) {
             String email = auth.getName();
+
             Driver driver = driverRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Driver not found for email: " + email
+                    ));
+
             return vehicleRepository.findByDriverId(driver.getId())
                     .stream()
                     .map(VehicleDTO::new)
                     .collect(Collectors.toList());
         }
+
         throw new AccessDeniedException("Forbidden");
     }
 
-
     public VehicleDTO getVehicleByIdSecured(Long id, Authentication auth) {
         Vehicle v = vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
-        if (AuthUtil.isAdmin(auth)) return new VehicleDTO(v);
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vehicle not found with id: " + id
+                ));
+
+        if (AuthUtil.isAdmin(auth)) {
+            return new VehicleDTO(v);
+        }
+
         if (AuthUtil.hasRole(auth, "OWNER")) {
             Long ownerId = AuthUtil.userId(auth);
+
             if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
                 throw new AccessDeniedException("Not your vehicle");
             }
+
             return new VehicleDTO(v);
         }
+
         if (AuthUtil.hasRole(auth, "DRIVER")) {
             String email = auth.getName();
+
             Driver driver = driverRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found for email: " + email));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Driver not found for email: " + email
+                    ));
+
             if (v.getDriver() == null || !v.getDriver().getId().equals(driver.getId())) {
                 throw new AccessDeniedException("Vehicle not assigned to you");
             }
+
             return new VehicleDTO(v);
         }
+
         throw new AccessDeniedException("Forbidden");
     }
 
@@ -89,45 +111,80 @@ public class VehicleService {
         if (!(AuthUtil.isAdmin(auth) || AuthUtil.hasRole(auth, "OWNER"))) {
             throw new AccessDeniedException("Forbidden");
         }
+
+        validateCreateInput(dto);
+
         if (vehicleRepository.existsByRegistrationNumber(dto.getRegistrationNumber())) {
             throw new IllegalArgumentException("Registration number already exists");
         }
-        if (dto.getVin() != null && vehicleRepository.existsByVin(dto.getVin())) {
+
+        if (dto.getVin() != null && !dto.getVin().isBlank()
+                && vehicleRepository.existsByVin(dto.getVin())) {
             throw new IllegalArgumentException("VIN already exists");
         }
+
         Vehicle v = new Vehicle();
-        mapDtoToEntity(dto, v);
+        mapDtoToEntity(dto, v, true);
+
         Long ownerId = AuthUtil.userId(auth);
+
         User owner = userRepository.findById(ownerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Owner user not found: " + ownerId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Owner user not found: " + ownerId
+                ));
+
         v.setOwner(owner);
+
         if (dto.getDriverId() != null) {
             Driver d = driverRepository.findById(dto.getDriverId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + dto.getDriverId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Driver not found: " + dto.getDriverId()
+                    ));
+
+            validateDriverBelongsToOwnerIfNeeded(auth, d, ownerId);
             v.setDriver(d);
         }
+
         return new VehicleDTO(vehicleRepository.save(v));
     }
 
     public VehicleDTO updateVehicleSecured(Long id, VehicleDTO dto, Authentication auth) {
         Vehicle v = vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vehicle not found with id: " + id
+                ));
+
+        Long ownerId = AuthUtil.userId(auth);
+
         if (!AuthUtil.isAdmin(auth)) {
-            Long ownerId = AuthUtil.userId(auth);
             if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
                 throw new AccessDeniedException("Not your vehicle");
             }
         }
-        if (dto.getRegistrationNumber() != null &&
-                !dto.getRegistrationNumber().equals(v.getRegistrationNumber()) &&
-                vehicleRepository.existsByRegistrationNumber(dto.getRegistrationNumber())) {
+
+        if (dto.getRegistrationNumber() != null
+                && !dto.getRegistrationNumber().equals(v.getRegistrationNumber())
+                && vehicleRepository.existsByRegistrationNumber(dto.getRegistrationNumber())) {
             throw new IllegalArgumentException("Registration number already exists");
         }
 
-        mapDtoToEntity(dto, v);
+        if (dto.getVin() != null
+                && !dto.getVin().isBlank()
+                && v.getVin() != null
+                && !dto.getVin().equals(v.getVin())
+                && vehicleRepository.existsByVin(dto.getVin())) {
+            throw new IllegalArgumentException("VIN already exists");
+        }
+
+        mapDtoToEntity(dto, v, false);
+
         if (dto.getDriverId() != null) {
             Driver d = driverRepository.findById(dto.getDriverId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Driver not found: " + dto.getDriverId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Driver not found: " + dto.getDriverId()
+                    ));
+
+            validateDriverBelongsToOwnerIfNeeded(auth, d, ownerId);
             v.setDriver(d);
         } else {
             v.setDriver(null);
@@ -138,10 +195,13 @@ public class VehicleService {
 
     public void deleteVehicleSecured(Long id, Authentication auth) {
         Vehicle v = vehicleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vehicle not found with id: " + id
+                ));
 
         if (!AuthUtil.isAdmin(auth)) {
             Long ownerId = AuthUtil.userId(auth);
+
             if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
                 throw new AccessDeniedException("Not your vehicle");
             }
@@ -150,13 +210,15 @@ public class VehicleService {
         vehicleRepository.delete(v);
     }
 
-
     public VehicleDTO removeDriverFromVehicleSecured(Long vehicleId, Authentication auth) {
         Vehicle v = vehicleRepository.findById(vehicleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + vehicleId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vehicle not found: " + vehicleId
+                ));
 
         if (!AuthUtil.isAdmin(auth)) {
             Long ownerId = AuthUtil.userId(auth);
+
             if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
                 throw new AccessDeniedException("Not your vehicle");
             }
@@ -166,26 +228,108 @@ public class VehicleService {
         return new VehicleDTO(vehicleRepository.save(v));
     }
 
-    private void mapDtoToEntity(VehicleDTO dto, Vehicle v) {
-        v.setRegistrationNumber(dto.getRegistrationNumber());
-        v.setBrand(dto.getBrand());
-        v.setModel(dto.getModel());
-        v.setYear(dto.getYear());
-        v.setColor(dto.getColor());
-        v.setVin(dto.getVin());
-        v.setFuelType(dto.getFuelType());
-        v.setTransmission(dto.getTransmission());
-        v.setStatus(dto.getStatus());
-        v.setMileage(dto.getMileage());
-        v.setLastMaintenanceDate(dto.getLastMaintenanceDate());
-        v.setNextMaintenanceDate(dto.getNextMaintenanceDate());
-    }
-
     @Transactional
     public Vehicle unassignDriver(Long vehicleId) {
         Vehicle vehicle = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
+
         vehicle.setDriver(null);
         return vehicleRepository.save(vehicle);
+    }
+
+    private void mapDtoToEntity(VehicleDTO dto, Vehicle v, boolean createMode) {
+        if (dto.getRegistrationNumber() != null) {
+            v.setRegistrationNumber(dto.getRegistrationNumber().trim());
+        }
+
+        if (dto.getBrand() != null) {
+            v.setBrand(dto.getBrand().trim());
+        }
+
+        if (dto.getModel() != null) {
+            v.setModel(dto.getModel().trim());
+        }
+
+        if (dto.getYear() != null) {
+            v.setYear(dto.getYear());
+        }
+
+        v.setColor(dto.getColor());
+        v.setVin(dto.getVin());
+        v.setFuelType(dto.getFuelType());
+        v.setTransmission(dto.getTransmission());
+
+        if (dto.getStatus() != null) {
+            v.setStatus(dto.getStatus());
+        } else if (createMode) {
+            v.setStatus(Vehicle.VehicleStatus.AVAILABLE);
+        }
+
+        v.setMileage(dto.getMileage());
+        v.setLastMaintenanceDate(dto.getLastMaintenanceDate());
+        v.setNextMaintenanceDate(dto.getNextMaintenanceDate());
+
+        v.setCurrentLatitude(dto.getCurrentLatitude());
+        v.setCurrentLongitude(dto.getCurrentLongitude());
+        v.setCurrentCity(dto.getCurrentCity());
+
+        v.setHomeDepotCity(dto.getHomeDepotCity());
+        v.setHomeDepotLatitude(dto.getHomeDepotLatitude());
+        v.setHomeDepotLongitude(dto.getHomeDepotLongitude());
+
+        if (createMode) {
+            initializeCurrentLocationFromDepotIfMissing(v);
+        }
+    }
+
+    private void initializeCurrentLocationFromDepotIfMissing(Vehicle vehicle) {
+        if (vehicle.getCurrentLatitude() == null && vehicle.getHomeDepotLatitude() != null) {
+            vehicle.setCurrentLatitude(vehicle.getHomeDepotLatitude());
+        }
+
+        if (vehicle.getCurrentLongitude() == null && vehicle.getHomeDepotLongitude() != null) {
+            vehicle.setCurrentLongitude(vehicle.getHomeDepotLongitude());
+        }
+
+        if ((vehicle.getCurrentCity() == null || vehicle.getCurrentCity().isBlank())
+                && vehicle.getHomeDepotCity() != null) {
+            vehicle.setCurrentCity(vehicle.getHomeDepotCity());
+        }
+    }
+
+    private void validateCreateInput(VehicleDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Vehicle data is required");
+        }
+
+        if (dto.getRegistrationNumber() == null || dto.getRegistrationNumber().isBlank()) {
+            throw new IllegalArgumentException("Registration number is required");
+        }
+
+        if (dto.getBrand() == null || dto.getBrand().isBlank()) {
+            throw new IllegalArgumentException("Brand is required");
+        }
+
+        if (dto.getModel() == null || dto.getModel().isBlank()) {
+            throw new IllegalArgumentException("Model is required");
+        }
+
+        if (dto.getYear() == null) {
+            throw new IllegalArgumentException("Year is required");
+        }
+    }
+
+    private void validateDriverBelongsToOwnerIfNeeded(
+            Authentication auth,
+            Driver driver,
+            Long ownerId
+    ) {
+        if (AuthUtil.isAdmin(auth)) {
+            return;
+        }
+
+        if (driver.getOwner() == null || !driver.getOwner().getId().equals(ownerId)) {
+            throw new AccessDeniedException("You can only assign your own drivers");
+        }
     }
 }
