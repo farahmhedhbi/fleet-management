@@ -45,8 +45,11 @@ export default function MyMissionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
+  const [checkingRouteId, setCheckingRouteId] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [liveByMissionId, setLiveByMissionId] = useState<Record<number, VehicleLiveStatusDTO>>({});
+  const [liveByMissionId, setLiveByMissionId] = useState<
+    Record<number, VehicleLiveStatusDTO>
+  >({});
 
   const load = useCallback(async (initial = false) => {
     if (initial) setLoading(true);
@@ -136,6 +139,9 @@ export default function MyMissionsPage() {
         m.departure,
         m.destination,
         m.driverName,
+        m.routeCheckStatus,
+        m.routeRiskLevel,
+        m.routeCheckMessage,
       ]
         .filter(Boolean)
         .join(" ")
@@ -145,9 +151,58 @@ export default function MyMissionsPage() {
     });
   }, [sortedMissions, q]);
 
+  const handleCheckRoute = useCallback(
+    async (mission: Mission) => {
+      try {
+        setCheckingRouteId(mission.id);
+
+        const result = await missionService.checkRoute(mission.id);
+
+        toast.success(result.message || "Route vérifiée");
+
+        setMissions((prev) =>
+          prev.map((m) =>
+            m.id === mission.id
+              ? {
+                  ...m,
+                  routeCheckStatus: result.status,
+                  routeRiskLevel: result.riskLevel,
+                  routeRecalculated: result.routeRecalculated,
+                  originalDurationMinutes: result.originalDurationMinutes,
+                  selectedDurationMinutes: result.selectedDurationMinutes,
+                  estimatedDelayMinutes: result.estimatedDelayMinutes,
+                  originalDistanceKm: result.originalDistanceKm,
+                  selectedDistanceKm: result.selectedDistanceKm,
+                  routeCheckMessage: result.message,
+                  originalRouteJson: result.originalRouteJson,
+                  routeJson: result.selectedRouteJson || m.routeJson,
+                }
+              : m
+          )
+        );
+
+        await load(false);
+      } catch (e: any) {
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Impossible de vérifier la route"
+        );
+      } finally {
+        setCheckingRouteId(null);
+      }
+    },
+    [load]
+  );
+
   const canStartMission = useCallback(
     (mission: Mission) => {
       if (mission.status !== "PLANNED") return false;
+
+      if (!mission.routeCheckStatus || mission.routeCheckStatus === "NOT_CHECKED") {
+        return false;
+      }
 
       const startTime = toTimestamp(mission.startDate);
       if (!startTime) return true;
@@ -187,6 +242,10 @@ export default function MyMissionsPage() {
         return "Only a planned mission can be started";
       }
 
+      if (!mission.routeCheckStatus || mission.routeCheckStatus === "NOT_CHECKED") {
+        return "Veuillez vérifier la route avant de commencer.";
+      }
+
       const startTime = toTimestamp(mission.startDate);
       if (startTime && now < startTime) {
         return `Mission can start at ${formatDateTime(mission.startDate)}`;
@@ -204,10 +263,7 @@ export default function MyMissionsPage() {
       }
 
       const live = liveByMissionId[mission.id];
-      if (!live) {
-        return "Live position unavailable";
-      }
-
+      if (!live) return "Live position unavailable";
       if (live.latitude == null || live.longitude == null) {
         return "Current vehicle position unavailable";
       }
@@ -289,8 +345,10 @@ export default function MyMissionsPage() {
         q={q}
         setQ={setQ}
         actingId={actingId}
+        checkingRouteId={checkingRouteId}
         now={now}
         onRefresh={() => load(false)}
+        onCheckRoute={handleCheckRoute}
         onStart={handleStart}
         onFinish={handleFinish}
         canStartMission={canStartMission}

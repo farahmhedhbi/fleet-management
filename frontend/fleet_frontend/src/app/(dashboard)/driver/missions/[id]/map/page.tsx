@@ -11,7 +11,7 @@ import FleetLiveMap from "@/components/gps/FleetLiveMap";
 import ConfirmEventAsIncidentButton from "@/components/incidents/ConfirmEventAsIncidentButton";
 import { missionService } from "@/lib/services/missionService";
 
-import type { Mission } from "@/types/mission";
+import type { Mission, RouteCheckResult } from "@/types/mission";
 import type { GpsData, VehicleEventDTO, VehicleLiveStatusDTO } from "@/types/gps";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -41,6 +41,27 @@ function formatDateTime(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+}
+
+function routeBadge(status?: string | null) {
+  if (status === "SAFE") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "ALTERNATIVE_SELECTED") return "border-orange-200 bg-orange-50 text-orange-700";
+  if (status === "LEAST_RISK_SELECTED") return "border-red-200 bg-red-50 text-red-700";
+  return "border-slate-200 bg-slate-50 text-slate-500";
+}
+
+function routeLabel(status?: string | null) {
+  if (status === "SAFE") return "🟢 Route sûre";
+  if (status === "ALTERNATIVE_SELECTED") return "🟠 Alternative sélectionnée";
+  if (status === "LEAST_RISK_SELECTED") return "🔴 Route la moins dangereuse";
+  return "⚪ Route non vérifiée";
+}
+
+function riskColor(risk?: string | null) {
+  if (risk === "LOW") return "text-emerald-700";
+  if (risk === "MEDIUM") return "text-orange-700";
+  if (risk === "HIGH" || risk === "CRITICAL") return "text-red-700";
+  return "text-slate-600";
 }
 
 function liveToHistoryPoint(live: VehicleLiveStatusDTO): GpsData {
@@ -83,6 +104,7 @@ export default function DriverMissionMapPage() {
   const [history, setHistory] = useState<GpsData[]>([]);
   const [events, setEvents] = useState<VehicleEventDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingRoute, setCheckingRoute] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
 
   const effectiveMissionStatus =
@@ -93,15 +115,15 @@ export default function DriverMissionMapPage() {
   const handleMissionCompleted = useCallback((data?: VehicleLiveStatusDTO) => {
     setMissionStatus("COMPLETED");
 
-  setMission((prev) => {
-  if (!prev) return prev;
+    setMission((prev) => {
+      if (!prev) return prev;
 
-  return {
-    ...prev,
-    status: "COMPLETED" as Mission["status"],
-    finishedAt: prev.finishedAt || data?.timestamp || undefined,
-  };
-});
+      return {
+        ...prev,
+        status: "COMPLETED" as Mission["status"],
+        finishedAt: prev.finishedAt || data?.timestamp || undefined,
+      };
+    });
 
     setLive((prev) =>
       prev
@@ -160,6 +182,46 @@ export default function DriverMissionMapPage() {
     }
   }, [missionId, isValidMissionId, handleMissionCompleted]);
 
+  const handleCheckRoute = useCallback(async () => {
+    if (!mission) return;
+
+    try {
+      setCheckingRoute(true);
+
+      const result: RouteCheckResult = await missionService.checkRoute(mission.id);
+
+      setMission((prev) =>
+        prev
+          ? {
+              ...prev,
+              routeCheckStatus: result.status,
+              routeRiskLevel: result.riskLevel,
+              routeRecalculated: result.routeRecalculated,
+              originalDurationMinutes: result.originalDurationMinutes,
+              selectedDurationMinutes: result.selectedDurationMinutes,
+              estimatedDelayMinutes: result.estimatedDelayMinutes,
+              originalDistanceKm: result.originalDistanceKm,
+              selectedDistanceKm: result.selectedDistanceKm,
+              routeCheckMessage: result.message,
+              originalRouteJson: result.originalRouteJson,
+              routeJson: result.selectedRouteJson || prev.routeJson,
+            }
+          : prev
+      );
+
+      toast.success(result.message || "Route vérifiée avec succès");
+    } catch (e: any) {
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Impossible de vérifier la route"
+      );
+    } finally {
+      setCheckingRoute(false);
+    }
+  }, [mission]);
+
   useEffect(() => {
     loadMissionMap();
   }, [loadMissionMap]);
@@ -214,6 +276,33 @@ export default function DriverMissionMapPage() {
           }
         };
 
+        const handleRouteCheckMessage = (message: IMessage) => {
+          const result = JSON.parse(message.body) as RouteCheckResult;
+
+          if (result.missionId !== missionId) return;
+
+          setMission((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  routeCheckStatus: result.status,
+                  routeRiskLevel: result.riskLevel,
+                  routeRecalculated: result.routeRecalculated,
+                  originalDurationMinutes: result.originalDurationMinutes,
+                  selectedDurationMinutes: result.selectedDurationMinutes,
+                  estimatedDelayMinutes: result.estimatedDelayMinutes,
+                  originalDistanceKm: result.originalDistanceKm,
+                  selectedDistanceKm: result.selectedDistanceKm,
+                  routeCheckMessage: result.message,
+                  originalRouteJson: result.originalRouteJson,
+                  routeJson: result.selectedRouteJson || prev.routeJson,
+                }
+              : prev
+          );
+
+          toast.info(result.message || "Route mise à jour");
+        };
+
         const handleEventMessage = (message: IMessage, fallbackMessage: string) => {
           const event = JSON.parse(message.body) as VehicleEventDTO;
 
@@ -239,6 +328,13 @@ export default function DriverMissionMapPage() {
 
         client.subscribe(`/topic/vehicles/${vehicleId}/live`, handleLiveMessage);
         client.subscribe(`/topic/missions/${missionId}/live`, handleLiveMessage);
+
+        client.subscribe(
+          `/topic/missions/${missionId}/route-check`,
+          handleRouteCheckMessage
+        );
+
+        client.subscribe(`/topic/vehicles/${vehicleId}/route-check`, handleRouteCheckMessage);
 
         client.subscribe(`/topic/vehicles/${vehicleId}/events`, (message) =>
           handleEventMessage(message, "Nouvelle alerte détectée")
@@ -384,6 +480,85 @@ export default function DriverMissionMapPage() {
           </div>
         </div>
 
+        {mission && !isMissionCompleted && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900">
+                  Vérification intelligente de la route
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Le système sélectionne la meilleure route avant ou pendant la mission.
+                </p>
+              </div>
+
+              <span
+                className={`inline-flex rounded-full border px-3 py-1 text-xs font-extrabold ${routeBadge(
+                  mission.routeCheckStatus
+                )}`}
+              >
+                {routeLabel(mission.routeCheckStatus)}
+              </span>
+            </div>
+
+            {mission.routeCheckMessage ? (
+              <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">
+                {mission.routeCheckMessage}
+              </p>
+            ) : (
+              <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+                Route non vérifiée. Lance la vérification pour choisir la meilleure route.
+              </p>
+            )}
+
+            <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-400">Risque</p>
+                <p className={`mt-1 font-extrabold ${riskColor(mission.routeRiskLevel)}`}>
+                  {mission.routeRiskLevel || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-400">Retard estimé</p>
+                <p className="mt-1 font-extrabold text-slate-900">
+                  +{mission.estimatedDelayMinutes ?? 0} min
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-400">Durée initiale</p>
+                <p className="mt-1 font-extrabold text-slate-900">
+                  {mission.originalDurationMinutes ?? "—"} min
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-400">Durée choisie</p>
+                <p className="mt-1 font-extrabold text-slate-900">
+                  {mission.selectedDurationMinutes ?? "—"} min
+                </p>
+              </div>
+            </div>
+
+            {(mission.routeCheckStatus === "ALTERNATIVE_SELECTED" ||
+              mission.routeCheckStatus === "LEAST_RISK_SELECTED") && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-700">
+                🔴 Route initiale : conservée pour comparaison <br />
+                🟢 Route recommandée : sélectionnée comme route à suivre
+              </div>
+            )}
+
+            <button
+              onClick={handleCheckRoute}
+              disabled={checkingRoute || mission.status === "COMPLETED"}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+            >
+              {checkingRoute ? "Vérification..." : "Vérifier / recalculer la route"}
+            </button>
+          </div>
+        )}
+
         {!isMissionCompleted && events.length > 0 && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
             <h2 className="mb-4 text-lg font-bold text-red-700">
@@ -446,12 +621,18 @@ export default function DriverMissionMapPage() {
             Aucune donnée live disponible pour cette mission.
           </div>
         ) : (
-          <FleetLiveMap
-            vehicles={vehicles}
-            selectedVehicleId={live.vehicleId}
-            setSelectedVehicleId={() => {}}
-            history={history}
-          />
+       <FleetLiveMap
+  vehicles={vehicles}
+  selectedVehicleId={live.vehicleId}
+  setSelectedVehicleId={() => {}}
+  history={history}
+  originalRoute={mission?.originalRouteJson ? JSON.parse(mission.originalRouteJson) : undefined}
+  recommendedRoute={mission?.routeJson ? JSON.parse(mission.routeJson) : undefined}
+  showRouteComparison={
+    mission?.routeCheckStatus === "ALTERNATIVE_SELECTED" ||
+    mission?.routeCheckStatus === "LEAST_RISK_SELECTED"
+  }
+/>
         )}
       </div>
     </ProtectedRoute>

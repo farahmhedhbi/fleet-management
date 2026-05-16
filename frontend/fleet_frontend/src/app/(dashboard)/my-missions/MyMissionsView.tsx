@@ -16,6 +16,7 @@ import {
   Route,
   History,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 
 function cn(...classes: (string | false | undefined)[]) {
@@ -25,17 +26,9 @@ function cn(...classes: (string | false | undefined)[]) {
 function statusBadge(status?: MissionStatus) {
   const s = String(status || "PLANNED");
 
-  if (s === "COMPLETED") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  }
-
-  if (s === "IN_PROGRESS") {
-    return "bg-blue-50 text-blue-700 border-blue-200";
-  }
-
-  if (s === "CANCELED") {
-    return "bg-rose-50 text-rose-700 border-rose-200";
-  }
+  if (s === "COMPLETED") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (s === "IN_PROGRESS") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (s === "CANCELED") return "bg-rose-50 text-rose-700 border-rose-200";
 
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
@@ -45,6 +38,27 @@ function statusLabel(s: MissionStatus) {
   if (s === "IN_PROGRESS") return "In Progress";
   if (s === "COMPLETED") return "Completed";
   return "Canceled";
+}
+
+function routeBadge(status?: string | null) {
+  if (status === "SAFE") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "ALTERNATIVE_SELECTED") return "border-orange-200 bg-orange-50 text-orange-700";
+  if (status === "LEAST_RISK_SELECTED") return "border-red-200 bg-red-50 text-red-700";
+  return "border-slate-200 bg-slate-50 text-slate-500";
+}
+
+function routeLabel(status?: string | null) {
+  if (status === "SAFE") return "🟢 Route sûre";
+  if (status === "ALTERNATIVE_SELECTED") return "🟠 Alternative sélectionnée";
+  if (status === "LEAST_RISK_SELECTED") return "🔴 Route la moins dangereuse";
+  return "⚪ Route non vérifiée";
+}
+
+function riskTextClass(risk?: string | null) {
+  if (risk === "LOW") return "text-emerald-700";
+  if (risk === "MEDIUM") return "text-orange-700";
+  if (risk === "HIGH" || risk === "CRITICAL") return "text-red-700";
+  return "text-slate-600";
 }
 
 function canReportIncident(mission: Mission) {
@@ -59,8 +73,10 @@ interface MyMissionsViewProps {
   q: string;
   setQ: Dispatch<SetStateAction<string>>;
   actingId: number | null;
+  checkingRouteId: number | null;
   now: number;
   onRefresh: () => void;
+  onCheckRoute: (mission: Mission) => void;
   onStart: (mission: Mission) => void;
   onFinish: (mission: Mission) => void;
   canStartMission: (mission: Mission) => boolean;
@@ -77,7 +93,9 @@ export default function MyMissionsView({
   q,
   setQ,
   actingId,
+  checkingRouteId,
   onRefresh,
+  onCheckRoute,
   onStart,
   onFinish,
   canStartMission,
@@ -102,9 +120,7 @@ export default function MyMissionsView({
           onClick={onRefresh}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
         >
-          <RefreshCcw
-            className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
-          />
+          <RefreshCcw className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           Refresh
         </button>
       </div>
@@ -138,6 +154,7 @@ export default function MyMissionsView({
             const canStart = canStartMission(m);
             const canFinish = canFinishMission(m);
             const busy = actingId === m.id;
+            const checking = checkingRouteId === m.id;
             const reportAllowed = canReportIncident(m);
 
             return (
@@ -199,6 +216,70 @@ export default function MyMissionsView({
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+                        <ShieldCheck className="h-4 w-4" />
+                        Vérification intelligente de la route
+                      </p>
+
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        Le driver doit vérifier la route avant de démarrer.
+                      </p>
+                    </div>
+
+                    <span
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-extrabold",
+                        routeBadge(m.routeCheckStatus)
+                      )}
+                    >
+                      {routeLabel(m.routeCheckStatus)}
+                    </span>
+                  </div>
+
+                  {m.routeCheckMessage ? (
+                    <p className="mt-3 text-sm font-semibold text-slate-700">
+                      {m.routeCheckMessage}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-600 md:grid-cols-2">
+                    <div>
+                      Risque:{" "}
+                      <span className={cn("font-extrabold", riskTextClass(m.routeRiskLevel))}>
+                        {m.routeRiskLevel || "—"}
+                      </span>
+                    </div>
+
+                    <div>Retard: +{m.estimatedDelayMinutes ?? 0} min</div>
+                    <div>Durée initiale: {m.originalDurationMinutes ?? "—"} min</div>
+                    <div>Durée choisie: {m.selectedDurationMinutes ?? "—"} min</div>
+                    <div>Distance initiale: {m.originalDistanceKm ?? "—"} km</div>
+                    <div>Distance choisie: {m.selectedDistanceKm ?? "—"} km</div>
+                  </div>
+
+                  {m.routeCheckStatus === "ALTERNATIVE_SELECTED" ||
+                  m.routeCheckStatus === "LEAST_RISK_SELECTED" ? (
+                    <div className="mt-3 rounded-xl border border-white bg-white p-3 text-xs font-bold text-slate-700">
+                      🔴 Route initiale conservée pour comparaison <br />
+                      🟢 Route recommandée sélectionnée pour la mission
+                    </div>
+                  ) : null}
+
+                  {m.status === "PLANNED" ? (
+                    <button
+                      onClick={() => onCheckRoute(m)}
+                      disabled={checking || busy}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Route className="h-4 w-4" />
+                      {checking ? "Vérification..." : "Vérifier la route"}
+                    </button>
+                  ) : null}
+                </div>
+
                 <div className="space-y-2">
                   {!canStart && getStartBlockedMessage(m) ? (
                     <div className="text-xs font-semibold text-amber-700">
@@ -215,7 +296,7 @@ export default function MyMissionsView({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => onStart(m)}
-                      disabled={!canStart || busy}
+                      disabled={!canStart || busy || checking}
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Play className="h-4 w-4" />
@@ -254,9 +335,7 @@ export default function MyMissionsView({
                     href={`/my-missions/${m.id}/report-incident`}
                     aria-disabled={!reportAllowed}
                     onClick={(e) => {
-                      if (!reportAllowed) {
-                        e.preventDefault();
-                      }
+                      if (!reportAllowed) e.preventDefault();
                     }}
                     className={cn(
                       "inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",

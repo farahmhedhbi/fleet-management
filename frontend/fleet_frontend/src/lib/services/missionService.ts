@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { Mission, MissionDTO } from "@/types/mission";
+import type { Mission, MissionDTO, RouteCheckResult } from "@/types/mission";
 import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
 
 function toLocalDateTime(v?: string | null) {
@@ -28,7 +28,9 @@ export const missionService = {
     if (from) params.from = from;
     if (to) params.to = to;
 
-    const res = await api.get<GpsData[]>(`/api/missions/${id}/history`, { params });
+    const res = await api.get<GpsData[]>(`/api/missions/${id}/history`, {
+      params,
+    });
     return res.data;
   },
 
@@ -49,6 +51,13 @@ export const missionService = {
     };
 
     const res = await api.put<Mission>(`/api/missions/${id}`, fixed);
+    return res.data;
+  },
+
+  async checkRoute(id: number): Promise<RouteCheckResult> {
+    const res = await api.post<RouteCheckResult>(
+      `/api/missions/${id}/check-route`
+    );
     return res.data;
   },
 

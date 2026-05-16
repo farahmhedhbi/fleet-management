@@ -10,7 +10,11 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngTuple } from "leaflet";
-import type { GpsData, VehicleLiveStatusDTO } from "@/types/gps";
+import type {
+  GpsData,
+  VehicleLiveStatusDTO,
+  MissionRoutePointDTO,
+} from "@/types/gps";
 import { formatTimestamp, getStatusLabel } from "@/lib/utils/gps";
 import { useEffect, useMemo } from "react";
 import {
@@ -48,6 +52,9 @@ interface FleetLiveMapProps {
   selectedVehicleId: number | null;
   setSelectedVehicleId: (id: number) => void;
   history: GpsData[];
+  originalRoute?: MissionRoutePointDTO[];
+  recommendedRoute?: MissionRoutePointDTO[];
+  showRouteComparison?: boolean;
 }
 
 function getVehicleMarkerIcon(status?: string | null) {
@@ -119,11 +126,24 @@ function removeConsecutiveDuplicates(points: LatLngTuple[]): LatLngTuple[] {
   return result;
 }
 
+function routeToPositions(route?: MissionRoutePointDTO[]): LatLngTuple[] {
+  if (!route?.length) return [];
+
+  const points = route
+    .filter((point) => isValidCoordinate(point.latitude, point.longitude))
+    .map((point): LatLngTuple => [point.latitude, point.longitude]);
+
+  return simplifyPositions(removeConsecutiveDuplicates(points), 500);
+}
+
 export default function FleetLiveMap({
   vehicles,
   selectedVehicleId,
   setSelectedVehicleId,
   history,
+  originalRoute,
+  recommendedRoute,
+  showRouteComparison = false,
 }: FleetLiveMapProps) {
   const validVehicles = useMemo(
     () => vehicles.filter((v) => isValidCoordinate(v.latitude, v.longitude)),
@@ -131,7 +151,8 @@ export default function FleetLiveMap({
   );
 
   const selectedVehicle =
-    validVehicles.find((vehicle) => vehicle.vehicleId === selectedVehicleId) ?? null;
+    validVehicles.find((vehicle) => vehicle.vehicleId === selectedVehicleId) ??
+    null;
 
   const defaultCenter: LatLngTuple = [35.8256, 10.6369];
 
@@ -151,23 +172,45 @@ export default function FleetLiveMap({
 
   const missionRoutePositions = useMemo<LatLngTuple[]>(() => {
     if (!selectedVehicle?.missionRoute?.length) return [];
-
-    const points = selectedVehicle.missionRoute
-      .filter((point) => isValidCoordinate(point.latitude, point.longitude))
-      .map((point): LatLngTuple => [point.latitude, point.longitude]);
-
-    return simplifyPositions(removeConsecutiveDuplicates(points), 400);
+    return routeToPositions(selectedVehicle.missionRoute);
   }, [selectedVehicle]);
+
+  const originalRoutePositions = useMemo(
+    () => routeToPositions(originalRoute),
+    [originalRoute]
+  );
+
+  const recommendedRoutePositions = useMemo(
+    () => routeToPositions(recommendedRoute),
+    [recommendedRoute]
+  );
+
+  const shouldShowComparison =
+    showRouteComparison &&
+    (originalRoutePositions.length > 1 || recommendedRoutePositions.length > 1);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      {shouldShowComparison && (
+        <div className="flex flex-wrap gap-3 border-b border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700">
+          <span>🔴 Route initiale</span>
+          <span>🟢 Route recommandée</span>
+          <span>🔵 Trajet réel GPS</span>
+        </div>
+      )}
+
       <div className="h-[540px] w-full">
-        <MapContainer center={center} zoom={12} scrollWheelZoom className="h-full w-full">
+        <MapContainer
+          center={center}
+          zoom={12}
+          scrollWheelZoom
+          className="h-full w-full"
+        >
           <MapResizeController center={center} />
 
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
           {validVehicles.map((vehicle) => (
@@ -181,26 +224,96 @@ export default function FleetLiveMap({
             >
               <Popup>
                 <div className="space-y-1 text-sm">
-                  <p><strong>Véhicule :</strong> {vehicle.vehicleName}</p>
-                  <p><strong>Statut :</strong> {getStatusLabel(vehicle.liveStatus)}</p>
-                  <p><strong>Vitesse :</strong> {vehicle.speed} km/h</p>
-                  <p><strong>Moteur :</strong> {vehicle.engineOn ? "ON" : "OFF"}</p>
-                  <p><strong>Mission active :</strong> {vehicle.missionActive ? "Oui" : "Non"}</p>
-                  <p><strong>Mission status :</strong> {vehicle.missionStatus || "-"}</p>
-                  <p><strong>Driver :</strong> {vehicle.currentDriverName || "Aucun"}</p>
-                  <p><strong>Route source :</strong> {vehicle.routeSource || "-"}</p>
-                  <p><strong>Timestamp :</strong> {formatTimestamp(vehicle.timestamp)}</p>
+                  <p>
+                    <strong>Véhicule :</strong> {vehicle.vehicleName}
+                  </p>
+                  <p>
+                    <strong>Statut :</strong>{" "}
+                    {getStatusLabel(vehicle.liveStatus)}
+                  </p>
+                  <p>
+                    <strong>Vitesse :</strong> {vehicle.speed} km/h
+                  </p>
+                  <p>
+                    <strong>Moteur :</strong>{" "}
+                    {vehicle.engineOn ? "ON" : "OFF"}
+                  </p>
+                  <p>
+                    <strong>Mission active :</strong>{" "}
+                    {vehicle.missionActive ? "Oui" : "Non"}
+                  </p>
+                  <p>
+                    <strong>Mission status :</strong>{" "}
+                    {vehicle.missionStatus || "-"}
+                  </p>
+                  <p>
+                    <strong>Driver :</strong>{" "}
+                    {vehicle.currentDriverName || "Aucun"}
+                  </p>
+                  <p>
+                    <strong>Route source :</strong>{" "}
+                    {vehicle.routeSource || "-"}
+                  </p>
+                  <p>
+                    <strong>Timestamp :</strong>{" "}
+                    {formatTimestamp(vehicle.timestamp)}
+                  </p>
                 </div>
               </Popup>
             </Marker>
           ))}
 
-          {missionRoutePositions.length > 1 && (
-            <Polyline positions={missionRoutePositions} smoothFactor={0} />
+          {shouldShowComparison ? (
+            <>
+              {recommendedRoutePositions.length > 1 && (
+                <Polyline
+                  positions={recommendedRoutePositions}
+                  pathOptions={{
+                    color: "green",
+                    weight: 6,
+                    opacity: 0.75,
+                  }}
+                  smoothFactor={0}
+                />
+              )}
+
+              {originalRoutePositions.length > 1 && (
+                <Polyline
+                  positions={originalRoutePositions}
+                  pathOptions={{
+                    color: "red",
+                    weight: 8,
+                    opacity: 0.95,
+                    dashArray: "14 10",
+                  }}
+                  smoothFactor={0}
+                />
+              )}
+            </>
+          ) : (
+            missionRoutePositions.length > 1 && (
+              <Polyline
+                positions={missionRoutePositions}
+                pathOptions={{
+                  color: "green",
+                  weight: 5,
+                  opacity: 0.75,
+                }}
+                smoothFactor={0}
+              />
+            )
           )}
 
           {historyPositions.length > 1 && (
-            <Polyline positions={historyPositions} smoothFactor={0} />
+            <Polyline
+              positions={historyPositions}
+              pathOptions={{
+                color: "blue",
+                weight: 4,
+                opacity: 0.7,
+              }}
+              smoothFactor={0}
+            />
           )}
         </MapContainer>
       </div>

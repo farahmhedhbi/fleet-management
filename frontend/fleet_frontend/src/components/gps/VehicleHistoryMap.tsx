@@ -12,7 +12,7 @@ import {
 import type { LatLngTuple } from "leaflet";
 import { useEffect, useMemo } from "react";
 import type { GpsData } from "@/types/gps";
-import { gpsMarkerIcon } from "@/components/gps/leafletIcon";
+import { movingMarkerIcon, completedMarkerIcon } from "@/components/gps/leafletIcon";
 
 interface Props {
   history: GpsData[];
@@ -60,8 +60,7 @@ function isValidLatLng(lat?: number | null, lng?: number | null) {
 
 export default function VehicleHistoryMap({ history }: Props) {
   const validHistory = useMemo(
-    () =>
-      history.filter((h) => isValidLatLng(h.latitude, h.longitude)),
+    () => history.filter((h) => isValidLatLng(h.latitude, h.longitude)),
     [history]
   );
 
@@ -87,17 +86,20 @@ export default function VehicleHistoryMap({ history }: Props) {
         <FitBounds points={positions} />
 
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         {positions.length > 1 && (
-          <Polyline positions={positions} pathOptions={{ color: "green", weight: 4 }} />
+          <Polyline
+            positions={positions}
+            pathOptions={{ color: "blue", weight: 5, opacity: 0.75 }}
+          />
         )}
 
         <Marker
           position={[startPoint.latitude, startPoint.longitude]}
-          icon={gpsMarkerIcon}
+          icon={movingMarkerIcon}
         >
           <Popup>
             <div>
@@ -109,7 +111,7 @@ export default function VehicleHistoryMap({ history }: Props) {
 
         <Marker
           position={[endPoint.latitude, endPoint.longitude]}
-          icon={gpsMarkerIcon}
+          icon={completedMarkerIcon}
         >
           <Popup>
             <div>
