@@ -95,10 +95,21 @@ public class Mission {
         createdAt = now;
         updatedAt = now;
 
-        if (status == null) status = MissionStatus.PLANNED;
-        if (lateAlertSent == null) lateAlertSent = false;
-        if (routeCheckStatus == null) routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
-        if (routeRecalculated == null) routeRecalculated = false;
+        if (status == null) {
+            status = MissionStatus.PLANNED;
+        }
+
+        if (lateAlertSent == null) {
+            lateAlertSent = false;
+        }
+
+        if (routeCheckStatus == null) {
+            routeCheckStatus = RouteCheckStatus.NOT_CHECKED;
+        }
+
+        if (routeRecalculated == null) {
+            routeRecalculated = false;
+        }
     }
 
     @PreUpdate
@@ -108,84 +119,219 @@ public class Mission {
 
     public Mission() {}
 
-    public Long getId() { return id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public String getDeparture() { return departure; }
-    public void setDeparture(String departure) { this.departure = departure; }
+    public String getDescription() {
+        return description;
+    }
 
-    public String getDestination() { return destination; }
-    public void setDestination(String destination) { this.destination = destination; }
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-    public LocalDateTime getStartDate() { return startDate; }
-    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
+    public String getDeparture() {
+        return departure;
+    }
 
-    public LocalDateTime getEndDate() { return endDate; }
-    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+    public void setDeparture(String departure) {
+        this.departure = departure;
+    }
 
-    public MissionStatus getStatus() { return status; }
-    public void setStatus(MissionStatus status) { this.status = status; }
+    public String getDestination() {
+        return destination;
+    }
 
-    public User getOwner() { return owner; }
-    public void setOwner(User owner) { this.owner = owner; }
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
 
-    public Driver getDriver() { return driver; }
-    public void setDriver(Driver driver) { this.driver = driver; }
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
 
-    public Vehicle getVehicle() { return vehicle; }
-    public void setVehicle(Vehicle vehicle) { this.vehicle = vehicle; }
+    public void setStartDate(LocalDateTime startDate) {
+        this.startDate = startDate;
+    }
 
-    public String getRouteJson() { return routeJson; }
-    public void setRouteJson(String routeJson) { this.routeJson = routeJson; }
+    public LocalDateTime getEndDate() {
+        return endDate;
+    }
 
-    public String getOriginalRouteJson() { return originalRouteJson; }
-    public void setOriginalRouteJson(String originalRouteJson) { this.originalRouteJson = originalRouteJson; }
+    public void setEndDate(LocalDateTime endDate) {
+        this.endDate = endDate;
+    }
 
-    public RouteCheckStatus getRouteCheckStatus() { return routeCheckStatus; }
-    public void setRouteCheckStatus(RouteCheckStatus routeCheckStatus) { this.routeCheckStatus = routeCheckStatus; }
+    public MissionStatus getStatus() {
+        return status;
+    }
 
-    public RouteRiskLevel getRouteRiskLevel() { return routeRiskLevel; }
-    public void setRouteRiskLevel(RouteRiskLevel routeRiskLevel) { this.routeRiskLevel = routeRiskLevel; }
+    public void setStatus(MissionStatus status) {
+        this.status = status;
+    }
 
-    public Boolean getRouteRecalculated() { return routeRecalculated; }
-    public void setRouteRecalculated(Boolean routeRecalculated) { this.routeRecalculated = routeRecalculated; }
+    public User getOwner() {
+        return owner;
+    }
 
-    public Integer getOriginalDurationMinutes() { return originalDurationMinutes; }
-    public void setOriginalDurationMinutes(Integer originalDurationMinutes) { this.originalDurationMinutes = originalDurationMinutes; }
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
 
-    public Integer getSelectedDurationMinutes() { return selectedDurationMinutes; }
-    public void setSelectedDurationMinutes(Integer selectedDurationMinutes) { this.selectedDurationMinutes = selectedDurationMinutes; }
+    public Driver getDriver() {
+        return driver;
+    }
 
-    public Integer getEstimatedDelayMinutes() { return estimatedDelayMinutes; }
-    public void setEstimatedDelayMinutes(Integer estimatedDelayMinutes) { this.estimatedDelayMinutes = estimatedDelayMinutes; }
+    public void setDriver(Driver driver) {
+        this.driver = driver;
+    }
 
-    public Double getOriginalDistanceKm() { return originalDistanceKm; }
-    public void setOriginalDistanceKm(Double originalDistanceKm) { this.originalDistanceKm = originalDistanceKm; }
+    public Vehicle getVehicle() {
+        return vehicle;
+    }
 
-    public Double getSelectedDistanceKm() { return selectedDistanceKm; }
-    public void setSelectedDistanceKm(Double selectedDistanceKm) { this.selectedDistanceKm = selectedDistanceKm; }
+    public void setVehicle(Vehicle vehicle) {
+        this.vehicle = vehicle;
+    }
 
-    public LocalDateTime getRouteCheckedAt() { return routeCheckedAt; }
-    public void setRouteCheckedAt(LocalDateTime routeCheckedAt) { this.routeCheckedAt = routeCheckedAt; }
+    public String getRouteJson() {
+        return routeJson;
+    }
 
-    public String getRouteCheckMessage() { return routeCheckMessage; }
-    public void setRouteCheckMessage(String routeCheckMessage) { this.routeCheckMessage = routeCheckMessage; }
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
+    }
 
-    public Boolean getLateAlertSent() { return lateAlertSent; }
-    public boolean isLateAlertSent() { return lateAlertSent != null && lateAlertSent; }
-    public void setLateAlertSent(Boolean lateAlertSent) { this.lateAlertSent = lateAlertSent; }
+    public String getOriginalRouteJson() {
+        return originalRouteJson;
+    }
 
-    public LocalDateTime getStartedAt() { return startedAt; }
-    public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }
+    public void setOriginalRouteJson(String originalRouteJson) {
+        this.originalRouteJson = originalRouteJson;
+    }
 
-    public LocalDateTime getFinishedAt() { return finishedAt; }
-    public void setFinishedAt(LocalDateTime finishedAt) { this.finishedAt = finishedAt; }
+    public RouteCheckStatus getRouteCheckStatus() {
+        return routeCheckStatus;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setRouteCheckStatus(RouteCheckStatus routeCheckStatus) {
+        this.routeCheckStatus = routeCheckStatus;
+    }
+
+    public RouteRiskLevel getRouteRiskLevel() {
+        return routeRiskLevel;
+    }
+
+    public void setRouteRiskLevel(RouteRiskLevel routeRiskLevel) {
+        this.routeRiskLevel = routeRiskLevel;
+    }
+
+    public Boolean getRouteRecalculated() {
+        return routeRecalculated;
+    }
+
+    public void setRouteRecalculated(Boolean routeRecalculated) {
+        this.routeRecalculated = routeRecalculated;
+    }
+
+    public Integer getOriginalDurationMinutes() {
+        return originalDurationMinutes;
+    }
+
+    public void setOriginalDurationMinutes(Integer originalDurationMinutes) {
+        this.originalDurationMinutes = originalDurationMinutes;
+    }
+
+    public Integer getSelectedDurationMinutes() {
+        return selectedDurationMinutes;
+    }
+
+    public void setSelectedDurationMinutes(Integer selectedDurationMinutes) {
+        this.selectedDurationMinutes = selectedDurationMinutes;
+    }
+
+    public Integer getEstimatedDelayMinutes() {
+        return estimatedDelayMinutes;
+    }
+
+    public void setEstimatedDelayMinutes(Integer estimatedDelayMinutes) {
+        this.estimatedDelayMinutes = estimatedDelayMinutes;
+    }
+
+    public Double getOriginalDistanceKm() {
+        return originalDistanceKm;
+    }
+
+    public void setOriginalDistanceKm(Double originalDistanceKm) {
+        this.originalDistanceKm = originalDistanceKm;
+    }
+
+    public Double getSelectedDistanceKm() {
+        return selectedDistanceKm;
+    }
+
+    public void setSelectedDistanceKm(Double selectedDistanceKm) {
+        this.selectedDistanceKm = selectedDistanceKm;
+    }
+
+    public LocalDateTime getRouteCheckedAt() {
+        return routeCheckedAt;
+    }
+
+    public void setRouteCheckedAt(LocalDateTime routeCheckedAt) {
+        this.routeCheckedAt = routeCheckedAt;
+    }
+
+    public String getRouteCheckMessage() {
+        return routeCheckMessage;
+    }
+
+    public void setRouteCheckMessage(String routeCheckMessage) {
+        this.routeCheckMessage = routeCheckMessage;
+    }
+
+    public Boolean getLateAlertSent() {
+        return lateAlertSent;
+    }
+
+    public boolean isLateAlertSent() {
+        return lateAlertSent != null && lateAlertSent;
+    }
+
+    public void setLateAlertSent(Boolean lateAlertSent) {
+        this.lateAlertSent = lateAlertSent;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(LocalDateTime startedAt) {
+        this.startedAt = startedAt;
+    }
+
+    public LocalDateTime getFinishedAt() {
+        return finishedAt;
+    }
+
+    public void setFinishedAt(LocalDateTime finishedAt) {
+        this.finishedAt = finishedAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
 }

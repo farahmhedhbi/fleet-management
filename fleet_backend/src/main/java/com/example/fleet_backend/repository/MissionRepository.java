@@ -26,6 +26,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             Vehicle vehicle,
             Mission.MissionStatus status
     );
+
     boolean existsByVehicle_IdAndDriver_Id(Long vehicleId, Long driverId);
 
     boolean existsByVehicleAndStatusIn(Vehicle vehicle, List<Mission.MissionStatus> statuses);
@@ -43,9 +44,11 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
           AND :startDate < m.endDate
           AND :endDate > m.startDate
     """)
-    boolean existsVehicleOverlap(@Param("vehicleId") Long vehicleId,
-                                 @Param("startDate") LocalDateTime startDate,
-                                 @Param("endDate") LocalDateTime endDate);
+    boolean existsVehicleOverlap(
+            @Param("vehicleId") Long vehicleId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 
     @Query("""
         SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
@@ -55,16 +58,18 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
           AND :startDate < m.endDate
           AND :endDate > m.startDate
     """)
-    boolean existsDriverOverlap(@Param("driverId") Long driverId,
-                                @Param("startDate") LocalDateTime startDate,
-                                @Param("endDate") LocalDateTime endDate);
+    boolean existsDriverOverlap(
+            @Param("driverId") Long driverId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 
     @Query("""
         SELECT COUNT(m) > 0
         FROM Mission m
         WHERE m.vehicle.id = :vehicleId
           AND m.id <> :missionId
-          AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+          AND m.status <> 'CANCELED'
           AND :startDate < m.endDate
           AND :endDate > m.startDate
     """)
@@ -80,7 +85,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
         FROM Mission m
         WHERE m.driver.id = :driverId
           AND m.id <> :missionId
-          AND m.status <> com.example.fleet_backend.model.Mission$MissionStatus.CANCELED
+          AND m.status <> 'CANCELED'
           AND :startDate < m.endDate
           AND :endDate > m.startDate
     """)
@@ -97,5 +102,51 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     );
 
     boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<Mission.MissionStatus> statuses);
+
+    @Query("""
+        SELECT COUNT(m) > 0
+        FROM Mission m
+        WHERE m.driver.id = :driverId
+          AND m.status IN ('PLANNED', 'IN_PROGRESS')
+          AND m.startDate < :missionEnd
+          AND m.endDate > :missionStart
+    """)
+    boolean hasDriverOverlap(
+            @Param("driverId") Long driverId,
+            @Param("missionStart") LocalDateTime missionStart,
+            @Param("missionEnd") LocalDateTime missionEnd
+    );
+
+    @Query("""
+        SELECT m
+        FROM Mission m
+        WHERE m.driver.id = :driverId
+          AND m.status = 'COMPLETED'
+          AND m.endDate <= :missionStart
+        ORDER BY m.endDate DESC
+    """)
+    List<Mission> findCompletedMissionsBefore(
+            @Param("driverId") Long driverId,
+            @Param("missionStart") LocalDateTime missionStart
+    );
+
+
+
+
+
+    boolean existsByVehicleIdAndStartDateLessThanAndEndDateGreaterThan(
+            Long vehicleId,
+            LocalDateTime endDate,
+            LocalDateTime startDate
+    );
+
+    boolean existsByDriverIdAndStartDateLessThanAndEndDateGreaterThan(
+            Long driverId,
+            LocalDateTime endDate,
+            LocalDateTime startDate
+    );
+
+    Optional<Mission> findTopByDriverIdOrderByEndDateDesc(Long driverId);
+
 
 }

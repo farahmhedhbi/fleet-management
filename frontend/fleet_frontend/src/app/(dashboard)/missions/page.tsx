@@ -37,10 +37,10 @@ function toInputDateTime(value?: string | null) {
 }
 
 function rangesOverlap(
-  aStart?: string,
-  aEnd?: string,
-  bStart?: string,
-  bEnd?: string
+  aStart?: string | null,
+  aEnd?: string | null,
+  bStart?: string | null,
+  bEnd?: string | null
 ) {
   if (!aStart || !aEnd || !bStart || !bEnd) return false;
 
@@ -54,7 +54,7 @@ function rangesOverlap(
   return as < be && ae > bs;
 }
 
-function isDriverLicenseValidForMission(driver: Driver, missionEnd?: string) {
+function isDriverLicenseValidForMission(driver: Driver, missionEnd?: string | null) {
   if (driver.status !== "ACTIVE") return false;
   if (!driver.licenseExpiry) return false;
   if (!missionEnd) return true;
@@ -81,27 +81,24 @@ export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
+
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [editingMissionId, setEditingMissionId] = useState<number | null>(null);
+
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<MissionStatusFilter>("ALL");
   const [form, setForm] = useState<MissionDTO>(emptyForm);
 
-  const [departureSuggestions, setDepartureSuggestions] = useState<
-    PlaceSuggestion[]
-  >([]);
-  const [destinationSuggestions, setDestinationSuggestions] = useState<
-    PlaceSuggestion[]
-  >([]);
-  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] =
-    useState(false);
-  const [loadingDestinationSuggestions, setLoadingDestinationSuggestions] =
-    useState(false);
+  const [departureSuggestions, setDepartureSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [loadingDepartureSuggestions, setLoadingDepartureSuggestions] = useState(false);
+  const [loadingDestinationSuggestions, setLoadingDestinationSuggestions] = useState(false);
 
   const loadAll = async () => {
     setRefreshing(true);
@@ -113,9 +110,9 @@ export default function MissionsPage() {
         driverService.getAll(),
       ]);
 
-      setMissions(ms);
-      setVehicles(vs);
-      setDrivers(ds);
+      setMissions(ms || []);
+      setVehicles(vs || []);
+      setDrivers(ds || []);
     } catch (e: any) {
       console.error(e);
       toast.error(
@@ -140,8 +137,6 @@ export default function MissionsPage() {
     const d = new Date(form.startDate);
     if (Number.isNaN(d.getTime())) return "";
 
-    // Estimation front simple فقط للفلترة.
-    // Backend يحسب الوقت الحقيقي بالـ RoutePlannerService.
     d.setHours(d.getHours() + 2);
     return d.toISOString();
   }, [form.startDate]);
@@ -153,12 +148,7 @@ export default function MissionsPage() {
           if (m.status === "IN_PROGRESS") return true;
 
           if (m.status === "PLANNED") {
-            return rangesOverlap(
-              form.startDate,
-              estimatedCreateEnd,
-              m.startDate,
-              m.endDate
-            );
+            return rangesOverlap(form.startDate, estimatedCreateEnd, m.startDate, m.endDate);
           }
 
           return false;
@@ -175,12 +165,7 @@ export default function MissionsPage() {
           if (m.status === "IN_PROGRESS") return true;
 
           if (m.status === "PLANNED") {
-            return rangesOverlap(
-              form.startDate,
-              estimatedCreateEnd,
-              m.startDate,
-              m.endDate
-            );
+            return rangesOverlap(form.startDate, estimatedCreateEnd, m.startDate, m.endDate);
           }
 
           return false;
@@ -217,11 +202,9 @@ export default function MissionsPage() {
 
       const matchesSearch = !query
         ? true
-        : `${m.title} ${m.description ?? ""} ${m.departure} ${
-            m.destination
-          } ${m.status} ${m.driverName ?? ""} ${
-            m.vehicleRegistrationNumber ?? ""
-          }`
+        : `${m.title} ${m.description ?? ""} ${m.departure} ${m.destination} ${
+            m.status
+          } ${m.driverName ?? ""} ${m.vehicleRegistrationNumber ?? ""}`
             .toLowerCase()
             .includes(query);
 
@@ -374,7 +357,7 @@ export default function MissionsPage() {
       try {
         setLoadingDepartureSuggestions(true);
         const results = await placeService.search(query);
-        setDepartureSuggestions(results);
+        setDepartureSuggestions(results || []);
       } catch (e) {
         console.error(e);
         setDepartureSuggestions([]);
@@ -398,7 +381,7 @@ export default function MissionsPage() {
       try {
         setLoadingDestinationSuggestions(true);
         const results = await placeService.search(query);
-        setDestinationSuggestions(results);
+        setDestinationSuggestions(results || []);
       } catch (e) {
         console.error(e);
         setDestinationSuggestions([]);

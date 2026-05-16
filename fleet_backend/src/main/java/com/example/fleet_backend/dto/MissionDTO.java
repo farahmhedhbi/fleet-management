@@ -7,6 +7,7 @@ import com.example.fleet_backend.model.Vehicle;
 import java.time.LocalDateTime;
 
 public class MissionDTO {
+
     private Long id;
     private String title;
     private String description;
@@ -20,6 +21,8 @@ public class MissionDTO {
 
     private Long driverId;
     private String driverName;
+    private String driverStatus;
+    private LocalDateTime driverAvailableAt;
 
     private Long vehicleId;
     private String vehicleRegistrationNumber;
@@ -56,17 +59,21 @@ public class MissionDTO {
         this.startDate = mission.getStartDate();
         this.endDate = mission.getEndDate();
         this.status = mission.getStatus() != null ? mission.getStatus().name() : null;
+
         this.routeJson = mission.getRouteJson();
         this.startedAt = mission.getStartedAt();
         this.finishedAt = mission.getFinishedAt();
 
         this.originalRouteJson = mission.getOriginalRouteJson();
+
         this.routeCheckStatus = mission.getRouteCheckStatus() != null
                 ? mission.getRouteCheckStatus().name()
                 : null;
+
         this.routeRiskLevel = mission.getRouteRiskLevel() != null
                 ? mission.getRouteRiskLevel().name()
                 : null;
+
         this.routeRecalculated = mission.getRouteRecalculated();
         this.originalDurationMinutes = mission.getOriginalDurationMinutes();
         this.selectedDurationMinutes = mission.getSelectedDurationMinutes();
@@ -89,6 +96,12 @@ public class MissionDTO {
             String fullName = (firstName + " " + lastName).trim();
 
             this.driverName = !fullName.isBlank() ? fullName : driver.getEmail();
+
+            this.driverStatus = driver.getStatus() != null
+                    ? driver.getStatus().name()
+                    : null;
+
+            this.driverAvailableAt = driver.getAvailableAt();
         }
 
         Vehicle vehicle = mission.getVehicle();
@@ -98,75 +111,163 @@ public class MissionDTO {
         }
     }
 
-    public Long getId() { return id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getTitle() { return title; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getDescription() { return description; }
+    public String getDescription() {
+        return description;
+    }
 
-    public String getDeparture() { return departure; }
+    public String getDeparture() {
+        return departure;
+    }
 
-    public String getDestination() { return destination; }
+    public String getDestination() {
+        return destination;
+    }
 
-    public LocalDateTime getStartDate() { return startDate; }
+    public LocalDateTime getStartDate() {
+        return startDate;
+    }
 
-    public LocalDateTime getEndDate() { return endDate; }
+    public LocalDateTime getEndDate() {
+        return endDate;
+    }
 
-    public String getStatus() { return status; }
+    public String getStatus() {
+        return status;
+    }
 
-    public Long getOwnerId() { return ownerId; }
+    public Long getOwnerId() {
+        return ownerId;
+    }
 
-    public Long getDriverId() { return driverId; }
+    public Long getDriverId() {
+        return driverId;
+    }
 
-    public String getDriverName() { return driverName; }
+    public String getDriverName() {
+        return driverName;
+    }
 
-    public Long getVehicleId() { return vehicleId; }
+    public String getDriverStatus() {
+        return driverStatus;
+    }
 
-    public String getVehicleRegistrationNumber() { return vehicleRegistrationNumber; }
+    public LocalDateTime getDriverAvailableAt() {
+        return driverAvailableAt;
+    }
 
-    public String getRouteJson() { return routeJson; }
+    public Long getVehicleId() {
+        return vehicleId;
+    }
 
-    public LocalDateTime getStartedAt() { return startedAt; }
+    public String getVehicleRegistrationNumber() {
+        return vehicleRegistrationNumber;
+    }
 
-    public LocalDateTime getFinishedAt() { return finishedAt; }
+    public String getRouteJson() {
+        return routeJson;
+    }
 
-    public String getOriginalRouteJson() { return originalRouteJson; }
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
 
-    public String getRouteCheckStatus() { return routeCheckStatus; }
+    public LocalDateTime getFinishedAt() {
+        return finishedAt;
+    }
 
-    public String getRouteRiskLevel() { return routeRiskLevel; }
+    public String getOriginalRouteJson() {
+        return originalRouteJson;
+    }
 
-    public Boolean getRouteRecalculated() { return routeRecalculated; }
+    public String getRouteCheckStatus() {
+        return routeCheckStatus;
+    }
 
-    public Integer getOriginalDurationMinutes() { return originalDurationMinutes; }
+    public String getRouteRiskLevel() {
+        return routeRiskLevel;
+    }
 
-    public Integer getSelectedDurationMinutes() { return selectedDurationMinutes; }
+    public Boolean getRouteRecalculated() {
+        return routeRecalculated;
+    }
 
-    public Integer getEstimatedDelayMinutes() { return estimatedDelayMinutes; }
+    public Integer getOriginalDurationMinutes() {
+        return originalDurationMinutes;
+    }
 
-    public Double getOriginalDistanceKm() { return originalDistanceKm; }
+    public Integer getSelectedDurationMinutes() {
+        return selectedDurationMinutes;
+    }
 
-    public Double getSelectedDistanceKm() { return selectedDistanceKm; }
+    public Integer getEstimatedDelayMinutes() {
+        return estimatedDelayMinutes;
+    }
 
-    public LocalDateTime getRouteCheckedAt() { return routeCheckedAt; }
+    public Double getOriginalDistanceKm() {
+        return originalDistanceKm;
+    }
 
-    public String getRouteCheckMessage() { return routeCheckMessage; }
+    public Double getSelectedDistanceKm() {
+        return selectedDistanceKm;
+    }
 
-    public void setTitle(String title) { this.title = title; }
+    public LocalDateTime getRouteCheckedAt() {
+        return routeCheckedAt;
+    }
 
-    public void setDescription(String description) { this.description = description; }
+    public String getRouteCheckMessage() {
+        return routeCheckMessage;
+    }
 
-    public void setDeparture(String departure) { this.departure = departure; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public void setDestination(String destination) { this.destination = destination; }
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
+    public void setDeparture(String departure) {
+        this.departure = departure;
+    }
 
-    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
 
-    public void setDriverId(Long driverId) { this.driverId = driverId; }
+    public void setStartDate(LocalDateTime startDate) {
+        this.startDate = startDate;
+    }
 
-    public void setVehicleId(Long vehicleId) { this.vehicleId = vehicleId; }
+    public void setEndDate(LocalDateTime endDate) {
+        this.endDate = endDate;
+    }
 
-    public void setRouteJson(String routeJson) { this.routeJson = routeJson; }
+    public void setDriverId(Long driverId) {
+        this.driverId = driverId;
+    }
+
+    public void setVehicleId(Long vehicleId) {
+        this.vehicleId = vehicleId;
+    }
+
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
+    }
+
+    public void setDriverStatus(String driverStatus) {
+        this.driverStatus = driverStatus;
+    }
+
+    public void setDriverAvailableAt(LocalDateTime driverAvailableAt) {
+        this.driverAvailableAt = driverAvailableAt;
+    }
 }

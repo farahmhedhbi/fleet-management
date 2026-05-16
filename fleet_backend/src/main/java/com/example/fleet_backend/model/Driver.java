@@ -45,11 +45,20 @@ public class Driver {
     @JoinColumn(name = "owner_id")
     private User owner;
 
+
+    @Column(name = "available_at")
+    private LocalDateTime availableAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    @Column(name = "rest_start_time")
+    private LocalDateTime restStartTime;
+
+    @Column(name = "rest_end_time")
+    private LocalDateTime restEndTime;
 
     public Driver() {}
 
@@ -66,7 +75,7 @@ public class Driver {
         updatedAt = LocalDateTime.now();
 
         if (status == null) {
-            status = DriverStatus.ACTIVE;
+            status = DriverStatus.AVAILABLE;
         }
 
         if (ecoScore == null) {
@@ -126,8 +135,38 @@ public class Driver {
     public void setOwner(User owner) {
         this.owner = owner;
     }
+    public LocalDateTime getAvailableAt() {
+        return availableAt;
+    }
+
+    public void setAvailableAt(LocalDateTime availableAt) {
+        this.availableAt = availableAt;
+    }
+
+    public LocalDateTime getRestStartTime() {
+        return restStartTime;
+    }
+
+    public void setRestStartTime(LocalDateTime restStartTime) {
+        this.restStartTime = restStartTime;
+    }
+
+    public LocalDateTime getRestEndTime() {
+        return restEndTime;
+    }
+
+    public void setRestEndTime(LocalDateTime restEndTime) {
+        this.restEndTime = restEndTime;
+    }
 
     public enum DriverStatus {
+        AVAILABLE,
+        RESERVED,
+        ON_MISSION,
+        RESTING,
+        OFF_DUTY,
+        UNAVAILABLE,
+
         ACTIVE,
         INACTIVE,
         ON_LEAVE,

@@ -2,8 +2,8 @@ package com.example.fleet_backend.controller;
 
 import com.example.fleet_backend.dto.GpsPointDTO;
 import com.example.fleet_backend.dto.MissionDTO;
+import com.example.fleet_backend.dto.RouteCheckResultDTO;
 import com.example.fleet_backend.dto.VehicleLiveStatusDTO;
-import com.example.fleet_backend.model.Mission;
 import com.example.fleet_backend.service.GpsService;
 import com.example.fleet_backend.service.MissionService;
 import jakarta.validation.Valid;
@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import com.example.fleet_backend.dto.RouteCheckResultDTO;
 
 @RestController
 @RequestMapping("/api/missions")
@@ -40,7 +39,10 @@ public class MissionController {
     }
 
     @GetMapping("/{id}/live")
-    public ResponseEntity<VehicleLiveStatusDTO> getMissionLive(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<VehicleLiveStatusDTO> getMissionLive(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
         return ResponseEntity.ok(gpsService.getMissionLiveSecured(id, auth));
     }
 
@@ -59,9 +61,22 @@ public class MissionController {
     }
 
     @PostMapping
-    public ResponseEntity<MissionDTO> create(@Valid @RequestBody MissionDTO dto, Authentication auth) {
+    public ResponseEntity<MissionDTO> create(
+            @Valid @RequestBody MissionDTO dto,
+            Authentication auth
+    ) {
         return ResponseEntity.ok(missionService.createMission(dto, auth));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<MissionDTO> updateMission(
+            @PathVariable Long id,
+            @RequestBody MissionDTO dto,
+            Authentication auth
+    ) {
+        return ResponseEntity.ok(missionService.updateMission(id, dto, auth));
+    }
+
     @PostMapping("/{id}/check-route")
     public ResponseEntity<RouteCheckResultDTO> checkRoute(
             @PathVariable Long id,
@@ -71,32 +86,36 @@ public class MissionController {
     }
 
     @PostMapping("/{id}/start")
-    public ResponseEntity<MissionDTO> start(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<MissionDTO> start(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
         return ResponseEntity.ok(missionService.startMission(id, auth));
     }
 
     @PostMapping("/{id}/finish")
-    public ResponseEntity<MissionDTO> finish(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<MissionDTO> finish(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
         return ResponseEntity.ok(missionService.finishMission(id, auth));
     }
 
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<Void> cancel(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<Void> cancel(
+            @PathVariable Long id,
+            Authentication auth
+    ) {
         missionService.cancelMission(id, auth);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
-        missionService.deleteMission(id, auth);
-        return ResponseEntity.noContent().build();
-    }
-    @PutMapping("/{id}")
-    public ResponseEntity<MissionDTO> updateMission(
+    public ResponseEntity<Void> delete(
             @PathVariable Long id,
-            @RequestBody MissionDTO dto,
             Authentication auth
     ) {
-        return ResponseEntity.ok(missionService.updateMission(id, dto, auth));
+        missionService.deleteMission(id, auth);
+        return ResponseEntity.noContent().build();
     }
 }

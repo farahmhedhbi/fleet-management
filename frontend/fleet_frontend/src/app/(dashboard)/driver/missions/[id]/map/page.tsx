@@ -36,17 +36,39 @@ const IGNORED_AFTER_COMPLETED = new Set([
   "NO_SIGNAL",
 ]);
 
-function formatDateTime(value?: string) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
+
   const d = new Date(value);
+
   if (Number.isNaN(d.getTime())) return "—";
+
   return d.toLocaleString();
 }
 
+function parseRouteJson(value?: string | null) {
+  if (!value) return undefined;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
 function routeBadge(status?: string | null) {
-  if (status === "SAFE") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (status === "ALTERNATIVE_SELECTED") return "border-orange-200 bg-orange-50 text-orange-700";
-  if (status === "LEAST_RISK_SELECTED") return "border-red-200 bg-red-50 text-red-700";
+  if (status === "SAFE") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "ALTERNATIVE_SELECTED") {
+    return "border-orange-200 bg-orange-50 text-orange-700";
+  }
+
+  if (status === "LEAST_RISK_SELECTED") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
   return "border-slate-200 bg-slate-50 text-slate-500";
 }
 
@@ -54,6 +76,7 @@ function routeLabel(status?: string | null) {
   if (status === "SAFE") return "🟢 Route sûre";
   if (status === "ALTERNATIVE_SELECTED") return "🟠 Alternative sélectionnée";
   if (status === "LEAST_RISK_SELECTED") return "🔴 Route la moins dangereuse";
+
   return "⚪ Route non vérifiée";
 }
 
@@ -61,6 +84,7 @@ function riskColor(risk?: string | null) {
   if (risk === "LOW") return "text-emerald-700";
   if (risk === "MEDIUM") return "text-orange-700";
   if (risk === "HIGH" || risk === "CRITICAL") return "text-red-700";
+
   return "text-slate-600";
 }
 
@@ -303,7 +327,10 @@ export default function DriverMissionMapPage() {
           toast.info(result.message || "Route mise à jour");
         };
 
-        const handleEventMessage = (message: IMessage, fallbackMessage: string) => {
+        const handleEventMessage = (
+          message: IMessage,
+          fallbackMessage: string
+        ) => {
           const event = JSON.parse(message.body) as VehicleEventDTO;
 
           if (event.vehicleId !== vehicleId) return;
@@ -320,6 +347,7 @@ export default function DriverMissionMapPage() {
           setEvents((prev) => {
             const exists = prev.some((e) => e.id === event.id);
             if (exists) return prev;
+
             return [event, ...prev].slice(0, 20);
           });
 
@@ -334,7 +362,10 @@ export default function DriverMissionMapPage() {
           handleRouteCheckMessage
         );
 
-        client.subscribe(`/topic/vehicles/${vehicleId}/route-check`, handleRouteCheckMessage);
+        client.subscribe(
+          `/topic/vehicles/${vehicleId}/route-check`,
+          handleRouteCheckMessage
+        );
 
         client.subscribe(`/topic/vehicles/${vehicleId}/events`, (message) =>
           handleEventMessage(message, "Nouvelle alerte détectée")
@@ -487,6 +518,7 @@ export default function DriverMissionMapPage() {
                 <h2 className="text-lg font-extrabold text-slate-900">
                   Vérification intelligente de la route
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   Le système sélectionne la meilleure route avant ou pendant la mission.
                 </p>
@@ -514,7 +546,11 @@ export default function DriverMissionMapPage() {
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-slate-200 p-3">
                 <p className="text-xs font-bold text-slate-400">Risque</p>
-                <p className={`mt-1 font-extrabold ${riskColor(mission.routeRiskLevel)}`}>
+                <p
+                  className={`mt-1 font-extrabold ${riskColor(
+                    mission.routeRiskLevel
+                  )}`}
+                >
                   {mission.routeRiskLevel || "—"}
                 </p>
               </div>
@@ -527,14 +563,18 @@ export default function DriverMissionMapPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3">
-                <p className="text-xs font-bold text-slate-400">Durée initiale</p>
+                <p className="text-xs font-bold text-slate-400">
+                  Durée initiale
+                </p>
                 <p className="mt-1 font-extrabold text-slate-900">
                   {mission.originalDurationMinutes ?? "—"} min
                 </p>
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3">
-                <p className="text-xs font-bold text-slate-400">Durée choisie</p>
+                <p className="text-xs font-bold text-slate-400">
+                  Durée choisie
+                </p>
                 <p className="mt-1 font-extrabold text-slate-900">
                   {mission.selectedDurationMinutes ?? "—"} min
                 </p>
@@ -554,7 +594,9 @@ export default function DriverMissionMapPage() {
               disabled={checkingRoute || mission.status === "COMPLETED"}
               className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
-              {checkingRoute ? "Vérification..." : "Vérifier / recalculer la route"}
+              {checkingRoute
+                ? "Vérification..."
+                : "Vérifier / recalculer la route"}
             </button>
           </div>
         )}
@@ -621,18 +663,18 @@ export default function DriverMissionMapPage() {
             Aucune donnée live disponible pour cette mission.
           </div>
         ) : (
-       <FleetLiveMap
-  vehicles={vehicles}
-  selectedVehicleId={live.vehicleId}
-  setSelectedVehicleId={() => {}}
-  history={history}
-  originalRoute={mission?.originalRouteJson ? JSON.parse(mission.originalRouteJson) : undefined}
-  recommendedRoute={mission?.routeJson ? JSON.parse(mission.routeJson) : undefined}
-  showRouteComparison={
-    mission?.routeCheckStatus === "ALTERNATIVE_SELECTED" ||
-    mission?.routeCheckStatus === "LEAST_RISK_SELECTED"
-  }
-/>
+          <FleetLiveMap
+            vehicles={vehicles}
+            selectedVehicleId={live.vehicleId}
+            setSelectedVehicleId={() => {}}
+            history={history}
+            originalRoute={parseRouteJson(mission?.originalRouteJson)}
+            recommendedRoute={parseRouteJson(mission?.routeJson)}
+            showRouteComparison={
+              mission?.routeCheckStatus === "ALTERNATIVE_SELECTED" ||
+              mission?.routeCheckStatus === "LEAST_RISK_SELECTED"
+            }
+          />
         )}
       </div>
     </ProtectedRoute>

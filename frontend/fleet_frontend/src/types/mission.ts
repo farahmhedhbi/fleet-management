@@ -12,6 +12,12 @@ export type RouteCheckStatus =
 
 export type RouteRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type DriverStatus =
+  | "AVAILABLE"
+  | "ON_MISSION"
+  | "RESTING"
+  | "OFFLINE";
+
 export interface RouteCheckResult {
   missionId: number;
   vehicleId?: number | null;
@@ -31,25 +37,27 @@ export interface RouteCheckResult {
 export interface Mission {
   id: number;
   title: string;
-  description?: string;
+  description?: string | null;
   departure: string;
   destination: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   status: MissionStatus;
 
-  ownerId?: number;
+  ownerId?: number | null;
 
-  driverId?: number;
-  driverName?: string;
+  driverId?: number | null;
+  driverName?: string | null;
+  driverStatus?: DriverStatus | null;
+  driverAvailableAt?: string | null;
 
-  vehicleId?: number;
-  vehicleRegistrationNumber?: string;
+  vehicleId?: number | null;
+  vehicleRegistrationNumber?: string | null;
 
   routeJson?: string | null;
 
-  startedAt?: string;
-  finishedAt?: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
 
   originalRouteJson?: string | null;
   routeCheckStatus?: RouteCheckStatus | null;
@@ -70,6 +78,7 @@ export interface MissionDTO {
   departure: string;
   destination: string;
   startDate?: string;
+  endDate?: string;
   driverId: number;
   vehicleId: number;
 }

@@ -462,12 +462,13 @@ export default function VehiclesView({
                           }
                         />
 
-                        <InfoLine
-                          icon={
-                            <div className="p-2 bg-orange-100 rounded-lg">
-                              {getFuelIcon(vehicle.fuelType)}
-                            </div>
-                          }
+                       <InfoLine
+  icon={
+    <div className="rounded-lg bg-orange-100 p-2">
+      {getFuelIcon(vehicle.fuelType ?? undefined)}
+    </div>
+  }
+
                           label="Carburant"
                           value={vehicle.fuelType || "N/A"}
                         />

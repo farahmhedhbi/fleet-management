@@ -5,6 +5,7 @@ import com.example.fleet_backend.exception.ResourceNotFoundException;
 import com.example.fleet_backend.model.Driver;
 import com.example.fleet_backend.model.MaintenanceStatus;
 import com.example.fleet_backend.model.Mission;
+import com.example.fleet_backend.model.RouteCheckStatus;
 import com.example.fleet_backend.model.Vehicle;
 import com.example.fleet_backend.model.VehicleLiveState;
 import com.example.fleet_backend.repository.DriverRepository;
@@ -19,7 +20,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.fleet_backend.model.RouteCheckStatus;
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -56,24 +58,37 @@ public class MissionLifecycleService {
     public Mission startMission(Mission mission, Authentication auth) {
         validateDriverAuth(auth);
 
-        Driver driver = driverRepository.findByEmail(auth.getName())
+        if (mission == null || mission.getId() == null) {
+            throw new ResourceNotFoundException("Mission not found");
+        }
+
+        Driver connectedDriver = driverRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        validateMissionBelongsToDriver(mission, driver);
+        Mission managedMission = missionRepository.findById(mission.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
 
-        if (mission.getStatus() != Mission.MissionStatus.PLANNED) {
+        validateMissionBelongsToDriver(managedMission, connectedDriver);
+
+        if (managedMission.getStatus() != Mission.MissionStatus.PLANNED) {
             throw new IllegalArgumentException("Only planned missions can be started");
         }
-        if (mission.getRouteCheckStatus() == null
-                || mission.getRouteCheckStatus() == RouteCheckStatus.NOT_CHECKED) {
+
+        if (managedMission.getRouteCheckStatus() == null
+                || managedMission.getRouteCheckStatus() == RouteCheckStatus.NOT_CHECKED) {
             throw new IllegalArgumentException("Veuillez vérifier la route avant de commencer la mission.");
         }
 
-        if (mission.getVehicle() == null || mission.getVehicle().getId() == null) {
+        if (managedMission.getVehicle() == null || managedMission.getVehicle().getId() == null) {
             throw new IllegalArgumentException("Mission vehicle is missing");
         }
 
-        Vehicle vehicle = mission.getVehicle();
+        if (managedMission.getDriver() == null || managedMission.getDriver().getId() == null) {
+            throw new IllegalArgumentException("Mission driver is missing");
+        }
+
+        Vehicle vehicle = managedMission.getVehicle();
+        Driver driver = managedMission.getDriver();
 
         if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
             throw new IllegalArgumentException("Ce véhicule est hors service.");
@@ -83,7 +98,7 @@ public class MissionLifecycleService {
             throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
         }
 
-        validateMaintenanceConflictForMission(vehicle, mission);
+        validateMaintenanceConflictForMission(vehicle, managedMission);
 
         if (missionRepository.existsByVehicleIdAndStatus(
                 vehicle.getId(),
@@ -93,47 +108,71 @@ public class MissionLifecycleService {
         }
 
         if (missionRepository.existsByDriverIdAndStatus(
-                mission.getDriver().getId(),
+                driver.getId(),
                 Mission.MissionStatus.IN_PROGRESS
         )) {
             throw new IllegalArgumentException("This driver already has an active mission");
         }
 
-        mission.setStatus(Mission.MissionStatus.IN_PROGRESS);
-
-        if (mission.getStartedAt() == null) {
-            mission.setStartedAt(LocalDateTime.now());
+        if (driver.getStatus() == Driver.DriverStatus.RESTING
+                && driver.getAvailableAt() != null
+                && driver.getAvailableAt().isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException(
+                    "Ce chauffeur est en repos jusqu'à " + driver.getAvailableAt()
+            );
         }
 
-        setVehicleStatus(vehicle, Vehicle.VehicleStatus.IN_USE);
-        mission.setLateAlertSent(false);
+        LocalDateTime now = LocalDateTime.now();
 
-        return missionRepository.save(mission);
+        managedMission.setStatus(Mission.MissionStatus.IN_PROGRESS);
+
+        if (managedMission.getStartedAt() == null) {
+            managedMission.setStartedAt(now);
+        }
+
+        managedMission.setLateAlertSent(false);
+
+        vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
+
+        driver.setStatus(Driver.DriverStatus.ON_MISSION);
+        driver.setAvailableAt(null);
+
+        vehicleRepository.save(vehicle);
+        driverRepository.save(driver);
+
+        return missionRepository.save(managedMission);
     }
 
     public Mission finishMission(Mission mission, Authentication auth) {
         validateDriverAuth(auth);
 
-        Driver driver = driverRepository.findByEmail(auth.getName())
+        if (mission == null || mission.getId() == null) {
+            throw new ResourceNotFoundException("Mission not found");
+        }
+
+        Driver connectedDriver = driverRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
-        validateMissionBelongsToDriver(mission, driver);
+        Mission managedMission = missionRepository.findById(mission.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
 
-        if (mission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
+        validateMissionBelongsToDriver(managedMission, connectedDriver);
+
+        if (managedMission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
             throw new IllegalArgumentException("Only missions in progress can be finished");
         }
 
-        if (mission.getVehicle() == null || mission.getVehicle().getId() == null) {
+        if (managedMission.getVehicle() == null || managedMission.getVehicle().getId() == null) {
             throw new IllegalArgumentException("Mission vehicle is missing");
         }
 
         VehicleLiveState liveState = vehicleLiveStateRepository
-                .findByVehicleId(mission.getVehicle().getId())
+                .findByVehicleId(managedMission.getVehicle().getId())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Live GPS position not found for this vehicle"
                 ));
 
-        List<MissionRoutePointDTO> route = parseMissionRoute(mission.getRouteJson());
+        List<MissionRoutePointDTO> route = parseMissionRoute(managedMission.getRouteJson());
 
         if (route.isEmpty()) {
             throw new IllegalArgumentException("Mission route is missing");
@@ -163,16 +202,22 @@ public class MissionLifecycleService {
             );
         }
 
-        mission.setStatus(Mission.MissionStatus.COMPLETED);
+        managedMission.setStatus(Mission.MissionStatus.COMPLETED);
 
-        if (mission.getFinishedAt() == null) {
-            mission.setFinishedAt(LocalDateTime.now());
+        if (managedMission.getFinishedAt() == null) {
+            managedMission.setFinishedAt(LocalDateTime.now());
         }
 
-        refreshVehicleStatusAfterMission(mission.getVehicle());
-        mission.setLateAlertSent(false);
+        updateVehicleLocationAfterMission(managedMission);
+        refreshVehicleStatusAfterMission(managedMission.getVehicle());
 
-        return missionRepository.save(mission);
+        if (managedMission.getDriver() != null) {
+            applyDriverRestAfterMission(managedMission.getDriver(), managedMission);
+        }
+
+        managedMission.setLateAlertSent(false);
+
+        return missionRepository.save(managedMission);
     }
 
     public Mission cancelMission(Mission mission) {
@@ -180,19 +225,27 @@ public class MissionLifecycleService {
             throw new ResourceNotFoundException("Mission not found");
         }
 
-        if (mission.getStatus() == Mission.MissionStatus.COMPLETED) {
+        Mission managedMission = missionRepository.findById(mission.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
+
+        if (managedMission.getStatus() == Mission.MissionStatus.COMPLETED) {
             throw new IllegalArgumentException("Completed mission cannot be canceled");
         }
 
-        mission.setStatus(Mission.MissionStatus.CANCELED);
+        managedMission.setStatus(Mission.MissionStatus.CANCELED);
+        managedMission.setLateAlertSent(false);
 
-        if (mission.getVehicle() != null) {
-            refreshVehicleStatusAfterMission(mission.getVehicle());
+        if (managedMission.getVehicle() != null) {
+            refreshVehicleStatusAfterMission(managedMission.getVehicle());
         }
 
-        mission.setLateAlertSent(false);
+        if (managedMission.getDriver() != null) {
+            managedMission.getDriver().setStatus(Driver.DriverStatus.AVAILABLE);
+            managedMission.getDriver().setAvailableAt(null);
+            driverRepository.save(managedMission.getDriver());
+        }
 
-        return missionRepository.save(mission);
+        return missionRepository.save(managedMission);
     }
 
     public Mission completeMissionFromGps(Mission mission) {
@@ -200,26 +253,100 @@ public class MissionLifecycleService {
             return null;
         }
 
-        Mission managed = missionRepository.findById(mission.getId())
+        Mission managedMission = missionRepository.findById(mission.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Mission not found"));
 
-        if (managed.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
-            return managed;
+        if (managedMission.getStatus() != Mission.MissionStatus.IN_PROGRESS) {
+            return managedMission;
         }
 
-        managed.setStatus(Mission.MissionStatus.COMPLETED);
+        managedMission.setStatus(Mission.MissionStatus.COMPLETED);
 
-        if (managed.getFinishedAt() == null) {
-            managed.setFinishedAt(LocalDateTime.now());
+        if (managedMission.getFinishedAt() == null) {
+            managedMission.setFinishedAt(LocalDateTime.now());
         }
 
-        if (managed.getVehicle() != null) {
-            refreshVehicleStatusAfterMission(managed.getVehicle());
+        updateVehicleLocationAfterMission(managedMission);
+
+        if (managedMission.getVehicle() != null) {
+            refreshVehicleStatusAfterMission(managedMission.getVehicle());
         }
 
-        managed.setLateAlertSent(false);
+        if (managedMission.getDriver() != null) {
+            applyDriverRestAfterMission(managedMission.getDriver(), managedMission);
+        }
 
-        return missionRepository.save(managed);
+        managedMission.setLateAlertSent(false);
+
+        return missionRepository.save(managedMission);
+    }
+
+    private void updateVehicleLocationAfterMission(Mission mission) {
+        if (mission == null || mission.getVehicle() == null) {
+            return;
+        }
+
+        Vehicle vehicle = mission.getVehicle();
+
+        if (mission.getDestination() != null && !mission.getDestination().isBlank()) {
+            vehicle.setCurrentCity(mission.getDestination().trim());
+        }
+
+        List<MissionRoutePointDTO> route = parseMissionRoute(mission.getRouteJson());
+
+        if (!route.isEmpty()) {
+            MissionRoutePointDTO lastPoint = route.get(route.size() - 1);
+
+            if (lastPoint.getLatitude() != null && lastPoint.getLongitude() != null) {
+                vehicle.setCurrentLatitude(lastPoint.getLatitude());
+                vehicle.setCurrentLongitude(lastPoint.getLongitude());
+            }
+        }
+
+        vehicleRepository.save(vehicle);
+    }
+
+    private void applyDriverRestAfterMission(Driver driver, Mission mission) {
+        if (driver == null || mission == null) {
+            return;
+        }
+
+        long restMinutes = calculateRestMinutes(mission);
+
+        driver.setStatus(Driver.DriverStatus.RESTING);
+        driver.setAvailableAt(LocalDateTime.now().plusMinutes(restMinutes));
+
+        driverRepository.save(driver);
+    }
+
+    private long calculateRestMinutes(Mission mission) {
+        LocalDateTime start = mission.getStartedAt() != null
+                ? mission.getStartedAt()
+                : mission.getStartDate();
+
+        LocalDateTime end = mission.getFinishedAt() != null
+                ? mission.getFinishedAt()
+                : LocalDateTime.now();
+
+        if (start == null) {
+            return 20;
+        }
+
+        long durationMinutes = Duration.between(start, end).toMinutes();
+
+        if (durationMinutes < 60) {
+            return 10;
+        }
+
+        if (durationMinutes < 180) {
+            return 20;
+        }
+
+        if (durationMinutes < 360) {
+            return 40;
+        }
+
+        return 60;
     }
 
     private void validateDriverAuth(Authentication auth) {
@@ -233,14 +360,15 @@ public class MissionLifecycleService {
             throw new ResourceNotFoundException("Mission not found");
         }
 
-        if (mission.getDriver() == null || driver == null
+        if (mission.getDriver() == null
+                || driver == null
                 || !mission.getDriver().getId().equals(driver.getId())) {
             throw new AccessDeniedException("Not your mission");
         }
     }
 
     private void validateMaintenanceConflictForMission(Vehicle vehicle, Mission mission) {
-        if (vehicle == null || vehicle.getId() == null) {
+        if (vehicle == null || vehicle.getId() == null || mission == null) {
             return;
         }
 
@@ -284,12 +412,8 @@ public class MissionLifecycleService {
     }
 
     private void setVehicleStatus(Vehicle vehicle, Vehicle.VehicleStatus status) {
-        try {
-            vehicle.setStatus(status);
-            vehicleRepository.save(vehicle);
-        } catch (Exception e) {
-            System.err.println("Failed to update vehicle status: " + e.getMessage());
-        }
+        vehicle.setStatus(status);
+        vehicleRepository.save(vehicle);
     }
 
     private List<MissionRoutePointDTO> parseMissionRoute(String routeJson) {

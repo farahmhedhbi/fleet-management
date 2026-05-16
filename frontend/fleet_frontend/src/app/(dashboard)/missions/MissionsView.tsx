@@ -56,10 +56,15 @@ function statusLabel(status?: string) {
   }
 }
 
-function formatDateTime(value?: string) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
+
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+
   return d.toLocaleString();
 }
 
@@ -146,25 +151,60 @@ export default function MissionsView({
   onPickDestination,
 }: Props) {
   const filterItems = [
-    { key: "ALL" as MissionStatusFilter, label: "All", count: stats.total, icon: ClipboardList },
-    { key: "PLANNED" as MissionStatusFilter, label: "Planned", count: stats.planned, icon: Clock3 },
-    { key: "IN_PROGRESS" as MissionStatusFilter, label: "In progress", count: stats.inProgress, icon: Route },
-    { key: "COMPLETED" as MissionStatusFilter, label: "Completed", count: stats.completed, icon: CheckCircle2 },
-    { key: "CANCELED" as MissionStatusFilter, label: "Canceled", count: stats.canceled, icon: Ban },
+    {
+      key: "ALL" as MissionStatusFilter,
+      label: "All",
+      count: stats.total,
+      icon: ClipboardList,
+    },
+    {
+      key: "PLANNED" as MissionStatusFilter,
+      label: "Planned",
+      count: stats.planned,
+      icon: Clock3,
+    },
+    {
+      key: "IN_PROGRESS" as MissionStatusFilter,
+      label: "In progress",
+      count: stats.inProgress,
+      icon: Route,
+    },
+    {
+      key: "COMPLETED" as MissionStatusFilter,
+      label: "Completed",
+      count: stats.completed,
+      icon: CheckCircle2,
+    },
+    {
+      key: "CANCELED" as MissionStatusFilter,
+      label: "Canceled",
+      count: stats.canceled,
+      icon: Ban,
+    },
   ];
 
   const formBlock = (
     <div className="space-y-4">
       <input
         value={form.title}
-        onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+        onChange={(e) =>
+          setForm((p) => ({
+            ...p,
+            title: e.target.value,
+          }))
+        }
         placeholder="Title"
         className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
       />
 
       <textarea
         value={form.description || ""}
-        onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+        onChange={(e) =>
+          setForm((p) => ({
+            ...p,
+            description: e.target.value,
+          }))
+        }
         placeholder="Description"
         className="min-h-[110px] w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
       />
@@ -173,7 +213,12 @@ export default function MissionsView({
         <div className="relative">
           <input
             value={form.departure}
-            onChange={(e) => setForm((p) => ({ ...p, departure: e.target.value }))}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                departure: e.target.value,
+              }))
+            }
             placeholder="Departure"
             className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
             autoComplete="off"
@@ -203,13 +248,19 @@ export default function MissionsView({
         <div className="relative">
           <input
             value={form.destination}
-            onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                destination: e.target.value,
+              }))
+            }
             placeholder="Destination"
             className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
             autoComplete="off"
           />
 
-          {(loadingDestinationSuggestions || destinationSuggestions.length > 0) && (
+          {(loadingDestinationSuggestions ||
+            destinationSuggestions.length > 0) && (
             <div className="absolute z-[1000] mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
               {loadingDestinationSuggestions && (
                 <div className="p-3 text-sm text-slate-500">Recherche...</div>
@@ -236,7 +287,12 @@ export default function MissionsView({
           type="datetime-local"
           min={minDateTime}
           value={form.startDate || ""}
-          onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+          onChange={(e) =>
+            setForm((p) => ({
+              ...p,
+              startDate: e.target.value,
+            }))
+          }
           className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
         />
 
@@ -249,11 +305,15 @@ export default function MissionsView({
         <select
           value={form.vehicleId || ""}
           onChange={(e) =>
-            setForm((p) => ({ ...p, vehicleId: Number(e.target.value) }))
+            setForm((p) => ({
+              ...p,
+              vehicleId: e.target.value ? Number(e.target.value) : 0,
+            }))
           }
           className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
         >
           <option value="">Select available vehicle</option>
+
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
               {v.registrationNumber} {v.status ? `- ${v.status}` : ""}
@@ -264,11 +324,15 @@ export default function MissionsView({
         <select
           value={form.driverId || ""}
           onChange={(e) =>
-            setForm((p) => ({ ...p, driverId: Number(e.target.value) }))
+            setForm((p) => ({
+              ...p,
+              driverId: e.target.value ? Number(e.target.value) : 0,
+            }))
           }
           className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-slate-400"
         >
           <option value="">Select available driver</option>
+
           {drivers.map((d) => (
             <option key={d.id} value={d.id}>
               {d.firstName} {d.lastName}
@@ -288,16 +352,20 @@ export default function MissionsView({
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Fleet Management
               </p>
+
               <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">
                 Missions
               </h1>
+
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Créez, filtrez et gérez les missions avec une édition autorisée uniquement pour les missions planifiées.
+                Créez, filtrez et gérez les missions avec une édition autorisée
+                uniquement pour les missions planifiées.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <button
+                type="button"
                 onClick={onRefresh}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
               >
@@ -306,6 +374,7 @@ export default function MissionsView({
               </button>
 
               <button
+                type="button"
                 onClick={() => setOpenCreate(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
               >
@@ -319,27 +388,37 @@ export default function MissionsView({
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Total missions</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {stats.total}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
             <p className="text-sm text-amber-700">Planned</p>
-            <p className="mt-2 text-2xl font-bold text-amber-800">{stats.planned}</p>
+            <p className="mt-2 text-2xl font-bold text-amber-800">
+              {stats.planned}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
             <p className="text-sm text-blue-700">In progress</p>
-            <p className="mt-2 text-2xl font-bold text-blue-800">{stats.inProgress}</p>
+            <p className="mt-2 text-2xl font-bold text-blue-800">
+              {stats.inProgress}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
             <p className="text-sm text-emerald-700">Completed</p>
-            <p className="mt-2 text-2xl font-bold text-emerald-800">{stats.completed}</p>
+            <p className="mt-2 text-2xl font-bold text-emerald-800">
+              {stats.completed}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
             <p className="text-sm text-rose-700">Canceled</p>
-            <p className="mt-2 text-2xl font-bold text-rose-800">{stats.canceled}</p>
+            <p className="mt-2 text-2xl font-bold text-rose-800">
+              {stats.canceled}
+            </p>
           </div>
         </div>
 
@@ -347,6 +426,7 @@ export default function MissionsView({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full lg:max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -362,6 +442,7 @@ export default function MissionsView({
 
                 return (
                   <button
+                    type="button"
                     key={item.key}
                     onClick={() => setStatusFilter(item.key)}
                     className={filterButtonClass(active)}
@@ -387,8 +468,12 @@ export default function MissionsView({
         {openCreate && (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-bold text-slate-900">Create mission</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                Create mission
+              </h2>
+
               <button
+                type="button"
                 onClick={() => setOpenCreate(false)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
@@ -400,6 +485,7 @@ export default function MissionsView({
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
+                type="button"
                 onClick={onSubmitCreate}
                 disabled={creating}
                 className="rounded-xl bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
@@ -416,7 +502,9 @@ export default function MissionsView({
               <h2 className="text-xl font-bold text-slate-900">
                 Edit mission #{editingMissionId}
               </h2>
+
               <button
+                type="button"
                 onClick={() => setOpenEdit(false)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
@@ -428,6 +516,7 @@ export default function MissionsView({
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
+                type="button"
                 onClick={onSubmitUpdate}
                 disabled={updating}
                 className="rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
@@ -444,7 +533,10 @@ export default function MissionsView({
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900">No missions found</h3>
+            <h3 className="text-lg font-bold text-slate-900">
+              No missions found
+            </h3>
+
             <p className="mt-2 text-sm text-slate-600">
               Try changing the search or selecting another status filter.
             </p>
@@ -462,7 +554,10 @@ export default function MissionsView({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="text-lg font-bold text-slate-900">{m.title}</h3>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {m.title}
+                        </h3>
+
                         <span
                           className={`rounded-full border px-3 py-1 text-xs font-bold ${statusBadge(
                             m.status
@@ -483,6 +578,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Route
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.departure} → {m.destination}
                       </p>
@@ -492,6 +588,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Vehicle
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.vehicleRegistrationNumber || "—"}
                       </p>
@@ -501,6 +598,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Driver
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {m.driverName || "—"}
                       </p>
@@ -510,6 +608,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Planned start
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.startDate)}
                       </p>
@@ -519,6 +618,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Estimated end
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.endDate)}
                       </p>
@@ -528,6 +628,7 @@ export default function MissionsView({
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Started at
                       </p>
+
                       <p className="mt-1 text-sm font-medium text-slate-800">
                         {formatDateTime(m.startedAt)}
                       </p>
@@ -537,6 +638,7 @@ export default function MissionsView({
                   <div className="mt-5 flex flex-wrap gap-2">
                     {canEdit && (
                       <button
+                        type="button"
                         onClick={() => onStartEdit(m)}
                         className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 font-semibold text-blue-700 hover:bg-blue-100"
                       >
@@ -547,6 +649,7 @@ export default function MissionsView({
 
                     {m.status !== "COMPLETED" && m.status !== "CANCELED" && (
                       <button
+                        type="button"
                         onClick={() => onCancelMission(m.id)}
                         className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-700 hover:bg-amber-100"
                       >
@@ -556,6 +659,7 @@ export default function MissionsView({
                     )}
 
                     <button
+                      type="button"
                       onClick={() => onDeleteMission(m.id)}
                       className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100"
                     >

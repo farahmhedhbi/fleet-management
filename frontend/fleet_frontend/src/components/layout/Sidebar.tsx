@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   Wrench,
   Brain,
+  Route,
+  ParkingCircle,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
@@ -77,6 +79,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 },
     {name: "Analyse IA",href: "/owner/predictive",icon: Brain,show: isOwnerActive || isAdmin},
 
+    {name: "dépot/parking",href: "/owner/depot",icon: ParkingCircle ,show: isOwnerActive },
+    {name: "create mission",href: "/missions/create",icon: Route, show:isOwnerActive},
     // OWNER billing
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 

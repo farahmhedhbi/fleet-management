@@ -1,6 +1,7 @@
 package com.example.fleet_backend.repository;
 
 import com.example.fleet_backend.model.Incident;
+import com.example.fleet_backend.model.IncidentSeverity;
 import com.example.fleet_backend.model.IncidentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -28,4 +29,10 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
             Long vehicleId,
             LocalDateTime createdAt
     );
+    boolean existsByVehicleIdAndSeverityAndStatusIn(
+            Long vehicleId,
+            IncidentSeverity severity,
+            List<IncidentStatus> statuses
+    );
+
 }

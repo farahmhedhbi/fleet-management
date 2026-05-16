@@ -32,17 +32,19 @@ public class GpsIngestionService {
     private final MissionService missionService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
 
-    public GpsIngestionService(GpsValidationService gpsValidationService,
-                               VehicleRepository vehicleRepository,
-                               GpsDataRepository gpsDataRepository,
-                               MissionTrackingService missionTrackingService,
-                               GpsStatusService gpsStatusService,
-                               LiveStateService liveStateService,
-                               VehicleEventService vehicleEventService,
-                               ObdEventService obdEventService,
-                               VehicleHealthStateService vehicleHealthStateService,
-                               MissionService missionService,
-                               GpsWebSocketPublisher gpsWebSocketPublisher) {
+    public GpsIngestionService(
+            GpsValidationService gpsValidationService,
+            VehicleRepository vehicleRepository,
+            GpsDataRepository gpsDataRepository,
+            MissionTrackingService missionTrackingService,
+            GpsStatusService gpsStatusService,
+            LiveStateService liveStateService,
+            VehicleEventService vehicleEventService,
+            ObdEventService obdEventService,
+            VehicleHealthStateService vehicleHealthStateService,
+            MissionService missionService,
+            GpsWebSocketPublisher gpsWebSocketPublisher
+    ) {
         this.gpsValidationService = gpsValidationService;
         this.vehicleRepository = vehicleRepository;
         this.gpsDataRepository = gpsDataRepository;
@@ -73,6 +75,8 @@ public class GpsIngestionService {
 
         GpsData gpsData = buildGpsData(vehicle, dto, context);
         gpsDataRepository.save(gpsData);
+
+        updateVehicleCurrentLocation(vehicle, gpsData);
 
         GpsStatusResult statusResult = gpsStatusService.evaluate(
                 gpsData,
@@ -143,9 +147,11 @@ public class GpsIngestionService {
         );
     }
 
-    private GpsData buildGpsData(Vehicle vehicle,
-                                 GpsIncomingDTO dto,
-                                 ActiveMissionContext context) {
+    private GpsData buildGpsData(
+            Vehicle vehicle,
+            GpsIncomingDTO dto,
+            ActiveMissionContext context
+    ) {
         GpsData gpsData = new GpsData();
 
         gpsData.setVehicle(vehicle);
@@ -170,6 +176,23 @@ public class GpsIngestionService {
         gpsData.setCheckEngineOn(dto.getCheckEngineOn());
 
         return gpsData;
+    }
+
+    private void updateVehicleCurrentLocation(Vehicle vehicle, GpsData gpsData) {
+        if (vehicle == null || gpsData == null) {
+            return;
+        }
+
+        if (gpsData.getLatitude() != null && gpsData.getLongitude() != null) {
+            vehicle.setCurrentLatitude(gpsData.getLatitude());
+            vehicle.setCurrentLongitude(gpsData.getLongitude());
+        }
+
+        if (gpsData.getFuelLevel() != null) {
+            vehicle.setLastFuelLevel(gpsData.getFuelLevel());
+        }
+
+        vehicleRepository.save(vehicle);
     }
 
     private boolean shouldAnalyzeObd(GpsData previous, GpsData current) {

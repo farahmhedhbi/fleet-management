@@ -71,4 +71,6 @@ public interface MaintenanceRepository extends JpaRepository<Maintenance, Long> 
 
     boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<MaintenanceStatus> statuses);
     Optional<Maintenance> findTopByVehicleIdOrderByCreatedAtDesc(Long vehicleId);
+
+    boolean existsByVehicleIdAndStatus(Long vehicleId, MaintenanceStatus status);
 }

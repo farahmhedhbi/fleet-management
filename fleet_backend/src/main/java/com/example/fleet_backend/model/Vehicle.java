@@ -59,11 +59,33 @@ public class Vehicle {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @Column(name = "current_latitude")
+    private Double currentLatitude;
+
+    @Column(name = "current_longitude")
+    private Double currentLongitude;
+
+    @Column(name = "current_city")
+    private String currentCity;
+
+    @Column(name = "home_depot_city")
+    private String homeDepotCity;
+
+    @Column(name = "home_depot_latitude")
+    private Double homeDepotLatitude;
+
+    @Column(name = "home_depot_longitude")
+    private Double homeDepotLongitude;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "last_fuel_level")
+    private Double lastFuelLevel;
+
 
     public Vehicle() {}
 
@@ -146,6 +168,60 @@ public class Vehicle {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Double getCurrentLatitude() {
+        return currentLatitude;
+    }
+
+    public void setCurrentLatitude(Double currentLatitude) {
+        this.currentLatitude = currentLatitude;
+    }
+
+    public Double getCurrentLongitude() {
+        return currentLongitude;
+    }
+
+    public void setCurrentLongitude(Double currentLongitude) {
+        this.currentLongitude = currentLongitude;
+    }
+
+    public String getCurrentCity() {
+        return currentCity;
+    }
+
+    public void setCurrentCity(String currentCity) {
+        this.currentCity = currentCity;
+    }
+
+    public String getHomeDepotCity() {
+        return homeDepotCity;
+    }
+
+    public void setHomeDepotCity(String homeDepotCity) {
+        this.homeDepotCity = homeDepotCity;
+    }
+
+    public Double getHomeDepotLatitude() {
+        return homeDepotLatitude;
+    }
+
+    public void setHomeDepotLatitude(Double homeDepotLatitude) {
+        this.homeDepotLatitude = homeDepotLatitude;
+    }
+
+    public Double getHomeDepotLongitude() {
+        return homeDepotLongitude;
+    }
+
+    public void setHomeDepotLongitude(Double homeDepotLongitude) {
+        this.homeDepotLongitude = homeDepotLongitude;
+    }
+    public Double getLastFuelLevel() {
+        return lastFuelLevel;
+    }
+
+    public void setLastFuelLevel(Double lastFuelLevel) {
+        this.lastFuelLevel = lastFuelLevel;
+    }
 
     // =========================
     // ENUMS
@@ -171,6 +247,7 @@ public class Vehicle {
     public enum VehicleStatus {
         AVAILABLE,
         IN_USE,
+        WITH_DRIVER,
         UNDER_MAINTENANCE,
         OUT_OF_SERVICE,
         RESERVED

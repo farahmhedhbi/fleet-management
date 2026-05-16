@@ -82,6 +82,8 @@ public class SecurityConfig {
                         .hasAuthority("ROLE_OWNER")
                         .requestMatchers("/api/predictive-alerts/**")
                         .hasAnyRole("OWNER", "ADMIN")
+                        .requestMatchers("/api/daily-dispatch/**").hasAnyRole("OWNER", "ADMIN")
+                        .requestMatchers("/api/dispatch/**").hasAnyRole("OWNER", "ADMIN")
 
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_OWNER")

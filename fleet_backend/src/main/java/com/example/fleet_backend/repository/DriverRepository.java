@@ -34,4 +34,6 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     boolean existsByIdAndOwner(Long id, User owner);
 
     long countByOwnerId(Long ownerId);
+    List<Driver> findByOwnerId(Long ownerId);
+
 }
