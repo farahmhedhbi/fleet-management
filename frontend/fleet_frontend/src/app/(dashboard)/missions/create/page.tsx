@@ -180,7 +180,7 @@ export default function OwnerMissionCreatePage() {
     try {
       await missionService.create(normalForm);
       toast.success("Mission créée avec succès.");
-      window.location.href = "/owner/missions";
+      window.location.href = "/missions";
     } catch (e: any) {
       toast.error(
         e?.response?.data?.message ||
