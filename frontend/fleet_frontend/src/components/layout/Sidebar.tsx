@@ -7,8 +7,6 @@ import {
   Home,
   Car,
   Users,
-  Upload,
-  Webhook,
   BarChart3,
   Calendar,
   FileText,
@@ -17,7 +15,6 @@ import {
   Shield,
   CreditCard,
   ClipboardList,
-  UserCircle2,
   MapPinned,
   AlertTriangle,
   Wrench,
@@ -62,35 +59,52 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const items: NavItem[] = [
     { name: "Dashboard", href: "/dashboard", icon: Home, show: true },
 
-    // DRIVER
     { name: "My Missions", href: "/my-missions", icon: ClipboardList, show: isDriver },
-  { name: "Mes incidents", href: "/driver/incidents", icon: AlertTriangle, show: isDriver },
-  // OWNER
+    { name: "Mes incidents", href: "/driver/incidents", icon: AlertTriangle, show: isDriver },
+
     { name: "Vehicles", href: "/vehicles", icon: Car, show: isOwnerActive },
     { name: "Drivers", href: "/drivers", icon: Users, show: isOwnerActive },
     { name: "Missions", href: "/missions", icon: FileText, show: isOwnerActive },
     { name: "Suivi GPS", href: "/owner/gps", icon: MapPinned, show: isOwnerActive },
-    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
     
+
     { name: "Incidents", href: "/owner/incidents", icon: AlertTriangle, show: isOwnerActive || isAdmin },
-    { name: "Maintenances", href: "/owner/maintenances", icon: ClipboardList, show: isOwnerActive || isAdmin },
-    { name: "Maintenances à venir", href: "/owner/maintenances/upcoming", icon: Calendar, show: isOwnerActive || isAdmin },
-    {name: "Work Orders",href: "/owner/maintenance-work-orders",icon: Wrench,show: isOwnerActive || isAdmin,
-},
-    {name: "Analyse IA",href: "/owner/predictive",icon: Brain,show: isOwnerActive || isAdmin},
+
 
     {name: "dépot/parking",href: "/owner/depot",icon: ParkingCircle ,show: isOwnerActive },
     // OWNER billing
-    { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
 
-    // ADMIN
+    {
+      name: "Maintenances",
+      href: "/owner/maintenances",
+      icon: ClipboardList,
+      show: isOwnerActive || isAdmin,
+    },
+
+   
+    {
+      name: "Analyse IA",
+      href: "/owner/predictive",
+      icon: Brain,
+      show: isOwnerActive || isAdmin,
+    },
+
+    {
+      name: "Dépot / Parking",
+      href: "/owner/depot",
+      icon: ParkingCircle,
+      show: isOwnerActive,
+    },
+
+
+    { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },
+    { name: "Reports", href: "/reports", icon: BarChart3, show: isOwnerActive },
+
     { name: "Owners", href: "/admin/owners", icon: Users, show: isAdmin },
     { name: "Users Admin", href: "/admin/users", icon: Shield, show: isAdmin },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard, show: isAdmin },
     { name: "Payments", href: "/admin/payments", icon: CreditCard, show: isAdmin },
-    
 
-    // commun
     { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
     { name: "Documents", href: "/documents", icon: FileText, show: true },
     { name: "Settings", href: "/settings", icon: Settings, show: isAdmin },
@@ -116,6 +130,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         <div className="p-6">
           <div className="mb-4 flex items-center justify-between lg:hidden">
             <div className="font-extrabold text-slate-900">Menu</div>
+
             <button
               onClick={() => setSidebarOpen(false)}
               className="rounded-xl border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
@@ -129,7 +144,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             {items
               .filter((it) => it.show)
               .map((it) => {
-                const active = pathname === it.href || pathname.startsWith(it.href + "/");
+                const active =
+                  pathname === it.href || pathname.startsWith(it.href + "/");
                 const Icon = it.icon;
 
                 return (
