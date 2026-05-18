@@ -26,6 +26,7 @@ public class MissionDTO {
 
     private Long vehicleId;
     private String vehicleRegistrationNumber;
+    private String vehicleStatus;
 
     private String routeJson;
 
@@ -108,6 +109,10 @@ public class MissionDTO {
         if (vehicle != null) {
             this.vehicleId = vehicle.getId();
             this.vehicleRegistrationNumber = vehicle.getRegistrationNumber();
+
+            this.vehicleStatus = vehicle.getStatus() != null
+                    ? vehicle.getStatus().name()
+                    : null;
         }
     }
 
@@ -171,6 +176,10 @@ public class MissionDTO {
         return vehicleRegistrationNumber;
     }
 
+    public String getVehicleStatus() {
+        return vehicleStatus;
+    }
+
     public String getRouteJson() {
         return routeJson;
     }
@@ -227,6 +236,10 @@ public class MissionDTO {
         return routeCheckMessage;
     }
 
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public void setTitle(String title) {
         this.title = title;
     }
@@ -251,16 +264,20 @@ public class MissionDTO {
         this.endDate = endDate;
     }
 
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public void setOwnerId(Long ownerId) {
+        this.ownerId = ownerId;
+    }
+
     public void setDriverId(Long driverId) {
         this.driverId = driverId;
     }
 
-    public void setVehicleId(Long vehicleId) {
-        this.vehicleId = vehicleId;
-    }
-
-    public void setRouteJson(String routeJson) {
-        this.routeJson = routeJson;
+    public void setDriverName(String driverName) {
+        this.driverName = driverName;
     }
 
     public void setDriverStatus(String driverStatus) {
@@ -269,5 +286,73 @@ public class MissionDTO {
 
     public void setDriverAvailableAt(LocalDateTime driverAvailableAt) {
         this.driverAvailableAt = driverAvailableAt;
+    }
+
+    public void setVehicleId(Long vehicleId) {
+        this.vehicleId = vehicleId;
+    }
+
+    public void setVehicleRegistrationNumber(String vehicleRegistrationNumber) {
+        this.vehicleRegistrationNumber = vehicleRegistrationNumber;
+    }
+
+    public void setVehicleStatus(String vehicleStatus) {
+        this.vehicleStatus = vehicleStatus;
+    }
+
+    public void setRouteJson(String routeJson) {
+        this.routeJson = routeJson;
+    }
+
+    public void setStartedAt(LocalDateTime startedAt) {
+        this.startedAt = startedAt;
+    }
+
+    public void setFinishedAt(LocalDateTime finishedAt) {
+        this.finishedAt = finishedAt;
+    }
+
+    public void setOriginalRouteJson(String originalRouteJson) {
+        this.originalRouteJson = originalRouteJson;
+    }
+
+    public void setRouteCheckStatus(String routeCheckStatus) {
+        this.routeCheckStatus = routeCheckStatus;
+    }
+
+    public void setRouteRiskLevel(String routeRiskLevel) {
+        this.routeRiskLevel = routeRiskLevel;
+    }
+
+    public void setRouteRecalculated(Boolean routeRecalculated) {
+        this.routeRecalculated = routeRecalculated;
+    }
+
+    public void setOriginalDurationMinutes(Integer originalDurationMinutes) {
+        this.originalDurationMinutes = originalDurationMinutes;
+    }
+
+    public void setSelectedDurationMinutes(Integer selectedDurationMinutes) {
+        this.selectedDurationMinutes = selectedDurationMinutes;
+    }
+
+    public void setEstimatedDelayMinutes(Integer estimatedDelayMinutes) {
+        this.estimatedDelayMinutes = estimatedDelayMinutes;
+    }
+
+    public void setOriginalDistanceKm(Double originalDistanceKm) {
+        this.originalDistanceKm = originalDistanceKm;
+    }
+
+    public void setSelectedDistanceKm(Double selectedDistanceKm) {
+        this.selectedDistanceKm = selectedDistanceKm;
+    }
+
+    public void setRouteCheckedAt(LocalDateTime routeCheckedAt) {
+        this.routeCheckedAt = routeCheckedAt;
+    }
+
+    public void setRouteCheckMessage(String routeCheckMessage) {
+        this.routeCheckMessage = routeCheckMessage;
     }
 }

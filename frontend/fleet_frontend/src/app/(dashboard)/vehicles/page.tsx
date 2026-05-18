@@ -16,10 +16,13 @@ export default function VehiclesPage() {
   const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
+
   const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const { isAuthenticated } = useAuth();
@@ -74,14 +77,14 @@ export default function VehiclesPage() {
     let results = vehicles;
 
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+
       results = results.filter(
         (vehicle) =>
-          vehicle.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          vehicle.registrationNumber
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          vehicle.driverName?.toLowerCase().includes(searchQuery.toLowerCase())
+          vehicle.brand?.toLowerCase().includes(q) ||
+          vehicle.model?.toLowerCase().includes(q) ||
+          vehicle.registrationNumber?.toLowerCase().includes(q) ||
+          vehicle.driverName?.toLowerCase().includes(q)
       );
     }
 
@@ -95,24 +98,63 @@ export default function VehiclesPage() {
   const fetchVehicles = async () => {
     try {
       setLoading(true);
+
       const data = await vehicleService.getAll();
-      setVehicles(data);
-      setFilteredVehicles(data);
+
+      setVehicles(data || []);
+      setFilteredVehicles(data || []);
       setError("");
     } catch (err: any) {
-      setError(err.message || "Failed to fetch vehicles");
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Impossible de charger la liste des véhicules.";
+
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
+  const getDeleteErrorMessage = (err: any) => {
+    const backendMessage =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      "";
+
+    if (
+      backendMessage.toLowerCase().includes("constraint") ||
+      backendMessage.toLowerCase().includes("foreign key") ||
+      backendMessage.toLowerCase().includes("mission") ||
+      backendMessage.toLowerCase().includes("incident") ||
+      backendMessage.toLowerCase().includes("maintenance") ||
+      backendMessage.toLowerCase().includes("event") ||
+      backendMessage.toLowerCase().includes("gps") ||
+      err?.response?.status === 500
+    ) {
+      return "Impossible de supprimer ce véhicule, car il est déjà lié à des missions, incidents, maintenances, événements GPS/OBD ou historiques. Vous pouvez le mettre hors service au lieu de le supprimer.";
+    }
+
+    return backendMessage || "La suppression du véhicule a échoué.";
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await vehicleService.remove(id);
+
       setShowDeleteModal(null);
-      fetchVehicles();
-    } catch {
-      alert("Failed to delete vehicle");
+      setError("");
+
+      await fetchVehicles();
+    } catch (err: any) {
+      console.error("Delete vehicle error:", err);
+
+      const message = getDeleteErrorMessage(err);
+
+      setError(message);
+      setShowDeleteModal(null);
     }
   };
 
@@ -120,9 +162,11 @@ export default function VehiclesPage() {
     const data = filteredVehicles.length ? filteredVehicles : vehicles;
 
     if (!data.length) {
-      alert("Aucun véhicule à exporter");
+      setError("Aucun véhicule disponible pour l’export PDF.");
       return;
     }
+
+    setError("");
 
     const doc = new jsPDF({
       orientation: "landscape",
@@ -136,17 +180,19 @@ export default function VehiclesPage() {
     doc.setFontSize(10);
     doc.text(`Exporté le : ${new Date().toLocaleString()}`, 14, 22);
 
-    const tableHead = [[
-      "ID",
-      "Marque",
-      "Modèle",
-      "Immatriculation",
-      "Année",
-      "Statut",
-      "Kilométrage",
-      "Carburant",
-      "Conducteur",
-    ]];
+    const tableHead = [
+      [
+        "ID",
+        "Marque",
+        "Modèle",
+        "Immatriculation",
+        "Année",
+        "Statut",
+        "Kilométrage",
+        "Carburant",
+        "Conducteur",
+      ],
+    ];
 
     const tableBody = data.map((v) => [
       v.id ?? "",
@@ -177,6 +223,7 @@ export default function VehiclesPage() {
     const currentYear = new Date().getFullYear();
     const vehicleYear = vehicle.year || currentYear;
     const age = currentYear - vehicleYear;
+
     let baseScore = 100 - age * 5;
 
     if (vehicle.status === "UNDER_MAINTENANCE") baseScore -= 30;

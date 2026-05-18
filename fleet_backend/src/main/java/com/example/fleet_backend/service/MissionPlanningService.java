@@ -75,7 +75,7 @@ public class MissionPlanningService {
         );
 
         validateDriverLicense(driver, estimatedEndDate);
-        validateDriverRestAvailability(driver, dto.getStartDate());
+        validateDriverStatusForPlanning(driver, dto.getStartDate());
 
         validateVehicleAndDriverAvailability(
                 vehicle,
@@ -138,7 +138,7 @@ public class MissionPlanningService {
         );
 
         validateDriverLicense(driver, estimatedEndDate);
-        validateDriverRestAvailability(driver, dto.getStartDate());
+        validateDriverStatusForPlanning(driver, dto.getStartDate());
 
         validateVehicleAndDriverAvailability(
                 vehicle,
@@ -199,14 +199,6 @@ public class MissionPlanningService {
             throw new IllegalArgumentException("Driver is required");
         }
 
-        if (driver.getStatus() == Driver.DriverStatus.UNAVAILABLE
-                || driver.getStatus() == Driver.DriverStatus.OFF_DUTY
-                || driver.getStatus() == Driver.DriverStatus.SUSPENDED
-                || driver.getStatus() == Driver.DriverStatus.INACTIVE
-                || driver.getStatus() == Driver.DriverStatus.ON_LEAVE) {
-            throw new IllegalArgumentException("Ce chauffeur n'est pas disponible");
-        }
-
         if (driver.getLicenseExpiry() == null) {
             throw new IllegalArgumentException("La date d'expiration du permis est manquante");
         }
@@ -216,17 +208,17 @@ public class MissionPlanningService {
         }
     }
 
-    private void validateDriverRestAvailability(Driver driver, LocalDateTime missionStartDate) {
+    private void validateDriverStatusForPlanning(Driver driver, LocalDateTime missionStartDate) {
         if (driver == null) {
             throw new IllegalArgumentException("Driver is required");
         }
 
-        if (driver.getStatus() == Driver.DriverStatus.ON_MISSION) {
-            throw new IllegalArgumentException("Ce chauffeur est actuellement en mission");
-        }
-
-        if (driver.getStatus() == Driver.DriverStatus.RESERVED) {
-            throw new IllegalArgumentException("Ce chauffeur est déjà réservé.");
+        if (driver.getStatus() == Driver.DriverStatus.UNAVAILABLE
+                || driver.getStatus() == Driver.DriverStatus.OFF_DUTY
+                || driver.getStatus() == Driver.DriverStatus.SUSPENDED
+                || driver.getStatus() == Driver.DriverStatus.INACTIVE
+                || driver.getStatus() == Driver.DriverStatus.ON_LEAVE) {
+            throw new IllegalArgumentException("Ce chauffeur n'est pas disponible.");
         }
 
         if (driver.getStatus() == Driver.DriverStatus.RESTING) {
@@ -265,48 +257,52 @@ public class MissionPlanningService {
             throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
         }
 
-        if (vehicle.getStatus() == Vehicle.VehicleStatus.RESERVED) {
-            throw new IllegalArgumentException("Ce véhicule est déjà réservé.");
-        }
-
-        if (missionRepository.existsByVehicleIdAndStatus(
-                vehicleId,
-                Mission.MissionStatus.IN_PROGRESS
-        )) {
-            throw new IllegalArgumentException("Ce véhicule a déjà une mission en cours.");
-        }
-
-        if (missionRepository.existsByDriverIdAndStatus(
-                driverId,
-                Mission.MissionStatus.IN_PROGRESS
-        )) {
-            throw new IllegalArgumentException("Ce chauffeur a déjà une mission en cours.");
-        }
-
-        boolean vehicleOverlap = currentMissionId == null
-                ? missionRepository.existsVehicleOverlap(vehicleId, startDate, endDate)
-                : missionRepository.existsVehicleOverlapExcludingMission(
+        List<Mission> vehicleOverlaps = missionRepository.findVehicleOverlaps(
                 vehicleId,
                 startDate,
-                endDate,
-                currentMissionId
+                endDate
         );
 
-        if (vehicleOverlap) {
-            throw new IllegalArgumentException("Ce véhicule est déjà réservé dans cette période.");
+        if (currentMissionId != null) {
+            vehicleOverlaps = vehicleOverlaps.stream()
+                    .filter(m -> !m.getId().equals(currentMissionId))
+                    .toList();
         }
 
-        boolean driverOverlap = currentMissionId == null
-                ? missionRepository.existsDriverOverlap(driverId, startDate, endDate)
-                : missionRepository.existsDriverOverlapExcludingMission(
+        if (!vehicleOverlaps.isEmpty()) {
+            Mission conflict = vehicleOverlaps.get(0);
+
+            throw new IllegalArgumentException(
+                    "Ce véhicule est déjà réservé dans cette période par la mission : "
+                            + safeTitle(conflict)
+                            + " | statut=" + conflict.getStatus()
+                            + " | début=" + conflict.getStartDate()
+                            + " | fin=" + conflict.getEndDate()
+            );
+        }
+
+        List<Mission> driverOverlaps = missionRepository.findDriverOverlaps(
                 driverId,
                 startDate,
-                endDate,
-                currentMissionId
+                endDate
         );
 
-        if (driverOverlap) {
-            throw new IllegalArgumentException("Ce chauffeur est déjà réservé dans cette période.");
+        if (currentMissionId != null) {
+            driverOverlaps = driverOverlaps.stream()
+                    .filter(m -> !m.getId().equals(currentMissionId))
+                    .toList();
+        }
+
+        if (!driverOverlaps.isEmpty()) {
+            Mission conflict = driverOverlaps.get(0);
+
+            throw new IllegalArgumentException(
+                    "Ce chauffeur est déjà réservé dans cette période par la mission : "
+                            + safeTitle(conflict)
+                            + " | statut=" + conflict.getStatus()
+                            + " | début=" + conflict.getStartDate()
+                            + " | fin=" + conflict.getEndDate()
+            );
         }
 
         boolean maintenanceConflict = maintenanceRepository.hasMaintenanceConflict(
@@ -325,6 +321,18 @@ public class MissionPlanningService {
                     "Ce véhicule est indisponible pendant cette période car il est en maintenance."
             );
         }
+    }
+
+    private String safeTitle(Mission mission) {
+        if (mission == null) {
+            return "Mission inconnue";
+        }
+
+        if (mission.getTitle() != null && !mission.getTitle().isBlank()) {
+            return mission.getTitle();
+        }
+
+        return "Mission #" + mission.getId();
     }
 
     private void validateMissionInput(MissionDTO dto) {

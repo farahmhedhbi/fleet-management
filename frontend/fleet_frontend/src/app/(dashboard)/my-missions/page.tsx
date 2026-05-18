@@ -7,6 +7,7 @@ import type { Mission, RouteCheckResult } from "@/types/mission";
 import type { VehicleLiveStatusDTO } from "@/types/gps";
 import { toast } from "react-toastify";
 import MyMissionsView from "./MyMissionsView";
+import { driverRestService } from "@/lib/services/driverRestService";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -334,22 +335,47 @@ export default function MyMissionsPage() {
   }, []);
 
   const handleReady = useCallback(async () => {
+  try {
+    setRestLoading(true);
+
+    await driverRestService.markReady();
+
+    toast.success("Vous êtes maintenant disponible");
+    await load(false);
+  } catch (e: any) {
+    toast.error(
+      e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Impossible de changer le statut du driver"
+    );
+  } finally {
+    setRestLoading(false);
+  }
+}, [load]);
+
+const handleMiddleRest = useCallback(
+  async (mission: Mission) => {
     try {
       setRestLoading(true);
 
-      toast.info("Le repos est terminé. Recharge des missions...");
+      await driverRestService.startMiddleRest(mission.id);
+
+      toast.success("Repos de 30 minutes démarré");
       await load(false);
     } catch (e: any) {
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
           e?.message ||
-          "Impossible de changer le statut du driver"
+          "Impossible de démarrer le repos"
       );
     } finally {
       setRestLoading(false);
     }
-  }, [load]);
+  },
+  [load]
+);
 
   const handleStart = useCallback(
     async (mission: Mission) => {

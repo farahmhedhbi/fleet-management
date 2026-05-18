@@ -149,4 +149,33 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
     Optional<Mission> findTopByDriverIdOrderByEndDateDesc(Long driverId);
 
 
+    @Query("""
+    SELECT m
+    FROM Mission m
+    WHERE m.vehicle.id = :vehicleId
+      AND m.status NOT IN ('COMPLETED', 'CANCELED')
+      AND :startDate < m.endDate
+      AND :endDate > m.startDate
+    ORDER BY m.startDate ASC
+""")
+    List<Mission> findVehicleOverlaps(
+            @Param("vehicleId") Long vehicleId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("""
+    SELECT m
+    FROM Mission m
+    WHERE m.driver.id = :driverId
+      AND m.status NOT IN ('COMPLETED', 'CANCELED')
+      AND :startDate < m.endDate
+      AND :endDate > m.startDate
+    ORDER BY m.startDate ASC
+""")
+    List<Mission> findDriverOverlaps(
+            @Param("driverId") Long driverId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }

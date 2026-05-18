@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import {
-  CalendarClock,
   Car,
   CheckCircle2,
   ClipboardList,
   MapPin,
-  Route,
   Sparkles,
   User,
 } from "lucide-react";
@@ -16,26 +14,23 @@ import {
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 import SmartAssignmentForm from "@/components/dispatch/SmartAssignmentForm";
-import SmartDailyPlanningForm from "@/components/dispatch/SmartDailyPlanningForm";
 import DispatchResult from "@/components/dispatch/DispatchResult";
 
 import { missionService } from "@/lib/services/missionService";
 import { vehicleService } from "@/lib/services/vehicleService";
 import { driverService } from "@/lib/services/driverService";
-import { confirmDailyPlanning } from "@/lib/services/dispatchService";
 import { placeService, type PlaceSuggestion } from "@/lib/services/placeService";
 
 import type {
   DispatchSuggestionDTO,
   SmartAssignmentRequest,
-  SmartDailyPlanningRequest,
 } from "@/types/dispatch";
 
 import type { MissionDTO } from "@/types/mission";
 import type { Vehicle } from "@/types/vehicle";
 import type { Driver } from "@/types/driver";
 
-type CreationMode = "NORMAL" | "SMART_ASSIGNMENT" | "SMART_DAILY_PLANNING";
+type CreationMode = "NORMAL" | "SMART_ASSIGNMENT";
 
 const emptyNormalForm: MissionDTO = {
   title: "",
@@ -43,6 +38,7 @@ const emptyNormalForm: MissionDTO = {
   departure: "",
   destination: "",
   startDate: "",
+  endDate: "",
   vehicleId: 0,
   driverId: 0,
 };
@@ -50,6 +46,17 @@ const emptyNormalForm: MissionDTO = {
 function minNowLocal() {
   const d = new Date();
   d.setSeconds(0, 0);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function estimateEndTime(startDate: string) {
+  const d = new Date(startDate);
+  if (Number.isNaN(d.getTime())) return "";
+
+  d.setHours(d.getHours() + 2);
+
   const offset = d.getTimezoneOffset();
   const local = new Date(d.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
@@ -64,9 +71,8 @@ export default function OwnerMissionCreatePage() {
   const [normalForm, setNormalForm] = useState<MissionDTO>(emptyNormalForm);
 
   const [result, setResult] = useState<DispatchSuggestionDTO | null>(null);
-  const [lastSmartForm, setLastSmartForm] = useState<
-    SmartAssignmentRequest | SmartDailyPlanningRequest | null
-  >(null);
+  const [lastSmartForm, setLastSmartForm] =
+    useState<SmartAssignmentRequest | null>(null);
 
   const [loadingData, setLoadingData] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -74,6 +80,7 @@ export default function OwnerMissionCreatePage() {
   const [departureSuggestions, setDepartureSuggestions] = useState<
     PlaceSuggestion[]
   >([]);
+
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     PlaceSuggestion[]
   >([]);
@@ -167,18 +174,31 @@ export default function OwnerMissionCreatePage() {
 
   async function createNormalMission() {
     if (!normalForm.title.trim()) return toast.warn("Le titre est obligatoire.");
-    if (!normalForm.departure.trim())
+
+    if (!normalForm.departure.trim()) {
       return toast.warn("La ville de départ est obligatoire.");
-    if (!normalForm.destination.trim())
+    }
+
+    if (!normalForm.destination.trim()) {
       return toast.warn("La destination est obligatoire.");
-    if (!normalForm.startDate) return toast.warn("La date début est obligatoire.");
+    }
+
+    if (!normalForm.startDate) {
+      return toast.warn("La date début est obligatoire.");
+    }
+
     if (!normalForm.vehicleId) return toast.warn("Choisis un véhicule.");
     if (!normalForm.driverId) return toast.warn("Choisis un chauffeur.");
 
     setCreating(true);
 
     try {
-      await missionService.create(normalForm);
+      const payload: MissionDTO = {
+        ...normalForm,
+        endDate: normalForm.endDate || estimateEndTime(normalForm.startDate),
+      };
+
+      await missionService.create(payload);
       toast.success("Mission créée avec succès.");
       window.location.href = "/missions";
     } catch (e: any) {
@@ -196,35 +216,26 @@ export default function OwnerMissionCreatePage() {
   async function confirmSmartResult() {
     if (!result) return toast.warn("Génère d'abord une suggestion.");
     if (!lastSmartForm) return toast.warn("Données manquantes.");
-    if (!result.vehicleId || !result.driverId)
+    if (!result.vehicleId || !result.driverId) {
       return toast.warn("Véhicule ou chauffeur invalide.");
+    }
 
     setCreating(true);
 
     try {
-      if (mode === "SMART_ASSIGNMENT") {
-        const form = lastSmartForm as SmartAssignmentRequest;
+      const payload: MissionDTO = {
+        title: `${lastSmartForm.startCity} → ${lastSmartForm.destinationCity}`,
+        description: "Mission créée depuis Smart Assignment",
+        departure: lastSmartForm.startCity,
+        destination: lastSmartForm.destinationCity,
+        startDate: lastSmartForm.startTime,
+        endDate: lastSmartForm.expectedEndTime,
+        vehicleId: result.vehicleId,
+        driverId: result.driverId,
+      };
 
-        const payload: MissionDTO = {
-          title: `${form.startCity} → ${form.destinationCity}`,
-          description: "Mission créée depuis Smart Assignment",
-          departure: form.startCity,
-          destination: form.destinationCity,
-          startDate: form.startTime,
-          endDate: form.expectedEndTime,
-          vehicleId: result.vehicleId,
-          driverId: result.driverId,
-        };
-
-        await missionService.create(payload);
-        toast.success("Mission créée avec Smart Assignment.");
-      }
-
-      if (mode === "SMART_DAILY_PLANNING") {
-        await confirmDailyPlanning(result);
-        toast.success("Planning créé avec succès.");
-      }
-
+      await missionService.create(payload);
+      toast.success("Mission créée avec Smart Assignment.");
       window.location.href = "/missions";
     } catch (e: any) {
       toast.error(
@@ -244,39 +255,28 @@ export default function OwnerMissionCreatePage() {
         <div className="mx-auto max-w-7xl space-y-6">
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 p-6 text-white md:p-8">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-200">
-                    Owner Mission Center
-                  </p>
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-200">
+                Owner Mission Center
+              </p>
 
-                  <h1 className="mt-3 text-3xl font-extrabold tracking-tight md:text-4xl">
-                    Création de mission
-                  </h1>
+              <h1 className="mt-3 text-3xl font-extrabold tracking-tight md:text-4xl">
+                Création de mission
+              </h1>
 
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-200">
-                    Cette page permet à l’owner de créer une mission avec trois
-                    méthodes : création normale, Smart Assignment ou Smart Daily
-                    Planning. Le choix dépend du niveau d’aide souhaité.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-sm text-blue-50 backdrop-blur">
-                  <p className="font-bold">Conseil</p>
-                  <p className="mt-1">
-                    Utilise Smart Daily Planning pour organiser toute la journée.
-                  </p>
-                </div>
-              </div>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-200">
+                Cette page permet à l’owner de créer une mission normalement ou
+                d’utiliser Smart Assignment pour proposer automatiquement le
+                meilleur véhicule et chauffeur.
+              </p>
             </div>
 
-            <div className="grid gap-4 p-5 md:grid-cols-3">
+            <div className="grid gap-4 p-5 md:grid-cols-2">
               <ModeCard
                 active={mode === "NORMAL"}
                 icon={<ClipboardList className="h-5 w-5" />}
                 title="Mode 1"
                 subtitle="Création normale"
-                description="L’owner saisit les informations, choisit le véhicule et choisit le chauffeur."
+                description="L’owner choisit manuellement le véhicule et le chauffeur."
                 onClick={() => changeMode("NORMAL")}
               />
 
@@ -285,17 +285,8 @@ export default function OwnerMissionCreatePage() {
                 icon={<Sparkles className="h-5 w-5" />}
                 title="Mode 2"
                 subtitle="Smart Assignment"
-                description="L’owner saisit le trajet. Le système propose automatiquement le meilleur véhicule et chauffeur."
+                description="Le système propose le meilleur véhicule selon disponibilité, maintenance, incidents et dernière position GPS."
                 onClick={() => changeMode("SMART_ASSIGNMENT")}
-              />
-
-              <ModeCard
-                active={mode === "SMART_DAILY_PLANNING"}
-                icon={<Route className="h-5 w-5" />}
-                title="Mode 3"
-                subtitle="Smart Daily Planning"
-                description="L’owner saisit plusieurs missions. Le système organise planning, repos et retour dépôt."
-                onClick={() => changeMode("SMART_DAILY_PLANNING")}
               />
             </div>
           </section>
@@ -304,11 +295,11 @@ export default function OwnerMissionCreatePage() {
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <SectionHeader
                 title="Mode normal"
-                description="Dans ce mode, l’owner garde le contrôle total. Il choisit le chauffeur et le véhicule manuellement."
+                description="L’owner garde le contrôle total sur la mission."
               />
 
               {loadingData ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
                   Chargement des véhicules et chauffeurs...
                 </div>
               ) : (
@@ -337,6 +328,7 @@ export default function OwnerMissionCreatePage() {
                           setNormalForm((p) => ({
                             ...p,
                             startDate: e.target.value,
+                            endDate: estimateEndTime(e.target.value),
                           }))
                         }
                         className="input"
@@ -426,7 +418,7 @@ export default function OwnerMissionCreatePage() {
                     <InfoBox
                       icon={<MapPin className="h-5 w-5" />}
                       title="Villes avec suggestion"
-                      text="Les champs départ et destination utilisent la recherche de place."
+                      text="Départ et destination utilisent la recherche de place."
                     />
                     <InfoBox
                       icon={<Car className="h-5 w-5" />}
@@ -456,10 +448,7 @@ export default function OwnerMissionCreatePage() {
           {mode === "SMART_ASSIGNMENT" && (
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <div className="space-y-4">
-                <SmartModeExplanation
-                  title="Smart Assignment"
-                  text="L’owner donne seulement le trajet et l’heure. Le système analyse les véhicules, chauffeurs, repos, incidents, maintenance et distance."
-                />
+                <SmartModeExplanation />
 
                 <SmartAssignmentForm
                   onResult={(res, formData) => {
@@ -483,43 +472,6 @@ export default function OwnerMissionCreatePage() {
                   } disabled:opacity-70`}
                 >
                   {creating ? "Création..." : "Confirmer et créer la mission"}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {mode === "SMART_DAILY_PLANNING" && (
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <div className="space-y-4">
-                <SmartModeExplanation
-                  title="Smart Daily Planning"
-                  text="L’owner saisit plusieurs missions. Le système construit un planning complet avec repos chauffeur et décision de retour au dépôt."
-                />
-
-                <SmartDailyPlanningForm
-                  onResult={(res, formData) => {
-                    setResult(res);
-                    setLastSmartForm(formData);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <DispatchResult result={result} />
-
-                <button
-                  type="button"
-                  onClick={confirmSmartResult}
-                  disabled={!result || creating}
-                  className={`w-full rounded-2xl px-5 py-4 font-bold text-white transition ${
-                    result
-                      ? "bg-emerald-600 hover:bg-emerald-700"
-                      : "cursor-not-allowed bg-slate-400"
-                  } disabled:opacity-70`}
-                >
-                  {creating
-                    ? "Création du planning..."
-                    : "Confirmer et créer le planning"}
                 </button>
               </div>
             </section>
@@ -625,22 +577,23 @@ function SectionHeader({
   );
 }
 
-function SmartModeExplanation({
-  title,
-  text,
-}: {
-  title: string;
-  text: string;
-}) {
+function SmartModeExplanation() {
   return (
     <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
       <div className="flex gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white">
           <Sparkles className="h-5 w-5" />
         </div>
+
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+          <h2 className="text-xl font-extrabold text-slate-900">
+            Smart Assignment
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            L’owner donne le trajet et l’heure. Le système analyse les
+            véhicules, chauffeurs, repos, incidents, maintenance, distance et
+            dernière position GPS reçue en temps réel.
+          </p>
         </div>
       </div>
     </div>

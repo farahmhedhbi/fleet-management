@@ -17,33 +17,85 @@ public class DriverRestService {
         this.driverRepository = driverRepository;
     }
 
+    public long getMissionMinutes(Mission mission) {
+        if (mission.getStartDate() == null || mission.getEndDate() == null) {
+            return 0;
+        }
+        return Duration.between(mission.getStartDate(), mission.getEndDate()).toMinutes();
+    }
+
+    public boolean missionNeedsNoRest(Mission mission) {
+        return getMissionMinutes(mission) < 60;
+    }
+
+    public boolean missionNeedsRestAfterFinish(Mission mission) {
+        long minutes = getMissionMinutes(mission);
+        return minutes >= 60 && minutes <= 120;
+    }
+
+    public boolean missionNeedsMiddleRest(Mission mission) {
+        return getMissionMinutes(mission) > 120;
+    }
+
+    public int calculateRestAfterFinishMinutes(Mission mission) {
+        if (missionNeedsRestAfterFinish(mission)) {
+            return 15;
+        }
+        return 0;
+    }
+
+    public int calculateMiddleRestMinutes(Mission mission) {
+        if (missionNeedsMiddleRest(mission)) {
+            return 30;
+        }
+        return 0;
+    }
+
     public void startRestAfterMission(Mission mission) {
         Driver driver = mission.getDriver();
 
-        LocalDateTime start = mission.getStartDate();
-        LocalDateTime end = mission.getEndDate();
+        if (driver == null) {
+            throw new IllegalArgumentException("Driver not found for this mission.");
+        }
 
-        long missionMinutes = Duration.between(start, end).toMinutes();
-        int restMinutes = calculateRestMinutes(missionMinutes);
+        int restMinutes = calculateRestAfterFinishMinutes(mission);
+
+        if (restMinutes <= 0) {
+            driver.setStatus(Driver.DriverStatus.AVAILABLE);
+            driver.setRestStartTime(null);
+            driver.setRestEndTime(null);
+            driverRepository.save(driver);
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
 
         driver.setStatus(Driver.DriverStatus.RESTING);
-        driver.setRestStartTime(LocalDateTime.now());
-        driver.setRestEndTime(LocalDateTime.now().plusMinutes(restMinutes));
+        driver.setRestStartTime(now);
+        driver.setRestEndTime(now.plusMinutes(restMinutes));
 
         driverRepository.save(driver);
     }
 
-    public int calculateRestMinutes(long missionMinutes) {
-        if (missionMinutes < 60) {
-            return 10;
+    public void startMiddleRest(Mission mission) {
+        Driver driver = mission.getDriver();
+
+        if (driver == null) {
+            throw new IllegalArgumentException("Driver not found for this mission.");
         }
-        if (missionMinutes <= 180) {
-            return 20;
+
+        if (!missionNeedsMiddleRest(mission)) {
+            throw new IllegalArgumentException("Cette mission ne nécessite pas un repos au milieu.");
         }
-        if (missionMinutes <= 360) {
-            return 40;
-        }
-        return 60;
+
+        int restMinutes = calculateMiddleRestMinutes(mission);
+        LocalDateTime now = LocalDateTime.now();
+
+        driver.setStatus(Driver.DriverStatus.RESTING);
+        driver.setRestStartTime(now);
+        driver.setRestEndTime(now.plusMinutes(restMinutes));
+
+        driverRepository.save(driver);
     }
 
     public void markDriverReady(Driver driver) {

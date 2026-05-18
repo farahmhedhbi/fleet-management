@@ -6,10 +6,9 @@ import java.time.LocalDateTime;
 
 public class DispatchStepDTO {
 
-    private DispatchStepType type; // MISSION, REST, RETURN_TO_DEPOT
+    private DispatchStepType type;
 
     private Long missionId;
-
     private String label;
 
     private String fromCity;
@@ -26,8 +25,7 @@ public class DispatchStepDTO {
 
     private Integer durationMinutes;
 
-    public DispatchStepDTO() {
-    }
+    public DispatchStepDTO() {}
 
     public DispatchStepDTO(
             DispatchStepType type,
@@ -48,7 +46,6 @@ public class DispatchStepDTO {
         this.endTime = endTime;
         this.durationMinutes = durationMinutes;
     }
-
     public DispatchStepType getType() {
         return type;
     }

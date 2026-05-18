@@ -1,4 +1,4 @@
-export type DispatchStepType = "MISSION" | "REST" | "RETURN_TO_DEPOT";
+export type DispatchStepType = "MISSION";
 
 export interface DispatchMissionRequest {
   startCity: string;
@@ -15,14 +15,6 @@ export interface DispatchMissionRequest {
 }
 
 export interface SmartAssignmentRequest extends DispatchMissionRequest {}
-
-export interface SmartDailyPlanningRequest {
-  date: string;
-  depotCity: string;
-  depotLatitude: number;
-  depotLongitude: number;
-  missions: DispatchMissionRequest[];
-}
 
 export interface DispatchStepDTO {
   type: DispatchStepType;
@@ -44,7 +36,7 @@ export interface DispatchStepDTO {
 }
 
 export interface DispatchSuggestionDTO {
-  mode: "SMART_ASSIGNMENT" | "SMART_DAILY_PLANNING";
+  mode: "SMART_ASSIGNMENT";
 
   vehicleId: number;
   vehiclePlate: string;
@@ -53,7 +45,6 @@ export interface DispatchSuggestionDTO {
   driverName: string;
 
   score: number;
-  returnToDepotSuggested: boolean;
 
   reasons: string[];
   warnings: string[];

@@ -17,6 +17,7 @@ import {
   History,
   AlertTriangle,
   ShieldCheck,
+  Coffee,
 } from "lucide-react";
 
 function cn(...classes: (string | false | undefined | null)[]) {
@@ -66,6 +67,36 @@ function canReportIncident(mission: Mission) {
   return mission.status === "IN_PROGRESS";
 }
 
+function missionMinutes(mission: Mission) {
+  if (!mission.startDate || !mission.endDate) return 0;
+
+  const start = new Date(mission.startDate).getTime();
+  const end = new Date(mission.endDate).getTime();
+
+  if (Number.isNaN(start) || Number.isNaN(end)) return 0;
+
+  const minutes = Math.round((end - start) / 60000);
+  return Math.max(minutes, 0);
+}
+
+function getRestPolicyText(mission: Mission) {
+  const minutes = missionMinutes(mission);
+
+  if (minutes < 60) {
+    return "Mission < 1h : aucun repos obligatoire";
+  }
+
+  if (minutes <= 120) {
+    return "Mission ≤ 2h : repos 15 min après la mission";
+  }
+
+  return "Mission > 2h : repos 30 min au milieu de la mission";
+}
+
+function canTakeMiddleRest(mission: Mission) {
+  return mission.status === "IN_PROGRESS" && missionMinutes(mission) > 120;
+}
+
 interface DriverRestInfo {
   status?: string;
   availableAt: string;
@@ -91,6 +122,7 @@ interface MyMissionsViewProps {
   onCheckRoute: (mission: Mission) => void;
   onStart: (mission: Mission) => void;
   onFinish: (mission: Mission) => void;
+  onMiddleRest: (mission: Mission) => void;
   canStartMission: (mission: Mission) => boolean;
   canFinishMission: (mission: Mission) => boolean;
   getStartBlockedMessage: (mission: Mission) => string | null;
@@ -105,17 +137,15 @@ export default function MyMissionsView({
   q,
   setQ,
   actingId,
-
   checkingRouteId,
-
   driverRestInfo,
   restLoading,
   onReady,
-
   onRefresh,
   onCheckRoute,
   onStart,
   onFinish,
+  onMiddleRest,
   canStartMission,
   canFinishMission,
   getStartBlockedMessage,
@@ -225,6 +255,7 @@ export default function MyMissionsView({
             const busy = actingId === m.id;
             const checking = checkingRouteId === m.id;
             const reportAllowed = canReportIncident(m);
+            const middleRestAllowed = canTakeMiddleRest(m);
 
             return (
               <div
@@ -283,6 +314,33 @@ export default function MyMissionsView({
                     <Flag className="h-4 w-4 text-slate-400" />
                     <span>Finished: {formatDateTime(m.finishedAt)}</span>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+                    <Coffee className="h-4 w-4 text-amber-600" />
+                    Politique de repos driver
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold text-amber-700">
+                    Durée mission : {missionMinutes(m)} min
+                  </p>
+
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    {getRestPolicyText(m)}
+                  </p>
+
+                  {middleRestAllowed ? (
+                    <button
+                      type="button"
+                      onClick={() => onMiddleRest(m)}
+                      disabled={restLoading || driverRestInfo !== null || busy || checking}
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-extrabold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Coffee className="h-4 w-4" />
+                      {restLoading ? "Repos..." : "Prendre repos 30 min"}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -376,7 +434,7 @@ export default function MyMissionsView({
                     <button
                       type="button"
                       onClick={() => onFinish(m)}
-                      disabled={!canFinish || busy}
+                      disabled={!canFinish || busy || driverRestInfo !== null}
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Flag className="h-4 w-4" />
