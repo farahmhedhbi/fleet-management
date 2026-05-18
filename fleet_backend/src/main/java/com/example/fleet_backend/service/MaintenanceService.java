@@ -6,6 +6,7 @@ import com.example.fleet_backend.dto.MaintenanceUpdateStatusRequest;
 import com.example.fleet_backend.model.*;
 import com.example.fleet_backend.repository.IncidentRepository;
 import com.example.fleet_backend.repository.MaintenanceRepository;
+import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.security.AuthUtil;
 import org.springframework.security.core.Authentication;
@@ -23,19 +24,89 @@ public class MaintenanceService {
     private final VehicleAccessService vehicleAccessService;
     private final IncidentRepository incidentRepository;
     private final VehicleStatusService vehicleStatusService;
+    private final MissionRepository missionRepository;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
             VehicleRepository vehicleRepository,
             VehicleAccessService vehicleAccessService,
             IncidentRepository incidentRepository,
-            VehicleStatusService vehicleStatusService
+            VehicleStatusService vehicleStatusService,
+            MissionRepository missionRepository
     ) {
         this.maintenanceRepository = maintenanceRepository;
         this.vehicleRepository = vehicleRepository;
         this.vehicleAccessService = vehicleAccessService;
         this.incidentRepository = incidentRepository;
         this.vehicleStatusService = vehicleStatusService;
+        this.missionRepository = missionRepository;
+    }
+
+    @Transactional
+    public List<MaintenanceDTO> getLatestMaintenances(Authentication auth) {
+        markOverdueMaintenances();
+
+        return maintenanceRepository.findTop50ByOrderByCreatedAtDesc()
+                .stream()
+                .filter(m -> canCurrentUserSeeMaintenance(m, auth))
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @Transactional
+    public MaintenanceDTO getMaintenanceById(Long id, Authentication auth) {
+        markOverdueMaintenances();
+
+        Maintenance maintenance = maintenanceRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Maintenance introuvable"));
+
+        if (!canCurrentUserSeeMaintenance(maintenance, auth)) {
+            throw new RuntimeException("Accès refusé à cette maintenance");
+        }
+
+        return toDTO(maintenance);
+    }
+
+    @Transactional
+    public List<MaintenanceDTO> getMaintenancesByVehicle(Long vehicleId) {
+        markOverdueMaintenances();
+
+        vehicleAccessService.assertCanAccessVehicle(vehicleId);
+
+        return maintenanceRepository.findByVehicleIdOrderByCreatedAtDesc(vehicleId)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @Transactional
+    public List<MaintenanceDTO> getMaintenancesByStatus(MaintenanceStatus status, Authentication auth) {
+        markOverdueMaintenances();
+
+        return maintenanceRepository.findByStatusOrderByCreatedAtDesc(status)
+                .stream()
+                .filter(m -> canCurrentUserSeeMaintenance(m, auth))
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @Transactional
+    public List<MaintenanceDTO> getUpcomingMaintenances(Authentication auth) {
+        markOverdueMaintenances();
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime next30Days = now.plusDays(30);
+
+        return maintenanceRepository
+                .findByStatusAndPlannedDateBetweenOrderByPlannedDateAsc(
+                        MaintenanceStatus.PLANNED,
+                        now,
+                        next30Days
+                )
+                .stream()
+                .filter(m -> canCurrentUserSeeMaintenance(m, auth))
+                .map(this::toDTO)
+                .toList();
     }
 
     @Transactional
@@ -173,71 +244,6 @@ public class MaintenanceService {
         return toDTO(saved);
     }
 
-    @Transactional(readOnly = true)
-    public List<MaintenanceDTO> getLatestMaintenances(Authentication auth) {
-        return maintenanceRepository.findTop50ByOrderByCreatedAtDesc()
-                .stream()
-                .filter(maintenance -> canCurrentUserSeeMaintenance(maintenance, auth))
-                .map(this::toDTO)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public MaintenanceDTO getMaintenanceById(Long id, Authentication auth) {
-        Maintenance maintenance = maintenanceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maintenance introuvable"));
-
-        if (!canCurrentUserSeeMaintenance(maintenance, auth)) {
-            throw new RuntimeException("Accès refusé à cette maintenance");
-        }
-
-        return toDTO(maintenance);
-    }
-
-    @Transactional(readOnly = true)
-    public List<MaintenanceDTO> getMaintenancesByVehicle(Long vehicleId) {
-        vehicleAccessService.assertCanAccessVehicle(vehicleId);
-
-        return maintenanceRepository.findByVehicleIdOrderByCreatedAtDesc(vehicleId)
-                .stream()
-                .map(this::toDTO)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<MaintenanceDTO> getMaintenancesByStatus(MaintenanceStatus status, Authentication auth) {
-        return maintenanceRepository.findByStatusOrderByCreatedAtDesc(status)
-                .stream()
-                .filter(maintenance -> canCurrentUserSeeMaintenance(maintenance, auth))
-                .map(this::toDTO)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<MaintenanceDTO> getUpcomingMaintenances(Authentication auth) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime next30Days = now.plusDays(30);
-
-        return maintenanceRepository
-                .findByStatusAndPlannedDateBetweenOrderByPlannedDateAsc(
-                        MaintenanceStatus.PLANNED,
-                        now,
-                        next30Days
-                )
-                .stream()
-                .filter(maintenance -> canCurrentUserSeeMaintenance(maintenance, auth))
-                .map(this::toDTO)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public MaintenanceDTO getMaintenanceByIncident(Long incidentId, Authentication auth) {
-        return maintenanceRepository.findFirstByIncidentIdOrderByCreatedAtDesc(incidentId)
-                .filter(maintenance -> canCurrentUserSeeMaintenance(maintenance, auth))
-                .map(this::toDTO)
-                .orElse(null);
-    }
-
     @Transactional
     public MaintenanceDTO updateStatus(Long id, MaintenanceUpdateStatusRequest request, Authentication auth) {
         assertOwnerOrAdmin(auth);
@@ -260,7 +266,27 @@ public class MaintenanceService {
 
         validateStatusTransition(oldStatus, newStatus);
 
+        if (newStatus == MaintenanceStatus.IN_PROGRESS && vehicle != null) {
+            boolean vehicleOnMission =
+                    missionRepository.existsByVehicleIdAndStatus(
+                            vehicle.getId(),
+                            Mission.MissionStatus.IN_PROGRESS
+                    );
+
+            if (vehicleOnMission) {
+                throw new IllegalStateException(
+                        "Impossible de démarrer cette maintenance : le véhicule est actuellement en mission."
+                );
+            }
+        }
+
         maintenance.setStatus(newStatus);
+
+        if (newStatus == MaintenanceStatus.IN_PROGRESS) {
+            if (maintenance.getMaintenanceDate() == null) {
+                maintenance.setMaintenanceDate(LocalDateTime.now());
+            }
+        }
 
         if (newStatus == MaintenanceStatus.DONE) {
             maintenance.setCompletedAt(LocalDateTime.now());
@@ -321,6 +347,16 @@ public class MaintenanceService {
     }
 
     @Transactional
+    public MaintenanceDTO getMaintenanceByIncident(Long incidentId, Authentication auth) {
+        markOverdueMaintenances();
+
+        return maintenanceRepository.findFirstByIncidentIdOrderByCreatedAtDesc(incidentId)
+                .filter(m -> canCurrentUserSeeMaintenance(m, auth))
+                .map(this::toDTO)
+                .orElse(null);
+    }
+
+    @Transactional
     public void markOverdueMaintenances() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -329,6 +365,10 @@ public class MaintenanceService {
                         MaintenanceStatus.PLANNED,
                         now
                 );
+
+        if (overdueMaintenances.isEmpty()) {
+            return;
+        }
 
         for (Maintenance maintenance : overdueMaintenances) {
             maintenance.setStatus(MaintenanceStatus.OVERDUE);
