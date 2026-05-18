@@ -68,4 +68,17 @@ export const incidentService = {
     const res = await api.put(`/api/incidents/${id}/status`, { status });
     return res.data;
   },
+async getMissionVehiclePosition(missionId: number) {
+  const res = await api.get(`/api/missions/${missionId}/live`);
+
+  return {
+    latitude: res.data.latitude,
+    longitude: res.data.longitude,
+    locationName: res.data.locationName ?? null,
+  } as {
+    latitude: number;
+    longitude: number;
+    locationName?: string | null;
+  };
+}
 };

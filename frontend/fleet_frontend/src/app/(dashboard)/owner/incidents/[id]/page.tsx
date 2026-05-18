@@ -12,6 +12,7 @@ import {
   Loader2,
   MapPin,
   Wrench,
+  ExternalLink,
 } from "lucide-react";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -25,7 +26,8 @@ import type {
 import type { MaintenanceDTO } from "@/types/maintenance";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+  "http://localhost:8080";
 
 function getFileUrl(url?: string | null) {
   if (!url) return null;
@@ -190,16 +192,23 @@ export default function IncidentDetailPage() {
 
   const photos = incident ? getIncidentPhotos(incident) : [];
 
+  const hasCoordinates =
+    incident?.latitude != null && incident?.longitude != null;
+
+  const googleMapsUrl = hasCoordinates
+    ? `https://www.google.com/maps?q=${incident?.latitude},${incident?.longitude}`
+    : null;
+
   return (
-    <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN"]}>
+    <ProtectedRoute allowedRoles={["ROLE_OWNER", "ROLE_ADMIN", "ROLE_DRIVER"]}>
       <div className="min-h-screen bg-slate-50 px-4 py-6 md:px-8">
         <div className="mx-auto max-w-5xl space-y-6">
           <Link
             href="/owner/incidents"
-            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:underline"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
             <ArrowLeft size={16} />
-            Retour incidents
+            Retour
           </Link>
 
           {loadingIncident ? (
@@ -214,228 +223,269 @@ export default function IncidentDetailPage() {
               Incident introuvable
             </div>
           ) : (
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="bg-gradient-to-r from-red-600 to-orange-500 p-6 text-white">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black">{incident.title}</h1>
-                    <p className="mt-1 text-sm text-white/90">
-                      Incident #{incident.id} • {incident.type}
+            <>
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-red-600 to-orange-500 p-6 text-white">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="mb-3 inline-flex rounded-full bg-white/20 px-4 py-1 text-xs font-black">
+                        Détail incident
+                      </div>
+
+                      <h1 className="text-3xl font-black">{incident.title}</h1>
+
+                      <p className="mt-2 text-sm text-white/90">
+                        {incident.description || "Aucune description fournie."}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <span className="rounded-full bg-white px-4 py-2 text-xs font-black text-orange-700">
+                        {incident.severity}
+                      </span>
+
+                      <span
+                        className={`rounded-full border px-4 py-2 text-xs font-black ${statusBadgeClass(
+                          incident.status
+                        )}`}
+                      >
+                        {incident.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-6 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                    <div className="mb-3 flex items-center gap-2 font-black text-slate-900">
+                      Véhicule
+                    </div>
+
+                    <p className="text-sm text-slate-500">Matricule</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">
+                      {incident.vehicleRegistrationNumber ?? "-"}
                     </p>
                   </div>
 
-                  <span
-                    className={`rounded-full border px-4 py-2 text-xs font-black ${statusBadgeClass(
-                      incident.status
-                    )}`}
-                  >
-                    {incident.status}
-                  </span>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                    <div className="mb-3 flex items-center gap-2 font-black text-slate-900">
+                      Mission
+                    </div>
+
+                    <p className="text-sm text-slate-500">Mission liée</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">
+                      {incident.missionTitle ?? "-"}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-6 p-6">
-                <p className="text-sm text-slate-700">
-                  {incident.description || "Aucune description."}
-                </p>
-
-                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                  <div className="mb-2 flex items-center gap-2 font-bold text-blue-800">
-                    <MapPin size={18} />
-                    Position de l’incident
-                  </div>
-
-                  <p className="text-sm text-blue-900">
-                    {incident.locationName ?? "Position inconnue"}
-                  </p>
+              <div className="rounded-3xl border border-blue-100 bg-blue-50 p-6 shadow-sm">
+                <div className="mb-3 flex items-center gap-2 font-black text-blue-800">
+                  <MapPin size={20} />
+                  Position de l’incident
                 </div>
 
-                {loadingMaintenance ? (
-                  <div className="rounded-2xl border bg-white p-4 text-sm text-slate-500">
-                    Chargement maintenance liée...
+                {incident.locationName ? (
+                  <p className="text-sm font-bold text-blue-900">
+                    {incident.locationName}
+                  </p>
+                ) : hasCoordinates ? (
+                  <div className="space-y-2 text-sm text-blue-900">
+                    <p>
+                      Latitude :{" "}
+                      <span className="font-black">{incident.latitude}</span>
+                    </p>
+
+                    <p>
+                      Longitude :{" "}
+                      <span className="font-black">{incident.longitude}</span>
+                    </p>
+
+                    {googleMapsUrl && (
+                      <a
+                        href={googleMapsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+                      >
+                        Ouvrir sur Google Maps
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
                   </div>
-                ) : linkedMaintenance ? (
-                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 font-black text-orange-800">
-                          <Wrench size={18} />
-                          Maintenance liée
-                        </div>
+                ) : (
+                  <p className="text-sm font-bold text-blue-900">
+                    Position inconnue
+                  </p>
+                )}
+              </div>
 
-                        <p className="mt-1 text-sm font-semibold text-orange-700">
-                          #{linkedMaintenance.id} - {linkedMaintenance.title}
-                        </p>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-black text-slate-900">
+                  Photos de l’incident
+                </h2>
 
-                        <p className="mt-1 text-xs text-orange-600">
-                          Statut maintenance : {linkedMaintenance.status}
-                        </p>
+                {photos.length > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {photos.map((src, index) => (
+                      <img
+                        key={`${src}-${index}`}
+                        src={src}
+                        alt={`Photo incident ${index + 1}`}
+                        className="h-64 w-full rounded-xl border object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Aucune photo ajoutée pour cet incident.
+                  </p>
+                )}
+              </div>
+
+              {loadingMaintenance ? (
+                <div className="rounded-3xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
+                  Chargement maintenance liée...
+                </div>
+              ) : linkedMaintenance ? (
+                <div className="rounded-3xl border border-orange-200 bg-orange-50 p-6 shadow-sm">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 font-black text-orange-800">
+                        <Wrench size={18} />
+                        Maintenance liée
                       </div>
 
-                      <Link
-                        href={`/owner/maintenances/${linkedMaintenance.id}`}
-                        className="rounded-xl bg-orange-600 px-4 py-2 text-xs font-black text-white hover:bg-orange-700"
-                      >
-                        Voir maintenance
-                      </Link>
-                    </div>
-                  </div>
-                ) : incident.status === "OPEN" ? (
-                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 font-black text-orange-800">
-                          <Wrench size={18} />
-                          Action recommandée
-                        </div>
+                      <p className="mt-1 text-sm font-semibold text-orange-700">
+                        #{linkedMaintenance.id} - {linkedMaintenance.title}
+                      </p>
 
-                        <p className="mt-1 text-sm text-orange-700">
-                          Créer une maintenance pour traiter cet incident.
-                        </p>
+                      <p className="mt-1 text-xs text-orange-600">
+                        Statut maintenance : {linkedMaintenance.status}
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/owner/maintenances/${linkedMaintenance.id}`}
+                      className="rounded-xl bg-orange-600 px-4 py-2 text-xs font-black text-white hover:bg-orange-700"
+                    >
+                      Voir maintenance
+                    </Link>
+                  </div>
+                </div>
+              ) : incident.status === "OPEN" ? (
+                <div className="rounded-3xl border border-orange-200 bg-orange-50 p-6 shadow-sm">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 font-black text-orange-800">
+                        <Wrench size={18} />
+                        Action recommandée
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={createMaintenance}
-                        disabled={creatingMaintenance || !!linkedMaintenance}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-xs font-black text-white hover:bg-orange-700 disabled:opacity-50"
-                      >
-                        {creatingMaintenance ? "Création..." : "Créer maintenance"}
-                      </button>
+                      <p className="mt-1 text-sm text-orange-700">
+                        Créer une maintenance pour traiter cet incident.
+                      </p>
                     </div>
-                  </div>
-                ) : null}
 
-                <div>
-                  <p className="mb-2 text-sm font-bold">Photos incident</p>
-
-                  {photos.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {photos.map((src, index) => (
-                        <img
-                          key={`${src}-${index}`}
-                          src={src}
-                          alt={`Photo incident ${index + 1}`}
-                          className="h-64 w-full rounded-xl border object-cover"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      Aucune photo ajoutée pour cet incident.
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid gap-4 text-sm md:grid-cols-2">
-                  <p>
-                    <b>Véhicule :</b>{" "}
-                    {incident.vehicleRegistrationNumber ?? "-"}
-                  </p>
-                  <p>
-                    <b>Mission :</b> {incident.missionTitle ?? "-"}
-                  </p>
-                  <p>
-                    <b>Severity :</b> {incident.severity}
-                  </p>
-                  <p>
-                    <b>Source :</b> {incident.source}
-                  </p>
-                  <p>
-                    <b>Reported by :</b> {incident.reportedByEmail ?? "-"}
-                  </p>
-                  <p>
-                    <b>Handled by :</b> {incident.handledByEmail ?? "-"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Clock3 className="text-blue-600" size={20} />
-                    <h2 className="text-lg font-bold text-slate-900">
-                      Historique de l’incident
-                    </h2>
-                  </div>
-
-                  {loadingHistory ? (
-                    <p className="text-sm text-slate-500">
-                      Chargement historique...
-                    </p>
-                  ) : history.length > 0 ? (
-                    <div className="space-y-4">
-                      {history.map((h, index) => (
-                        <div key={h.id} className="flex gap-3">
-                          <div className="flex flex-col items-center">
-                            <div className="h-3 w-3 rounded-full bg-blue-600" />
-                            {index !== history.length - 1 && (
-                              <div className="h-full min-h-10 w-px bg-slate-300" />
-                            )}
-                          </div>
-
-                          <div className="flex-1 pb-2">
-                            <p className="text-sm font-bold text-slate-800">
-                              {historyLabel(h)}
-                            </p>
-
-                            {h.comment && (
-                              <p className="mt-1 text-xs text-slate-500">
-                                {h.comment}
-                              </p>
-                            )}
-
-                            {h.oldStatus && h.newStatus && (
-                              <p className="mt-1 text-xs font-semibold text-slate-600">
-                                {h.oldStatus} → {h.newStatus}
-                              </p>
-                            )}
-
-                            <p className="mt-1 text-xs text-slate-400">
-                              {h.userEmail ?? "Système"} •{" "}
-                              {formatDate(h.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      Aucun historique disponible.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  {incident.status === "RESOLVED" && (
                     <button
                       type="button"
-                      onClick={closeIncident}
-                      disabled={updatingStatus}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50"
+                      onClick={createMaintenance}
+                      disabled={creatingMaintenance || !!linkedMaintenance}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-xs font-black text-white hover:bg-orange-700 disabled:opacity-50"
                     >
-                      {updatingStatus ? (
-                        <Loader2 className="animate-spin" size={15} />
-                      ) : (
-                        <CheckCircle2 size={15} />
-                      )}
-                      CLOSED
+                      {creatingMaintenance ? "Création..." : "Créer maintenance"}
                     </button>
-                  )}
-
-                  {incident.status === "IN_PROGRESS" && (
-                    <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700">
-                      Incident en cours : terminez la maintenance liée pour le
-                      résoudre automatiquement.
-                    </div>
-                  )}
-
-                  {incident.status === "CLOSED" && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
-                      Incident clôturé.
-                    </div>
-                  )}
+                  </div>
                 </div>
+              ) : null}
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <Clock3 className="text-blue-600" size={20} />
+                  <h2 className="text-lg font-black text-slate-900">
+                    Historique de l’incident
+                  </h2>
+                </div>
+
+                {loadingHistory ? (
+                  <p className="text-sm text-slate-500">
+                    Chargement historique...
+                  </p>
+                ) : history.length > 0 ? (
+                  <div className="space-y-4">
+                    {history.map((h, index) => (
+                      <div key={h.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="h-3 w-3 rounded-full bg-blue-600" />
+                          {index !== history.length - 1 && (
+                            <div className="h-full min-h-10 w-px bg-slate-300" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 pb-2">
+                          <p className="text-sm font-bold text-slate-800">
+                            {historyLabel(h)}
+                          </p>
+
+                          {h.comment && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {h.comment}
+                            </p>
+                          )}
+
+                          {h.oldStatus && h.newStatus && (
+                            <p className="mt-1 text-xs font-semibold text-slate-600">
+                              {h.oldStatus} → {h.newStatus}
+                            </p>
+                          )}
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            {h.userEmail ?? "Système"} •{" "}
+                            {formatDate(h.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Aucun historique disponible.
+                  </p>
+                )}
               </div>
-            </div>
+
+              <div className="flex gap-3 pt-2">
+                {incident.status === "RESOLVED" && (
+                  <button
+                    type="button"
+                    onClick={closeIncident}
+                    disabled={updatingStatus}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-700 px-4 py-2 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {updatingStatus ? (
+                      <Loader2 className="animate-spin" size={15} />
+                    ) : (
+                      <CheckCircle2 size={15} />
+                    )}
+                    CLOSED
+                  </button>
+                )}
+
+                {incident.status === "IN_PROGRESS" && (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700">
+                    Incident en cours : terminez la maintenance liée pour le
+                    résoudre automatiquement.
+                  </div>
+                )}
+
+                {incident.status === "CLOSED" && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+                    Incident clôturé.
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

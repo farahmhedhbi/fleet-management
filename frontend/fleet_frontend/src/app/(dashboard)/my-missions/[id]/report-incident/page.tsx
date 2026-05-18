@@ -43,12 +43,12 @@ export default function DriverReportIncidentPage() {
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=fr`
       );
 
-      if (!res.ok) return "Position inconnue";
+      if (!res.ok) return "Position véhicule récupérée";
 
       const data = await res.json();
       const address = data.address ?? {};
 
-      const localPlace =
+      return (
         address.village ||
         address.town ||
         address.suburb ||
@@ -57,60 +57,50 @@ export default function DriverReportIncidentPage() {
         address.municipality ||
         address.city ||
         address.county ||
-        address.state;
-
-      const region = address.city || address.town || address.county || address.state;
-
-      if (localPlace && region && localPlace !== region) {
-        return `${localPlace} (${region})`;
-      }
-
-      return localPlace || data.display_name || "Position inconnue";
-    } catch (error) {
-      console.error("Reverse geocoding error:", error);
-      return "Position inconnue";
+        address.state ||
+        data.display_name ||
+        "Position véhicule récupérée"
+      );
+    } catch {
+      return "Position véhicule récupérée";
     }
   }
 
-  function getCurrentLocation() {
-    if (!navigator.geolocation) {
-      toast.error("La géolocalisation n'est pas supportée");
+  async function getVehicleCurrentLocation() {
+    if (!missionId || Number.isNaN(missionId)) {
+      toast.error("Mission invalide");
       return;
     }
 
-    setLocating(true);
+    try {
+      setLocating(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
+      const position = await incidentService.getMissionVehiclePosition(missionId);
 
-        setLatitude(lat);
-        setLongitude(lng);
-
-        const address = await getAddressFromCoords(lat, lng);
-        setLocationName(address);
-
-        toast.success("Position récupérée");
-        setLocating(false);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-
-        if (error.code === 1) toast.error("Permission localisation refusée");
-        else if (error.code === 2)
-          toast.error("Position indisponible. Active la localisation Windows.");
-        else if (error.code === 3) toast.error("Délai dépassé. Réessaie.");
-        else toast.error("Impossible de récupérer la position");
-
-        setLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
+      if (!position.latitude || !position.longitude) {
+        toast.error("Aucune position GPS véhicule disponible");
+        return;
       }
-    );
+
+      setLatitude(position.latitude);
+      setLongitude(position.longitude);
+
+      const name =
+        position.locationName ||
+        (await getAddressFromCoords(position.latitude, position.longitude));
+
+      setLocationName(name);
+
+      toast.success("Position réelle du véhicule récupérée");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Impossible de récupérer la position GPS du véhicule"
+      );
+    } finally {
+      setLocating(false);
+    }
   }
 
   function handlePhotosChange(files?: FileList | null) {
@@ -162,6 +152,11 @@ export default function DriverReportIncidentPage() {
       return;
     }
 
+    if (!latitude || !longitude) {
+      toast.error("Récupère d’abord la position réelle du véhicule");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -173,8 +168,8 @@ export default function DriverReportIncidentPage() {
           severity,
           missionId,
           emergency,
-          latitude: latitude ?? undefined,
-          longitude: longitude ?? undefined,
+          latitude,
+          longitude,
           locationName: locationName ?? undefined,
         },
         photos
@@ -200,7 +195,10 @@ export default function DriverReportIncidentPage() {
           </p>
         </div>
 
-        <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm">
+        <form
+          onSubmit={submit}
+          className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm"
+        >
           <label className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
             <input
               type="checkbox"
@@ -216,7 +214,9 @@ export default function DriverReportIncidentPage() {
           </label>
 
           <div>
-            <label className="mb-1 block text-sm font-semibold">Type incident</label>
+            <label className="mb-1 block text-sm font-semibold">
+              Type incident
+            </label>
             <select
               className="w-full rounded-xl border p-3"
               value={type}
@@ -256,7 +256,9 @@ export default function DriverReportIncidentPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-semibold">Description</label>
+            <label className="mb-1 block text-sm font-semibold">
+              Description
+            </label>
             <textarea
               className="min-h-32 w-full rounded-xl border p-3"
               placeholder="Décrivez ce qui s'est passé..."
@@ -266,21 +268,31 @@ export default function DriverReportIncidentPage() {
           </div>
 
           <div className="rounded-xl border bg-slate-50 p-4">
-            <label className="mb-2 block text-sm font-semibold">Position de l’incident</label>
+            <label className="mb-2 block text-sm font-semibold">
+              Position réelle du véhicule
+            </label>
 
             <button
               type="button"
-              onClick={getCurrentLocation}
+              onClick={getVehicleCurrentLocation}
               disabled={locating}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 p-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
               <MapPin size={18} />
-              {locating ? "Récupération..." : "Récupérer ma position actuelle"}
+              {locating
+                ? "Récupération GPS véhicule..."
+                : "Récupérer position réelle du véhicule"}
             </button>
 
-            {locationName && (
+            {latitude && longitude && (
               <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                📍 Position : <span className="font-semibold">{locationName}</span>
+                📍 Position véhicule :{" "}
+                <span className="font-semibold">
+                  {locationName ?? "Position récupérée"}
+                </span>
+                <div className="mt-1 text-xs text-green-600">
+                  Lat: {latitude.toFixed(6)} / Lng: {longitude.toFixed(6)}
+                </div>
               </div>
             )}
           </div>
@@ -313,7 +325,10 @@ export default function DriverReportIncidentPage() {
             {photoPreviews.length > 0 && (
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {photoPreviews.map((src, index) => (
-                  <div key={src} className="relative overflow-hidden rounded-xl border">
+                  <div
+                    key={src}
+                    className="relative overflow-hidden rounded-xl border"
+                  >
                     <img
                       src={src}
                       alt={`Prévisualisation ${index + 1}`}

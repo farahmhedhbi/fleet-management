@@ -1,12 +1,11 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
   Banknote,
-  CalendarDays,
   CheckCircle2,
   Loader2,
   Plus,
@@ -18,7 +17,16 @@ import { toast } from "react-toastify";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { maintenanceService } from "@/lib/services/maintenanceService";
 import { maintenanceWorkOrderService } from "@/lib/services/maintenanceWorkOrderService";
+import { vehicleService } from "@/lib/services/vehicleService";
 import type { MaintenanceDTO } from "@/types/maintenance";
+
+type VehicleOption = {
+  id: number;
+  registrationNumber?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  status?: string | null;
+};
 
 function toLocalDateTime(value: string) {
   if (!value) return undefined;
@@ -28,6 +36,12 @@ function toLocalDateTime(value: string) {
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Date(value).toLocaleString("fr-FR");
+}
+
+function vehicleLabel(v: VehicleOption) {
+  const plate = v.registrationNumber ?? `Véhicule #${v.id}`;
+  const info = [v.brand, v.model].filter(Boolean).join(" ");
+  return info ? `${plate} - ${info}` : plate;
 }
 
 function priorityClass(priority: string) {
@@ -63,6 +77,9 @@ function statusBadgeClass(status: string) {
 export default function NewMaintenanceWorkOrderPage() {
   const router = useRouter();
 
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+
   const [vehicleId, setVehicleId] = useState("");
   const [title, setTitle] = useState("");
   const [garageName, setGarageName] = useState("");
@@ -80,11 +97,32 @@ export default function NewMaintenanceWorkOrderPage() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
 
-  async function loadMaintenances() {
-    const parsedVehicleId = Number(vehicleId);
+  useEffect(() => {
+    async function loadVehicles() {
+      try {
+        setLoadingVehicles(true);
+        const data = await vehicleService.getAll();
+        setVehicles(data ?? []);
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            "Erreur chargement véhicules"
+        );
+      } finally {
+        setLoadingVehicles(false);
+      }
+    }
+
+    loadVehicles();
+  }, []);
+
+  async function loadMaintenancesByVehicle(id: string) {
+    const parsedVehicleId = Number(id);
 
     if (!parsedVehicleId || parsedVehicleId <= 0) {
-      toast.error("Saisis un Vehicle ID valide");
+      setMaintenances([]);
+      setSelectedMaintenanceIds([]);
       return;
     }
 
@@ -94,10 +132,7 @@ export default function NewMaintenanceWorkOrderPage() {
       const data = await maintenanceService.getByVehicle(parsedVehicleId);
 
       const available = data.filter(
-        (m) =>
-          m.status !== "DONE" &&
-          m.status !== "CANCELED" &&
-          !m.workOrderId
+        (m) => m.status !== "DONE" && m.status !== "CANCELED" && !m.workOrderId
       );
 
       setMaintenances(available);
@@ -111,11 +146,17 @@ export default function NewMaintenanceWorkOrderPage() {
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
+          error?.response?.data?.error ||
           "Erreur chargement maintenances véhicule"
       );
     } finally {
       setLoadingMaintenances(false);
     }
+  }
+
+  function handleVehicleChange(value: string) {
+    setVehicleId(value);
+    loadMaintenancesByVehicle(value);
   }
 
   function toggleMaintenance(id: number) {
@@ -130,7 +171,7 @@ export default function NewMaintenanceWorkOrderPage() {
     const parsedVehicleId = Number(vehicleId);
 
     if (!parsedVehicleId || parsedVehicleId <= 0) {
-      toast.error("Vehicle ID obligatoire");
+      toast.error("Sélectionne un véhicule");
       return;
     }
 
@@ -178,6 +219,10 @@ export default function NewMaintenanceWorkOrderPage() {
       setCreating(false);
     }
   }
+
+  const selectedVehicle = useMemo(() => {
+    return vehicles.find((v) => String(v.id) === vehicleId);
+  }, [vehicles, vehicleId]);
 
   const filteredMaintenances = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -235,8 +280,8 @@ export default function NewMaintenanceWorkOrderPage() {
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm text-white/90">
-                    Regroupe plusieurs maintenances d’un même véhicule dans une
-                    seule intervention garage.
+                    Choisis un véhicule, sélectionne ses maintenances disponibles
+                    puis crée une intervention garage.
                   </p>
                 </div>
 
@@ -283,26 +328,38 @@ export default function NewMaintenanceWorkOrderPage() {
                 </h2>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="mb-1 block text-sm font-bold text-slate-600">
-                      Vehicle ID
+                      Véhicule concerné
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white"
-                        placeholder="Ex: 2"
-                        value={vehicleId}
-                        onChange={(e) => setVehicleId(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={loadMaintenances}
-                        disabled={loadingMaintenances}
-                        className="whitespace-nowrap rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50"
-                      >
-                        {loadingMaintenances ? "..." : "Charger"}
-                      </button>
-                    </div>
+
+                    <select
+                      value={vehicleId}
+                      onChange={(e) => handleVehicleChange(e.target.value)}
+                      disabled={loadingVehicles}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white disabled:opacity-60"
+                    >
+                      <option value="">
+                        {loadingVehicles
+                          ? "Chargement des véhicules..."
+                          : "Sélectionner un véhicule"}
+                      </option>
+
+                      {vehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {vehicleLabel(v)}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedVehicle && (
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        Véhicule sélectionné :{" "}
+                        <span className="text-blue-700">
+                          {vehicleLabel(selectedVehicle)}
+                        </span>
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -334,10 +391,26 @@ export default function NewMaintenanceWorkOrderPage() {
                       Coût estimé
                     </label>
                     <input
+                      type="number"
+                      min="0"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white"
                       placeholder="Ex: 250"
                       value={estimatedCost}
                       onChange={(e) => setEstimatedCost(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-bold text-slate-600">
+                      Durée estimée en jours
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white"
+                      placeholder="Ex: 2"
+                      value={estimatedDurationDays}
+                      onChange={(e) => setEstimatedDurationDays(e.target.value)}
                     />
                   </div>
 
@@ -362,20 +435,6 @@ export default function NewMaintenanceWorkOrderPage() {
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-bold text-slate-600">
-                      Durée estimée en jours
-                    </label>
-                    <input
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-blue-400 focus:bg-white"
-                      placeholder="Ex: 2"
-                      value={estimatedDurationDays}
-                      onChange={(e) =>
-                        setEstimatedDurationDays(e.target.value)
-                      }
                     />
                   </div>
 
@@ -414,7 +473,12 @@ export default function NewMaintenanceWorkOrderPage() {
                   </div>
                 </div>
 
-                {loadingMaintenances ? (
+                {!vehicleId ? (
+                  <div className="rounded-2xl border bg-slate-50 p-8 text-center text-sm text-slate-500">
+                    Sélectionne d’abord un véhicule pour afficher ses maintenances
+                    disponibles.
+                  </div>
+                ) : loadingMaintenances ? (
                   <div className="rounded-2xl border bg-slate-50 p-6">
                     <div className="flex items-center gap-3 text-slate-600">
                       <Loader2 className="animate-spin" size={20} />
@@ -423,7 +487,7 @@ export default function NewMaintenanceWorkOrderPage() {
                   </div>
                 ) : filteredMaintenances.length === 0 ? (
                   <div className="rounded-2xl border bg-slate-50 p-8 text-center text-sm text-slate-500">
-                    Aucune maintenance chargée ou disponible.
+                    Aucune maintenance disponible pour ce véhicule.
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -499,9 +563,11 @@ export default function NewMaintenanceWorkOrderPage() {
                 </h2>
 
                 <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Vehicle ID</span>
-                    <b>{vehicleId || "-"}</b>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Véhicule</span>
+                    <b className="text-right">
+                      {selectedVehicle ? vehicleLabel(selectedVehicle) : "-"}
+                    </b>
                   </div>
 
                   <div className="flex justify-between">
@@ -547,8 +613,8 @@ export default function NewMaintenanceWorkOrderPage() {
                     Conseil
                   </div>
                   <p className="text-xs leading-5 text-slate-500">
-                    Un WorkOrder doit regrouper uniquement les maintenances du
-                    même véhicule et non terminées.
+                    Un WorkOrder regroupe seulement les maintenances non terminées
+                    du véhicule sélectionné.
                   </p>
                 </div>
 

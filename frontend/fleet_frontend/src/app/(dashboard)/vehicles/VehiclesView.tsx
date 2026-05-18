@@ -492,60 +492,77 @@ export default function VehiclesView({
                       </div>
                     </div>
 
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1">
+                    <div className="border-t border-slate-200 bg-white px-6 py-5">
+                      <div className="mb-4 flex flex-wrap items-center gap-3">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
                           <Shield className="h-4 w-4 text-emerald-500" />
-                          <span className="text-xs text-slate-500">Assuré</span>
-                        </div>
-                        <div className="flex items-center gap-1">
+                          Assuré
+                        </span>
+
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
                           <Navigation className="h-4 w-4 text-blue-500" />
-                          <span className="text-xs text-slate-500">GPS Actif</span>
-                        </div>
+                          GPS actif
+                        </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          onClick={() => onEdit(vehicle.id)}
-                          className="p-2 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all shadow-sm"
-                          title="Modifier"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          onClick={() => setShowDeleteModal(vehicle.id)}
-                          className="p-2 bg-white border border-slate-300 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all shadow-sm"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-
+                      <div className="space-y-3">
                         <button
                           onClick={() => setSelectedVehicle(vehicle)}
-                          className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all shadow-md"
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-3.5 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
                           title="Voir détails"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-5 w-5" />
+                          Voir détails du véhicule
                         </button>
 
-                        <Link
-                          href={`/vehicles/${vehicle.id}/obd`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition-all hover:bg-emerald-100 hover:shadow-sm"
-                          title="Voir OBD"
-                        >
-                          <Gauge className="h-4 w-4" />
-                          <span className="hidden sm:inline">OBD</span>
-                        </Link>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Link
+                            href={`/vehicles/${vehicle.id}/obd`}
+                            className="flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100 hover:shadow-sm"
+                            title="Voir OBD"
+                          >
+                            <Gauge className="h-4 w-4" />
+                            OBD Live
+                          </Link>
+
+                          <Link
+                            href={`/vehicles/${vehicle.id}/obd/history`}
+                            className="flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 hover:shadow-sm"
+                            title="Voir historique OBD"
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                            Historique OBD
+                          </Link>
+                        </div>
 
                         <Link
-                          href={`/vehicles/${vehicle.id}/obd/history`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-sm"
-                          title="Voir historique OBD"
+                          href={`/vehicles/${vehicle.id}/maintenance-history`}
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100 hover:shadow-sm"
+                          title="Voir historique maintenance"
                         >
-                          <BarChart3 className="h-4 w-4" />
-                          <span className="hidden sm:inline">Historique OBD</span>
+                          <Wrench className="h-4 w-4" />
+                          Historique maintenance
                         </Link>
+
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                          <button
+                            onClick={() => onEdit(vehicle.id)}
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-blue-50 hover:text-blue-600"
+                            title="Modifier"
+                          >
+                            <Edit className="h-4 w-4" />
+                            Modifier
+                          </button>
+
+                          <button
+                            onClick={() => setShowDeleteModal(vehicle.id)}
+                            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Supprimer
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
