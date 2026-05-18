@@ -425,7 +425,7 @@ const handleMiddleRest = useCallback(
     [load]
   );
 
-  return (
+ return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
         missions={missions}
@@ -444,6 +444,7 @@ const handleMiddleRest = useCallback(
         onCheckRoute={handleCheckRoute}
         onStart={handleStart}
         onFinish={handleFinish}
+        onMiddleRest={handleMiddleRest}
         canStartMission={canStartMission}
         canFinishMission={canFinishMission}
         getStartBlockedMessage={getStartBlockedMessage}

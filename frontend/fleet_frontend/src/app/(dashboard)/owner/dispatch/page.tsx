@@ -25,25 +25,33 @@ export default function OwnerDispatchPage() {
   >({});
 
   useEffect(() => {
-    const unsubscribe = subscribeGpsLive((data: VehicleLiveStatusDTO) => {
-      if (!data?.vehicleId) return;
+  subscribeGpsLive((data: VehicleLiveStatusDTO) => {
+    if (!data?.vehicleId) return;
 
-      setLiveVehicles((prev) => ({
-        ...prev,
-        [data.vehicleId]: data,
-      }));
-    });
+    setLiveVehicles((prev) => ({
+      ...prev,
+      [data.vehicleId]: data,
+    }));
+  });
 
-    return () => {
-      unsubscribe?.();
-    };
-  }, []);
-
+  return () => {
+    // pas de unsubscribe disponible
+  };
+}, []);
   async function confirmMission() {
-    if (!result) return toast.warn("Génère d'abord une suggestion.");
-    if (!lastForm) return toast.warn("Données mission manquantes.");
+    if (!result) {
+      toast.warn("Génère d'abord une suggestion.");
+      return;
+    }
+
+    if (!lastForm) {
+      toast.warn("Données mission manquantes.");
+      return;
+    }
+
     if (!result.vehicleId || !result.driverId) {
-      return toast.warn("Véhicule ou driver invalide.");
+      toast.warn("Véhicule ou driver invalide.");
+      return;
     }
 
     setCreating(true);
@@ -158,12 +166,12 @@ function LiveFleetStatus({ vehicles }: { vehicles: VehicleLiveStatusDTO[] }) {
               key={v.vehicleId}
               className="rounded-xl border border-gray-200 bg-gray-50 p-4"
             >
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-gray-900">
-                  {v.registrationNumber || `Vehicle #${v.vehicleId}`}
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate font-bold text-gray-900">
+                  {getVehicleLabel(v)}
                 </p>
 
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
                   {v.liveStatus || "LIVE"}
                 </span>
               </div>
@@ -180,6 +188,21 @@ function LiveFleetStatus({ vehicles }: { vehicles: VehicleLiveStatusDTO[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function getVehicleLabel(v: VehicleLiveStatusDTO) {
+  const vehicle = v as VehicleLiveStatusDTO & {
+    registrationNumber?: string | null;
+    vehicleRegistrationNumber?: string | null;
+    plateNumber?: string | null;
+  };
+
+  return (
+    vehicle.registrationNumber ||
+    vehicle.vehicleRegistrationNumber ||
+    vehicle.plateNumber ||
+    `Vehicle #${v.vehicleId}`
   );
 }
 
