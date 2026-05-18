@@ -25,6 +25,7 @@ public class MaintenanceService {
     private final IncidentRepository incidentRepository;
     private final VehicleStatusService vehicleStatusService;
     private final MissionRepository missionRepository;
+    private final ObdResolutionService obdResolutionService;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
@@ -32,7 +33,8 @@ public class MaintenanceService {
             VehicleAccessService vehicleAccessService,
             IncidentRepository incidentRepository,
             VehicleStatusService vehicleStatusService,
-            MissionRepository missionRepository
+            MissionRepository missionRepository,
+            ObdResolutionService obdResolutionService
     ) {
         this.maintenanceRepository = maintenanceRepository;
         this.vehicleRepository = vehicleRepository;
@@ -40,6 +42,7 @@ public class MaintenanceService {
         this.incidentRepository = incidentRepository;
         this.vehicleStatusService = vehicleStatusService;
         this.missionRepository = missionRepository;
+        this.obdResolutionService = obdResolutionService;
     }
 
     @Transactional
@@ -147,16 +150,6 @@ public class MaintenanceService {
         maintenance.setCreatedByUserId(AuthUtil.userId(auth));
         maintenance.setCreatedByEmail(AuthUtil.email(auth));
 
-        if (status == MaintenanceStatus.DONE) {
-            maintenance.setCompletedAt(LocalDateTime.now());
-
-            if (maintenance.getMaintenanceDate() == null) {
-                maintenance.setMaintenanceDate(LocalDateTime.now());
-            }
-
-            vehicle.setLastMaintenanceDate(LocalDateTime.now());
-        }
-
         if (request.getIncidentId() != null) {
             Incident incident = incidentRepository.findById(request.getIncidentId())
                     .orElseThrow(() -> new RuntimeException("Incident introuvable"));
@@ -181,6 +174,26 @@ public class MaintenanceService {
                 incident.setHandledByUserId(AuthUtil.userId(auth));
                 incident.setHandledByEmail(AuthUtil.email(auth));
             }
+        }
+
+        if (status == MaintenanceStatus.DONE) {
+            maintenance.setCompletedAt(LocalDateTime.now());
+
+            if (maintenance.getMaintenanceDate() == null) {
+                maintenance.setMaintenanceDate(LocalDateTime.now());
+            }
+
+            vehicle.setLastMaintenanceDate(LocalDateTime.now());
+
+            if (maintenance.getIncident() != null) {
+                Incident incident = maintenance.getIncident();
+                incident.setStatus(IncidentStatus.RESOLVED);
+                incident.setResolvedAt(LocalDateTime.now());
+                incident.setHandledByUserId(AuthUtil.userId(auth));
+                incident.setHandledByEmail(AuthUtil.email(auth));
+            }
+
+            obdResolutionService.resolveAfterMaintenanceDone(maintenance);
         }
 
         Maintenance saved = maintenanceRepository.save(maintenance);
@@ -307,6 +320,8 @@ public class MaintenanceService {
                 incident.setHandledByUserId(AuthUtil.userId(auth));
                 incident.setHandledByEmail(AuthUtil.email(auth));
             }
+
+            obdResolutionService.resolveAfterMaintenanceDone(maintenance);
         }
 
         Maintenance saved = maintenanceRepository.save(maintenance);
