@@ -4,6 +4,7 @@ import com.example.fleet_backend.dto.ObdHistoryDTO;
 import com.example.fleet_backend.dto.VehicleObdLiveDTO;
 import com.example.fleet_backend.service.ObdHistoryService;
 import com.example.fleet_backend.service.ObdLiveService;
+import com.example.fleet_backend.service.ObdResolutionService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,11 +18,16 @@ public class ObdController {
 
     private final ObdHistoryService obdHistoryService;
     private final ObdLiveService obdLiveService;
+    private final ObdResolutionService obdResolutionService;
 
-    public ObdController(ObdHistoryService obdHistoryService,
-                         ObdLiveService obdLiveService) {
+    public ObdController(
+            ObdHistoryService obdHistoryService,
+            ObdLiveService obdLiveService,
+            ObdResolutionService obdResolutionService
+    ) {
         this.obdHistoryService = obdHistoryService;
         this.obdLiveService = obdLiveService;
+        this.obdResolutionService = obdResolutionService;
     }
 
     @GetMapping("/vehicle/{vehicleId}/history")
@@ -40,5 +46,11 @@ public class ObdController {
     @GetMapping("/vehicle/{vehicleId}/live")
     public ResponseEntity<VehicleObdLiveDTO> getVehicleObdLive(@PathVariable Long vehicleId) {
         return ResponseEntity.ok(obdLiveService.getVehicleObdLive(vehicleId));
+    }
+
+    @PostMapping("/vehicle/{vehicleId}/fuel-refilled")
+    public ResponseEntity<Void> confirmFuelRefilled(@PathVariable Long vehicleId) {
+        obdResolutionService.confirmFuelRefilled(vehicleId);
+        return ResponseEntity.ok().build();
     }
 }

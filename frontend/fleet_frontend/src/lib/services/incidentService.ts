@@ -9,22 +9,22 @@ import type {
 
 export const incidentService = {
   async getAll(): Promise<IncidentDTO[]> {
-    const res = await api.get("/api/incidents");
-    return res.data;
+    const res = await api.get<IncidentDTO[]>("/api/incidents");
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async getById(id: number): Promise<IncidentDTO> {
-    const res = await api.get(`/api/incidents/${id}`);
+    const res = await api.get<IncidentDTO>(`/api/incidents/${id}`);
     return res.data;
   },
 
   async getMine(): Promise<IncidentDTO[]> {
-    const res = await api.get("/api/incidents/me");
-    return res.data;
+    const res = await api.get<IncidentDTO[]>("/api/incidents/me");
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async create(payload: IncidentCreateRequest): Promise<IncidentDTO> {
-    const res = await api.post("/api/incidents", payload);
+    const res = await api.post<IncidentDTO>("/api/incidents", payload);
     return res.data;
   },
 
@@ -45,40 +45,49 @@ export const incidentService = {
       formData.append("photos", photo);
     });
 
-    const res = await api.post("/api/incidents/with-photos", formData);
+    const res = await api.post<IncidentDTO>(
+      "/api/incidents/with-photos",
+      formData
+    );
+
     return res.data;
   },
 
   async getHistory(id: number): Promise<IncidentHistoryDTO[]> {
-    const res = await api.get(`/api/incidents/${id}/history`);
-    return res.data;
+    const res = await api.get<IncidentHistoryDTO[]>(
+      `/api/incidents/${id}/history`
+    );
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async getAllHistory(): Promise<IncidentHistoryDTO[]> {
-    const res = await api.get("/api/incidents/history");
-    return res.data;
+    const res = await api.get<IncidentHistoryDTO[]>("/api/incidents/history");
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async fromEvent(payload: IncidentFromEventRequest): Promise<IncidentDTO> {
-    const res = await api.post("/api/incidents/from-event", payload);
+    const res = await api.post<IncidentDTO>("/api/incidents/from-event", payload);
     return res.data;
   },
 
   async updateStatus(id: number, status: IncidentStatus): Promise<IncidentDTO> {
-    const res = await api.put(`/api/incidents/${id}/status`, { status });
+    const res = await api.put<IncidentDTO>(`/api/incidents/${id}/status`, {
+      status,
+    });
     return res.data;
   },
-async getMissionVehiclePosition(missionId: number) {
-  const res = await api.get(`/api/missions/${missionId}/live`);
 
-  return {
-    latitude: res.data.latitude,
-    longitude: res.data.longitude,
-    locationName: res.data.locationName ?? null,
-  } as {
+  async getMissionVehiclePosition(missionId: number): Promise<{
     latitude: number;
     longitude: number;
     locationName?: string | null;
-  };
-}
+  }> {
+    const res = await api.get(`/api/missions/${missionId}/live`);
+
+    return {
+      latitude: res.data.latitude,
+      longitude: res.data.longitude,
+      locationName: res.data.locationName ?? null,
+    };
+  },
 };

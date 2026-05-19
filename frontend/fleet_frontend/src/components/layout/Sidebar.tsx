@@ -88,12 +88,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       show: isOwnerActive || isAdmin,
     },
 
-    {
-      name: "Dépot / Parking",
-      href: "/owner/depot",
-      icon: ParkingCircle,
-      show: isOwnerActive,
-    },
+
 
 
     { name: "Billing", href: "/owner/billing", icon: CreditCard, show: isOwner },

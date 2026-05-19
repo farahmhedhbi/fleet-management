@@ -26,4 +26,8 @@ export const obdService = {
 
     return Array.isArray(res.data) ? res.data : [];
   },
+
+  async confirmFuelRefilled(vehicleId: number): Promise<void> {
+    await api.post(`/api/obd/vehicle/${vehicleId}/fuel-refilled`);
+  },
 };

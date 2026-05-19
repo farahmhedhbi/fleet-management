@@ -26,6 +26,10 @@ public class VehicleEvent {
     @Column(nullable = false, length = 20)
     private EventSeverity severity;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private VehicleEventStatus status = VehicleEventStatus.ACTIVE;
+
     @Column(nullable = false, length = 500)
     private String message;
 
@@ -39,7 +43,21 @@ public class VehicleEvent {
     @Column(nullable = false)
     private boolean acknowledged = false;
 
+    private LocalDateTime acknowledgedAt;
+    private LocalDateTime resolvedAt;
+
     public VehicleEvent() {}
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+
+        if (status == null) {
+            status = VehicleEventStatus.ACTIVE;
+        }
+    }
 
     public Long getId() {
         return id;
@@ -75,6 +93,14 @@ public class VehicleEvent {
 
     public void setSeverity(EventSeverity severity) {
         this.severity = severity;
+    }
+
+    public VehicleEventStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(VehicleEventStatus status) {
+        this.status = status;
     }
 
     public String getMessage() {
@@ -123,5 +149,21 @@ public class VehicleEvent {
 
     public void setAcknowledged(boolean acknowledged) {
         this.acknowledged = acknowledged;
+    }
+
+    public LocalDateTime getAcknowledgedAt() {
+        return acknowledgedAt;
+    }
+
+    public void setAcknowledgedAt(LocalDateTime acknowledgedAt) {
+        this.acknowledgedAt = acknowledgedAt;
+    }
+
+    public LocalDateTime getResolvedAt() {
+        return resolvedAt;
+    }
+
+    public void setResolvedAt(LocalDateTime resolvedAt) {
+        this.resolvedAt = resolvedAt;
     }
 }
