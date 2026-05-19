@@ -195,6 +195,11 @@ export function unsubscribeIncidentsLive() {
   unsubscribeFromTopic("/topic/incidents/live");
 }
 
+/* ================= RETURN DEPOT ================= */
+
+export function subscribeReturnDepotLive<T = any>(handler: TopicHandler<T>) {
+  subscribeToTopic("/topic/return-depot/live", handler);
+}
 
 export function unsubscribeReturnDepotLive() {
   unsubscribeFromTopic("/topic/return-depot/live");
@@ -221,8 +226,15 @@ export function subscribeMissionReturnDepot<T = any>(
 export function unsubscribeMissionReturnDepot(missionId: number) {
   unsubscribeFromTopic(`/topic/missions/${missionId}/return-depot`);
 }
+/* ================= OWNER DASHBOARD KPI ================= */
 
+export function subscribeOwnerDashboardKpi<T = any>(
+  ownerId: number,
+  handler: TopicHandler<T>
+) {
+  subscribeToTopic(`/topic/owners/${ownerId}/dashboard/kpi`, handler);
+}
 
-export function subscribeReturnDepotLive<T = any>(handler: TopicHandler<T>) {
-  subscribeToTopic("/topic/return-depot/live", handler);
+export function unsubscribeOwnerDashboardKpi(ownerId: number) {
+  unsubscribeFromTopic(`/topic/owners/${ownerId}/dashboard/kpi`);
 }

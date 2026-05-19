@@ -34,5 +34,12 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
             IncidentSeverity severity,
             List<IncidentStatus> statuses
     );
+    long countByVehicleOwnerIdAndStatus(Long ownerId, IncidentStatus status);
+
+    long countByVehicleOwnerIdAndSeverityAndStatusIn(
+            Long ownerId,
+            IncidentSeverity severity,
+            List<IncidentStatus> statuses
+    );
 
 }

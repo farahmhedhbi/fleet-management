@@ -9,6 +9,7 @@ import com.example.fleet_backend.repository.MaintenanceRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.security.AuthUtil;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class MaintenanceService {
     private final VehicleStatusService vehicleStatusService;
     private final MissionRepository missionRepository;
     private final ObdResolutionService obdResolutionService;
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
@@ -34,7 +36,8 @@ public class MaintenanceService {
             IncidentRepository incidentRepository,
             VehicleStatusService vehicleStatusService,
             MissionRepository missionRepository,
-            ObdResolutionService obdResolutionService
+            ObdResolutionService obdResolutionService,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.maintenanceRepository = maintenanceRepository;
         this.vehicleRepository = vehicleRepository;
@@ -43,6 +46,7 @@ public class MaintenanceService {
         this.vehicleStatusService = vehicleStatusService;
         this.missionRepository = missionRepository;
         this.obdResolutionService = obdResolutionService;
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     @Transactional
@@ -202,6 +206,8 @@ public class MaintenanceService {
             vehicleStatusService.recalculateVehicleStatus(saved.getVehicle().getId());
         }
 
+        publishDashboard(saved);
+
         return toDTO(saved);
     }
 
@@ -253,6 +259,8 @@ public class MaintenanceService {
         Maintenance saved = maintenanceRepository.save(maintenance);
 
         vehicleStatusService.recalculateVehicleStatus(vehicle.getId());
+
+        publishDashboard(saved);
 
         return toDTO(saved);
     }
@@ -330,6 +338,8 @@ public class MaintenanceService {
             vehicleStatusService.recalculateVehicleStatus(vehicle.getId());
         }
 
+        publishDashboard(saved);
+
         return toDTO(saved);
     }
 
@@ -357,6 +367,8 @@ public class MaintenanceService {
         if (vehicle != null) {
             vehicleStatusService.recalculateVehicleStatus(vehicle.getId());
         }
+
+        publishDashboard(saved);
 
         return toDTO(saved);
     }
@@ -394,7 +406,20 @@ public class MaintenanceService {
         for (Maintenance maintenance : overdueMaintenances) {
             if (maintenance.getVehicle() != null) {
                 vehicleStatusService.recalculateVehicleStatus(maintenance.getVehicle().getId());
+                publishDashboard(maintenance);
             }
+        }
+    }
+
+    private void publishDashboard(Maintenance maintenance) {
+        if (
+                maintenance != null &&
+                        maintenance.getVehicle() != null &&
+                        maintenance.getVehicle().getOwner() != null
+        ) {
+            dashboardWebSocketPublisher.publishOwnerKpi(
+                    maintenance.getVehicle().getOwner().getId()
+            );
         }
     }
 

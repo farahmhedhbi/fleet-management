@@ -1,5 +1,6 @@
 package com.example.fleet_backend.repository;
 
+import com.example.fleet_backend.model.EventSeverity;
 import com.example.fleet_backend.model.VehicleEvent;
 import com.example.fleet_backend.model.VehicleEventStatus;
 import com.example.fleet_backend.model.VehicleEventType;
@@ -45,5 +46,10 @@ public interface VehicleEventRepository extends JpaRepository<VehicleEvent, Long
             Long vehicleId,
             VehicleEventType eventType,
             VehicleEventStatus status
+    );
+    long countByVehicleOwnerIdAndSeverityAndCreatedAtAfter(
+            Long ownerId,
+            EventSeverity severity,
+            LocalDateTime createdAt
     );
 }

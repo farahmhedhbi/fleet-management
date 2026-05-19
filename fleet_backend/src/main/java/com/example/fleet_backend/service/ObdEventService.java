@@ -10,6 +10,7 @@ import com.example.fleet_backend.model.VehicleEventType;
 import com.example.fleet_backend.model.VehicleHealthState;
 import com.example.fleet_backend.repository.VehicleEventRepository;
 import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,22 +30,22 @@ public class ObdEventService {
     private final NotificationService notificationService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
     private final PredictiveAnalysisService predictiveAnalysisService;
-
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public ObdEventService(
             VehicleEventRepository eventRepository,
             ObdAnalysisService obdAnalysisService,
             NotificationService notificationService,
             GpsWebSocketPublisher gpsWebSocketPublisher,
-            PredictiveAnalysisService predictiveAnalysisService
-
+            PredictiveAnalysisService predictiveAnalysisService,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.eventRepository = eventRepository;
         this.obdAnalysisService = obdAnalysisService;
         this.notificationService = notificationService;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
         this.predictiveAnalysisService = predictiveAnalysisService;
-
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     public void generateEvents(
@@ -185,11 +186,25 @@ public class ObdEventService {
 
         VehicleEvent saved = eventRepository.save(event);
 
+        publishDashboardKpi(saved);
+
         runPredictiveAnalysisSafely(vehicle.getId());
 
         gpsWebSocketPublisher.publishEvent(toDto(saved));
 
         notifyOwnerIfCritical(saved);
+    }
+
+    private void publishDashboardKpi(VehicleEvent event) {
+        if (
+                event != null &&
+                        event.getVehicle() != null &&
+                        event.getVehicle().getOwner() != null
+        ) {
+            dashboardWebSocketPublisher.publishOwnerKpi(
+                    event.getVehicle().getOwner().getId()
+            );
+        }
     }
 
     private Optional<VehicleEvent> findLastSimilarEvent(

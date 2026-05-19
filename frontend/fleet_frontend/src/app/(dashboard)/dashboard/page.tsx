@@ -1,18 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  BarChart3,
+  Car,
+  Route,
+  Settings,
+  Shield,
+  Users,
+  Wrench,
+} from "lucide-react";
 
 import { useAuth } from "@/contexts/authContext";
-import { vehicleService } from "@/lib/services/vehicleService";
 import { driverService } from "@/lib/services/driverService";
 import {
   adminStatsService,
   type AdminStats,
 } from "@/lib/services/adminStatsService";
+import { dashboardService } from "@/lib/services/dashboardService";
+import {
+  subscribeOwnerDashboardKpi,
+  unsubscribeOwnerDashboardKpi,
+} from "@/lib/websocket";
 import { toastError } from "@/components/ui/Toast";
-import type { Vehicle } from "@/types/vehicle";
+import type { DashboardKpiDTO } from "@/types/dashboard";
 import type { Driver } from "@/types/driver";
+import type { Vehicle } from "@/types/vehicle";
 import {
   isSubscriptionActive,
   isSubscriptionExpired,
@@ -23,25 +37,50 @@ import DashboardView, {
   type QuickAction,
 } from "./DashboardView";
 
-import {
-  Route,
-  BarChart3,
-  Settings,
-  Car,
-  Shield,
-  Users,
-  Wrench,
-} from "lucide-react";
+const emptyKpi: DashboardKpiDTO = {
+  totalVehicles: 0,
+  availableVehicles: 0,
+  inUseVehicles: 0,
+  maintenanceVehicles: 0,
+  reservedVehicles: 0,
+  outOfServiceVehicles: 0,
 
-function calcFleetHealth(
-  totalVehicles: number,
-  maintenanceDue: number,
-  outVehicles = 0
-) {
-  if (!totalVehicles) return 100;
-  const bad = maintenanceDue + outVehicles;
-  const ratio = bad / totalVehicles;
-  return Math.max(0, Math.min(100, Math.round(100 - ratio * 60)));
+  plannedMissions: 0,
+  activeMissions: 0,
+  completedMissions: 0,
+  canceledMissions: 0,
+
+  openIncidents: 0,
+  inProgressIncidents: 0,
+  resolvedIncidents: 0,
+  criticalIncidents: 0,
+
+  plannedMaintenances: 0,
+  inProgressMaintenances: 0,
+  doneMaintenances: 0,
+  overdueMaintenances: 0,
+  canceledMaintenances: 0,
+
+  maintenanceTotalCost: 0,
+
+  criticalAlertsToday: 0,
+  warningAlertsToday: 0,
+};
+
+function calcFleetHealth(kpi: DashboardKpiDTO) {
+  if (!kpi.totalVehicles) return 100;
+
+  const risk =
+    kpi.outOfServiceVehicles +
+    kpi.maintenanceVehicles +
+    kpi.openIncidents +
+    kpi.criticalAlertsToday +
+    kpi.overdueMaintenances;
+
+  return Math.max(
+    0,
+    Math.min(100, Math.round(100 - (risk / kpi.totalVehicles) * 14))
+  );
 }
 
 export default function Page() {
@@ -53,8 +92,11 @@ export default function Page() {
   const isOwner = role === "ROLE_OWNER";
   const isDriver = role === "ROLE_DRIVER";
 
+  const ownerId = user?.id ? Number(user.id) : null;
   const ownerActive = isOwner && isSubscriptionActive(user ?? undefined);
   const ownerExpired = isOwner && isSubscriptionExpired(user ?? undefined);
+
+  const [kpi, setKpi] = useState<DashboardKpiDTO>(emptyKpi);
 
   const [stats, setStats] = useState<DashboardStats>({
     totalDrivers: 0,
@@ -72,28 +114,41 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadDashboardData = async () => {
+  const syncStatsFromKpi = (data: DashboardKpiDTO) => {
+    setStats({
+      totalDrivers: 0,
+      totalVehicles: data.totalVehicles,
+      availableVehicles: data.availableVehicles,
+      activeDrivers: 0,
+      vehiclesNeedingMaintenance:
+        data.plannedMaintenances + data.overdueMaintenances,
+      totalMileage: 0,
+      fleetHealth: calcFleetHealth(data),
+    });
+  };
+
+  const loadDashboardData = useCallback(async () => {
     setIsRefreshing(true);
 
     try {
       if (isOwner && !ownerActive) {
-        setStats({
-          totalDrivers: 0,
-          totalVehicles: 0,
-          availableVehicles: 0,
-          activeDrivers: 0,
-          vehiclesNeedingMaintenance: 0,
-          totalMileage: 0,
-          fleetHealth: 0,
-        });
+        setKpi(emptyKpi);
+        syncStatsFromKpi(emptyKpi);
         setAdminStats(null);
         setRecentDrivers([]);
         setRecentVehicles([]);
         return;
       }
 
-      const now = new Date();
-      const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      if (isOwner && ownerActive) {
+        const data = await dashboardService.getOwnerKpi();
+        setKpi(data);
+        syncStatsFromKpi(data);
+        setAdminStats(null);
+        setRecentDrivers([]);
+        setRecentVehicles([]);
+        return;
+      }
 
       if (isAdmin) {
         const a = await adminStatsService.get();
@@ -106,15 +161,9 @@ export default function Page() {
           activeDrivers: a.activeDrivers,
           vehiclesNeedingMaintenance: a.vehiclesNeedingMaintenance,
           totalMileage: a.totalMileage,
-          fleetHealth: calcFleetHealth(
-            a.vehiclesCount,
-            a.vehiclesNeedingMaintenance,
-            a.outVehicles
-          ),
+          fleetHealth: 100,
         });
 
-        setRecentDrivers([]);
-        setRecentVehicles([]);
         return;
       }
 
@@ -132,58 +181,8 @@ export default function Page() {
         });
 
         setAdminStats(null);
-        setRecentDrivers([]);
-        setRecentVehicles([]);
         return;
       }
-
-      if (isOwner) {
-        const vehicles = await vehicleService.getAll();
-
-        const vehiclesNeedingMaintenance = (vehicles as any[]).filter(
-          (v: any) => {
-            if (!v.nextMaintenanceDate) return false;
-            return new Date(v.nextMaintenanceDate) <= nextWeek;
-          }
-        ).length;
-
-        const totalMileage = (vehicles as any[]).reduce(
-          (sum, v: any) => sum + (v.mileage || 0),
-          0
-        );
-
-        const fleetHealth = vehicles.length
-          ? Math.max(
-              0,
-              Math.min(
-                100,
-                100 - (vehiclesNeedingMaintenance / vehicles.length) * 30
-              )
-            )
-          : 100;
-
-        setStats({
-          totalDrivers: 0,
-          totalVehicles: vehicles.length,
-          availableVehicles: (vehicles as any[]).filter(
-            (v: any) => v.status === "AVAILABLE"
-          ).length,
-          activeDrivers: 0,
-          vehiclesNeedingMaintenance,
-          totalMileage,
-          fleetHealth: Math.round(fleetHealth),
-        });
-
-        setAdminStats(null);
-        setRecentDrivers([]);
-        setRecentVehicles([]); // important: ne plus afficher les voitures
-        return;
-      }
-
-      setStats((prev) => ({ ...prev, fleetHealth: 100 }));
-      setAdminStats(null);
-      setRecentDrivers([]);
-      setRecentVehicles([]);
     } catch (err) {
       console.error(err);
       toastError?.("Failed to load dashboard data");
@@ -191,13 +190,25 @@ export default function Page() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [isOwner, ownerActive, isAdmin, isDriver]);
 
   useEffect(() => {
     setLoading(true);
     loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+  }, [role, loadDashboardData]);
+
+  useEffect(() => {
+    if (!isOwner || !ownerActive || !ownerId) return;
+
+    subscribeOwnerDashboardKpi<DashboardKpiDTO>(ownerId, (data) => {
+      setKpi(data);
+      syncStatsFromKpi(data);
+    });
+
+    return () => {
+      unsubscribeOwnerDashboardKpi(ownerId);
+    };
+  }, [isOwner, ownerActive, ownerId]);
 
   const quickActions: QuickAction[] = useMemo(() => {
     if (isDriver) {
@@ -206,8 +217,7 @@ export default function Page() {
           title: "My Session",
           description: "Status, access & account actions",
           icon: Shield,
-          color:
-            "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950",
+          color: "bg-gradient-to-br from-slate-800 to-slate-950",
           hoverColor: "hover:shadow-slate-900/20",
           action: () => router.push("/my-missions"),
         },
@@ -220,8 +230,7 @@ export default function Page() {
           title: "Reports",
           description: "View analytics and KPIs",
           icon: BarChart3,
-          color:
-            "bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600",
+          color: "bg-gradient-to-br from-violet-600 to-fuchsia-600",
           hoverColor: "hover:shadow-purple-500/25",
           action: () => router.push("/reports"),
         },
@@ -232,9 +241,9 @@ export default function Page() {
       return [
         {
           title: "Activate Subscription",
-          description: "Unlock the full dashboard and owner features",
+          description: "Unlock owner features",
           icon: BarChart3,
-          color: "bg-gradient-to-br from-rose-500 via-red-500 to-red-700",
+          color: "bg-gradient-to-br from-rose-500 to-red-700",
           hoverColor: "hover:shadow-red-500/25",
           action: () => router.push("/owner/billing"),
         },
@@ -242,8 +251,7 @@ export default function Page() {
           title: "Billing",
           description: "Check your payment instructions",
           icon: Settings,
-          color:
-            "bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950",
+          color: "bg-gradient-to-br from-slate-800 to-slate-950",
           hoverColor: "hover:shadow-black/25",
           action: () => router.push("/owner/billing"),
         },
@@ -252,37 +260,34 @@ export default function Page() {
 
     return [
       {
-        title: "Manage Missions",
-        description: "Create and assign missions quickly",
+        title: "Missions",
+        description: "Create and assign missions",
         icon: Route,
-        color: "bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-600",
+        color: "bg-gradient-to-br from-blue-600 to-cyan-600",
         hoverColor: "hover:shadow-blue-500/25",
         action: () => router.push("/missions"),
       },
       {
         title: "Drivers",
-        description: "Manage your drivers and access",
+        description: "Manage drivers",
         icon: Users,
-        color:
-          "bg-gradient-to-br from-emerald-600 via-green-600 to-teal-600",
+        color: "bg-gradient-to-br from-emerald-600 to-teal-600",
         hoverColor: "hover:shadow-green-500/25",
         action: () => router.push("/drivers"),
       },
       {
         title: "Maintenance",
-        description: "Follow maintenance schedules and alerts",
+        description: "Plan interventions",
         icon: Wrench,
-        color:
-          "bg-gradient-to-br from-amber-500 via-orange-500 to-yellow-500",
+        color: "bg-gradient-to-br from-amber-500 to-orange-600",
         hoverColor: "hover:shadow-amber-500/25",
         action: () => router.push("/maintenance"),
       },
       {
         title: "Vehicles",
-        description: "Open vehicle management page",
+        description: "Manage fleet vehicles",
         icon: Car,
-        color:
-          "bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900",
+        color: "bg-gradient-to-br from-slate-700 to-slate-950",
         hoverColor: "hover:shadow-slate-700/25",
         action: () => router.push("/vehicles"),
       },
@@ -302,7 +307,7 @@ export default function Page() {
     if (!adminStats) return [];
     return [
       {
-        name: "Maintenance due (7d)",
+        name: "Maintenance due",
         value: adminStats.vehiclesNeedingMaintenance,
       },
       { name: "Out/Broken", value: adminStats.outVehicles },
@@ -317,6 +322,7 @@ export default function Page() {
       isDriver={isDriver}
       ownerActive={ownerActive}
       ownerExpired={ownerExpired}
+      kpi={kpi}
       stats={stats}
       adminStats={adminStats}
       recentDrivers={recentDrivers}
