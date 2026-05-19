@@ -71,8 +71,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { name: "Incidents", href: "/owner/incidents", icon: AlertTriangle, show: isOwnerActive || isAdmin },
 
 
-    {name: "dépot/parking",href: "/owner/depot",icon: ParkingCircle ,show: isOwnerActive },
-    // OWNER billing
+     // OWNER billing
 
     {
       name: "Maintenances",

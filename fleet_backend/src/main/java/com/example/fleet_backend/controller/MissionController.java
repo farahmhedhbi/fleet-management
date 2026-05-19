@@ -118,4 +118,5 @@ public class MissionController {
         missionService.deleteMission(id, auth);
         return ResponseEntity.noContent().build();
     }
+
 }

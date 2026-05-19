@@ -34,7 +34,12 @@ function formatRemaining(ms: number) {
   return `${minutes} min ${seconds}s`;
 }
 
-function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
   const earthRadius = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -93,7 +98,6 @@ export default function MyMissionsPage() {
 
       setLiveByMissionId(nextLiveMap);
     } catch (e: any) {
-      console.error("Failed to load missions:", e);
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
@@ -126,9 +130,7 @@ export default function MyMissionsPage() {
       (m) => m.driverStatus === "RESTING" && m.driverAvailableAt
     );
 
-    if (!restingMission?.driverAvailableAt) {
-      return null;
-    }
+    if (!restingMission?.driverAvailableAt) return null;
 
     const availableAtMs = toTimestamp(restingMission.driverAvailableAt);
     const remainingMs = Math.max(availableAtMs - now, 0);
@@ -163,17 +165,26 @@ export default function MyMissionsPage() {
     if (!query) return sortedMissions;
 
     return sortedMissions.filter((m) => {
+      const mission = m as Mission & {
+        returnDepotReason?: string | null;
+        depotCity?: string | null;
+        finalCity?: string | null;
+      };
+
       const text = [
-        m.title,
-        m.description,
-        m.vehicleRegistrationNumber,
-        m.status,
-        m.departure,
-        m.destination,
-        m.driverName,
-        m.driverStatus,
-        m.routeCheckStatus,
-        m.routeRiskLevel,
+        mission.title,
+        mission.description,
+        mission.vehicleRegistrationNumber,
+        mission.status,
+        mission.departure,
+        mission.destination,
+        mission.driverName,
+        mission.driverStatus,
+        mission.routeCheckStatus,
+        mission.routeRiskLevel,
+        mission.returnDepotReason,
+        mission.depotCity,
+        mission.finalCity,
       ]
         .filter(Boolean)
         .join(" ")
@@ -187,13 +198,14 @@ export default function MyMissionsPage() {
     (mission: Mission) => {
       if (mission.status !== "PLANNED") return false;
 
-      if (mission.routeCheckStatus === "NOT_CHECKED" || !mission.routeCheckStatus) {
+      if (
+        mission.routeCheckStatus === "NOT_CHECKED" ||
+        !mission.routeCheckStatus
+      ) {
         return false;
       }
 
-      if (driverRestInfo && !driverRestInfo.canMarkReady) {
-        return false;
-      }
+      if (driverRestInfo && !driverRestInfo.canMarkReady) return false;
 
       const startTime = toTimestamp(mission.startDate);
       if (!startTime) return true;
@@ -215,7 +227,9 @@ export default function MyMissionsPage() {
 
       const lastPoint = live.missionRoute[live.missionRoute.length - 1];
 
-      if (lastPoint.latitude == null || lastPoint.longitude == null) return false;
+      if (lastPoint.latitude == null || lastPoint.longitude == null) {
+        return false;
+      }
 
       const distance = haversineMeters(
         live.latitude,
@@ -235,12 +249,17 @@ export default function MyMissionsPage() {
         return "Only a planned mission can be started";
       }
 
-      if (mission.routeCheckStatus === "NOT_CHECKED" || !mission.routeCheckStatus) {
+      if (
+        mission.routeCheckStatus === "NOT_CHECKED" ||
+        !mission.routeCheckStatus
+      ) {
         return "Veuillez vérifier la route avant de démarrer";
       }
 
       if (driverRestInfo && !driverRestInfo.canMarkReady) {
-        return `Vous êtes en repos jusqu'à ${formatDateTime(driverRestInfo.availableAt)}`;
+        return `Vous êtes en repos jusqu'à ${formatDateTime(
+          driverRestInfo.availableAt
+        )}`;
       }
 
       const startTime = toTimestamp(mission.startDate);
@@ -286,7 +305,9 @@ export default function MyMissionsPage() {
       );
 
       if (distance > FINISH_RADIUS_METERS) {
-        return `Vehicle is still ${Math.round(distance)} m away from destination`;
+        return `Vehicle is still ${Math.round(
+          distance
+        )} m away from destination`;
       }
 
       return null;
@@ -298,7 +319,9 @@ export default function MyMissionsPage() {
     try {
       setCheckingRouteId(mission.id);
 
-      const result: RouteCheckResult = await missionService.checkRoute(mission.id);
+      const result: RouteCheckResult = await missionService.checkRoute(
+        mission.id
+      );
 
       setMissions((prev) =>
         prev.map((m) =>
@@ -335,47 +358,47 @@ export default function MyMissionsPage() {
   }, []);
 
   const handleReady = useCallback(async () => {
-  try {
-    setRestLoading(true);
-
-    await driverRestService.markReady();
-
-    toast.success("Vous êtes maintenant disponible");
-    await load(false);
-  } catch (e: any) {
-    toast.error(
-      e?.response?.data?.message ||
-        e?.response?.data?.error ||
-        e?.message ||
-        "Impossible de changer le statut du driver"
-    );
-  } finally {
-    setRestLoading(false);
-  }
-}, [load]);
-
-const handleMiddleRest = useCallback(
-  async (mission: Mission) => {
     try {
       setRestLoading(true);
 
-      await driverRestService.startMiddleRest(mission.id);
+      await driverRestService.markReady();
 
-      toast.success("Repos de 30 minutes démarré");
+      toast.success("Vous êtes maintenant disponible");
       await load(false);
     } catch (e: any) {
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
           e?.message ||
-          "Impossible de démarrer le repos"
+          "Impossible de changer le statut du driver"
       );
     } finally {
       setRestLoading(false);
     }
-  },
-  [load]
-);
+  }, [load]);
+
+  const handleMiddleRest = useCallback(
+    async (mission: Mission) => {
+      try {
+        setRestLoading(true);
+
+        await driverRestService.startMiddleRest(mission.id);
+
+        toast.success("Repos de 30 minutes démarré");
+        await load(false);
+      } catch (e: any) {
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Impossible de démarrer le repos"
+        );
+      } finally {
+        setRestLoading(false);
+      }
+    },
+    [load]
+  );
 
   const handleStart = useCallback(
     async (mission: Mission) => {
@@ -385,7 +408,6 @@ const handleMiddleRest = useCallback(
         await missionService.start(mission.id);
 
         toast.success("Mission démarrée");
-
         await load(false);
       } catch (e: any) {
         toast.error(
@@ -409,7 +431,6 @@ const handleMiddleRest = useCallback(
         await missionService.finish(mission.id);
 
         toast.success("Mission terminée");
-
         await load(false);
       } catch (e: any) {
         toast.error(
@@ -425,7 +446,41 @@ const handleMiddleRest = useCallback(
     [load]
   );
 
- return (
+  const handleReturnToDepot = useCallback(
+  async (mission: Mission) => {
+    try {
+      setActingId(mission.id);
+
+      const result = await missionService.returnToDepot(mission.id);
+
+      if (result?.returnToDepotSuggested) {
+        toast.success("Retour dépôt possible. Retour créé avec succès.");
+      } else if (result?.vehicleStaysWithDriver) {
+        toast.warning(
+          result?.returnDepotReason || "Le véhicule reste avec vous."
+        );
+      } else {
+        toast.info(
+          result?.returnDepotReason || "Aucun retour dépôt nécessaire."
+        );
+      }
+
+      await load(false);
+    } catch (e: any) {
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Impossible de demander le retour dépôt"
+      );
+    } finally {
+      setActingId(null);
+    }
+  },
+  [load]
+);
+
+  return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>
       <MyMissionsView
         missions={missions}
@@ -445,6 +500,7 @@ const handleMiddleRest = useCallback(
         onStart={handleStart}
         onFinish={handleFinish}
         onMiddleRest={handleMiddleRest}
+        onReturnToDepot={handleReturnToDepot}
         canStartMission={canStartMission}
         canFinishMission={canFinishMission}
         getStartBlockedMessage={getStartBlockedMessage}

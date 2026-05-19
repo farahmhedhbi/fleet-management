@@ -24,25 +24,46 @@ public class ReturnDepotService {
             DispatchSuggestionDTO suggestion,
             String lastCity,
             String depotCity,
+            Double vehicleLatitude,
+            Double vehicleLongitude,
+            Double depotLatitude,
+            Double depotLongitude,
             LocalDateTime lastEndTime,
             Double currentFuelLevel
     ) {
-        if (lastCity == null || depotCity == null || lastEndTime == null) {
+        if (
+                vehicleLatitude == null ||
+                        vehicleLongitude == null ||
+                        depotLatitude == null ||
+                        depotLongitude == null ||
+                        lastEndTime == null
+        ) {
             suggestion.setReturnToDepotSuggested(false);
             suggestion.setVehicleStaysWithDriver(true);
             suggestion.setNextDayDecisionRequired(true);
-            suggestion.setReturnDepotReason("Depot, last city or end time missing");
+            suggestion.setReturnDepotReason("Depot position, vehicle position or end time missing");
             return;
         }
 
-        double distanceToDepot = cityDistanceService.distanceKm(lastCity, depotCity);
-        int returnDurationMinutes = cityDistanceService.estimateDurationMinutes(lastCity, depotCity);
+        double distanceToDepot = cityDistanceService.distanceKm(
+                vehicleLatitude,
+                vehicleLongitude,
+                depotLatitude,
+                depotLongitude
+        );
+
+        int returnDurationMinutes = cityDistanceService.estimateDurationMinutes(
+                vehicleLatitude,
+                vehicleLongitude,
+                depotLatitude,
+                depotLongitude
+        );
 
         suggestion.setFinalCity(lastCity);
         suggestion.setDepotCity(depotCity);
         suggestion.setDistanceToDepotKm(distanceToDepot);
 
-        if (lastCity.trim().equalsIgnoreCase(depotCity.trim())) {
+        if (distanceToDepot <= 0.2) {
             suggestion.setReturnToDepotSuggested(false);
             suggestion.setVehicleStaysWithDriver(false);
             suggestion.setNextDayDecisionRequired(false);
@@ -75,8 +96,8 @@ public class ReturnDepotService {
                 DispatchStepType.RETURN_TO_DEPOT,
                 null,
                 "Return vehicle to depot",
-                lastCity,
-                depotCity + " Depot",
+                lastCity != null ? lastCity : "Current vehicle position",
+                depotCity != null ? depotCity + " Depot" : "Depot",
                 returnStart,
                 returnEnd,
                 returnDurationMinutes

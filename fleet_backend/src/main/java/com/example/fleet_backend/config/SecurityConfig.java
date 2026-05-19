@@ -85,6 +85,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/daily-dispatch/**").hasAnyRole("OWNER", "ADMIN")
                         .requestMatchers("/api/dispatch/**").hasAnyRole("OWNER", "ADMIN")
 
+
+                        .requestMatchers(HttpMethod.POST, "/api/driver/missions/*/return-depot")
+                        .hasRole("DRIVER")
                         .requestMatchers(HttpMethod.POST, "/api/vehicles/**")
                         .hasAnyAuthority("ROLE_OWNER")
 

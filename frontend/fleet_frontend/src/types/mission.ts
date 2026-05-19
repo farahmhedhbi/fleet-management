@@ -70,6 +70,14 @@ export interface Mission {
   selectedDistanceKm?: number | null;
   routeCheckedAt?: string | null;
   routeCheckMessage?: string | null;
+
+  returnToDepotSuggested?: boolean;
+vehicleStaysWithDriver?: boolean;
+nextDayDecisionRequired?: boolean;
+returnDepotReason?: string | null;
+depotCity?: string | null;
+finalCity?: string | null;
+distanceToDepotKm?: number | null;
 }
 
 export interface MissionDTO {
