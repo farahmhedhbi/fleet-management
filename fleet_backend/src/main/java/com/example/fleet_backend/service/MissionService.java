@@ -10,6 +10,7 @@ import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.MissionRepository;
 import com.example.fleet_backend.repository.UserRepository;
 import com.example.fleet_backend.security.AuthUtil;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class MissionService {
     private final MissionLifecycleService missionLifecycleService;
     private final MissionNotificationService missionNotificationService;
     private final RouteVerificationService routeVerificationService;
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public MissionService(
             MissionRepository missionRepository,
@@ -41,7 +43,8 @@ public class MissionService {
             MissionPlanningService missionPlanningService,
             MissionLifecycleService missionLifecycleService,
             MissionNotificationService missionNotificationService,
-            RouteVerificationService routeVerificationService
+            RouteVerificationService routeVerificationService,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.missionRepository = missionRepository;
         this.userRepository = userRepository;
@@ -51,6 +54,7 @@ public class MissionService {
         this.missionLifecycleService = missionLifecycleService;
         this.missionNotificationService = missionNotificationService;
         this.routeVerificationService = routeVerificationService;
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +112,8 @@ public class MissionService {
         Mission saved = missionPlanningService.createMission(dto, auth);
         missionNotificationService.notifyDriverAssigned(saved);
 
+        publishDashboard(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -119,6 +125,8 @@ public class MissionService {
         Mission mission = missionAccessService.getAuthorizedMission(missionId, auth);
         Mission saved = missionPlanningService.updateMission(mission, dto, auth);
         missionNotificationService.notifyDriverUpdated(saved);
+
+        publishDashboard(saved);
 
         return new MissionDTO(saved);
     }
@@ -142,6 +150,8 @@ public class MissionService {
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyOwnerMissionStarted(saved, driver, startedLate);
 
+        publishDashboard(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -158,6 +168,8 @@ public class MissionService {
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyOwnerMissionFinished(saved);
 
+        publishDashboard(saved);
+
         return new MissionDTO(saved);
     }
 
@@ -167,6 +179,8 @@ public class MissionService {
         if (saved != null) {
             missionNotificationService.clearDriverLateAlert(saved);
             missionNotificationService.notifyOwnerMissionFinished(saved);
+
+            publishDashboard(saved);
         }
 
         return saved;
@@ -182,6 +196,8 @@ public class MissionService {
 
         missionNotificationService.clearDriverLateAlert(saved);
         missionNotificationService.notifyDriverCanceled(saved);
+
+        publishDashboard(saved);
     }
 
     public void deleteMission(Long missionId, Authentication auth) {
@@ -195,11 +211,27 @@ public class MissionService {
             throw new IllegalArgumentException("Cannot delete an in-progress mission");
         }
 
+        Long ownerId = mission.getOwner() != null ? mission.getOwner().getId() : null;
+
         missionNotificationService.clearDriverLateAlert(mission);
         missionRepository.delete(mission);
+
+        publishDashboard(ownerId);
     }
 
     public RouteCheckResultDTO checkRoute(Long missionId, Authentication auth) {
         return routeVerificationService.checkRoute(missionId, auth);
+    }
+
+    private void publishDashboard(Mission mission) {
+        if (mission != null && mission.getOwner() != null) {
+            dashboardWebSocketPublisher.publishOwnerKpi(mission.getOwner().getId());
+        }
+    }
+
+    private void publishDashboard(Long ownerId) {
+        if (ownerId != null) {
+            dashboardWebSocketPublisher.publishOwnerKpi(ownerId);
+        }
     }
 }

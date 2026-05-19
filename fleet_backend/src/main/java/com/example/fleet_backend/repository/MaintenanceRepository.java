@@ -73,4 +73,13 @@ public interface MaintenanceRepository extends JpaRepository<Maintenance, Long> 
     Optional<Maintenance> findTopByVehicleIdOrderByCreatedAtDesc(Long vehicleId);
 
     boolean existsByVehicleIdAndStatus(Long vehicleId, MaintenanceStatus status);
+    long countByVehicleOwnerIdAndStatus(Long ownerId, MaintenanceStatus status);
+
+    @Query("""
+    SELECT COALESCE(SUM(m.cost), 0)
+    FROM Maintenance m
+    WHERE m.vehicle.owner.id = :ownerId
+      AND m.cost IS NOT NULL
+""")
+    java.math.BigDecimal sumCostByOwnerId(@Param("ownerId") Long ownerId);
 }

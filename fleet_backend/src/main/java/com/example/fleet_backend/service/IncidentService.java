@@ -3,45 +3,25 @@ package com.example.fleet_backend.service;
 import com.example.fleet_backend.dto.IncidentCreateRequest;
 import com.example.fleet_backend.dto.IncidentDTO;
 import com.example.fleet_backend.dto.IncidentFromEventRequest;
+import com.example.fleet_backend.dto.IncidentHistoryDTO;
 import com.example.fleet_backend.dto.IncidentUpdateStatusRequest;
-import com.example.fleet_backend.model.Incident;
-import com.example.fleet_backend.model.IncidentSeverity;
-import com.example.fleet_backend.model.IncidentSource;
-import com.example.fleet_backend.model.IncidentStatus;
-import com.example.fleet_backend.model.Mission;
-import com.example.fleet_backend.model.Vehicle;
-import com.example.fleet_backend.model.VehicleEvent;
-import com.example.fleet_backend.repository.IncidentRepository;
-import com.example.fleet_backend.repository.MissionRepository;
-import com.example.fleet_backend.repository.VehicleEventRepository;
-import com.example.fleet_backend.repository.VehicleRepository;
+import com.example.fleet_backend.model.*;
+import com.example.fleet_backend.repository.*;
 import com.example.fleet_backend.security.AuthUtil;
 import com.example.fleet_backend.service.websocket.IncidentWebSocketPublisher;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.fleet_backend.model.IncidentPhoto;
-import com.example.fleet_backend.repository.IncidentPhotoRepository;
 import org.springframework.web.multipart.MultipartFile;
-import com.example.fleet_backend.dto.IncidentHistoryDTO;
-import com.example.fleet_backend.model.IncidentHistory;
-import com.example.fleet_backend.repository.IncidentHistoryRepository;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.UUID;
-
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 @Service
@@ -56,6 +36,7 @@ public class IncidentService {
     private final IncidentPhotoRepository incidentPhotoRepository;
     private final IncidentHistoryRepository incidentHistoryRepository;
     private final VehicleStatusService vehicleStatusService;
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public IncidentService(
             IncidentRepository incidentRepository,
@@ -66,7 +47,8 @@ public class IncidentService {
             IncidentWebSocketPublisher incidentWebSocketPublisher,
             IncidentPhotoRepository incidentPhotoRepository,
             IncidentHistoryRepository incidentHistoryRepository,
-            VehicleStatusService vehicleStatusService
+            VehicleStatusService vehicleStatusService,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.incidentRepository = incidentRepository;
         this.vehicleRepository = vehicleRepository;
@@ -77,6 +59,7 @@ public class IncidentService {
         this.incidentPhotoRepository = incidentPhotoRepository;
         this.incidentHistoryRepository = incidentHistoryRepository;
         this.vehicleStatusService = vehicleStatusService;
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     @Transactional
@@ -126,7 +109,9 @@ public class IncidentService {
                 incident.setVehicle(mission.getVehicle());
             }
         }
+
         Incident saved = incidentRepository.save(incident);
+
         addHistory(
                 saved,
                 "INCIDENT_CREATED",
@@ -136,12 +121,16 @@ public class IncidentService {
                 AuthUtil.email(auth),
                 "Incident déclaré manuellement"
         );
+
         if (saved.getVehicle() != null) {
             vehicleStatusService.recalculateVehicleStatus(saved.getVehicle().getId());
         }
+
         IncidentDTO dto = toDTO(saved);
 
         incidentWebSocketPublisher.publishIncident(dto);
+        publishDashboard(saved);
+
         return dto;
     }
 
@@ -183,6 +172,8 @@ public class IncidentService {
         IncidentDTO dto = toDTO(incident);
 
         incidentWebSocketPublisher.publishIncident(dto);
+        publishDashboard(incident);
+
         return dto;
     }
 
@@ -240,6 +231,7 @@ public class IncidentService {
         }
 
         Incident saved = incidentRepository.save(incident);
+
         addHistory(
                 saved,
                 "INCIDENT_CREATED_FROM_EVENT",
@@ -249,12 +241,16 @@ public class IncidentService {
                 AuthUtil.email(auth),
                 "Incident confirmé depuis une alerte GPS/OBD"
         );
+
         if (saved.getVehicle() != null) {
             vehicleStatusService.recalculateVehicleStatus(saved.getVehicle().getId());
         }
+
         IncidentDTO dto = toDTO(saved);
 
         incidentWebSocketPublisher.publishIncident(dto);
+        publishDashboard(saved);
+
         return dto;
     }
 
@@ -280,6 +276,7 @@ public class IncidentService {
                 .map(this::toDTO)
                 .toList();
     }
+
     @Transactional(readOnly = true)
     public IncidentDTO getIncidentById(Long id, Authentication auth) {
         Incident incident = incidentRepository.findById(id)
@@ -348,6 +345,7 @@ public class IncidentService {
         }
 
         Incident saved = incidentRepository.save(incident);
+
         addHistory(
                 saved,
                 "STATUS_CHANGED",
@@ -357,32 +355,44 @@ public class IncidentService {
                 AuthUtil.email(auth),
                 "Statut modifié de " + oldStatus + " vers " + newStatus
         );
+
         if (saved.getVehicle() != null) {
             vehicleStatusService.recalculateVehicleStatus(saved.getVehicle().getId());
         }
+
         IncidentDTO dto = toDTO(saved);
 
         incidentWebSocketPublisher.publishIncident(dto);
+        publishDashboard(saved);
+
         return dto;
     }
 
-    private void assertCanConfirmEventAsIncident(VehicleEvent event, Authentication auth) {
+    private void publishDashboard(Incident incident) {
+        if (
+                incident != null &&
+                        incident.getVehicle() != null &&
+                        incident.getVehicle().getOwner() != null
+        ) {
+            dashboardWebSocketPublisher.publishOwnerKpi(
+                    incident.getVehicle().getOwner().getId()
+            );
+        }
+    }
 
+    private void assertCanConfirmEventAsIncident(VehicleEvent event, Authentication auth) {
         if (AuthUtil.isAdmin(auth)) return;
 
         if (event == null || event.getVehicle() == null) {
             throw new RuntimeException("Event invalide");
         }
 
-        // OWNER
         if (AuthUtil.isOwner(auth)) {
             vehicleAccessService.assertCanAccessVehicle(event.getVehicle().getId());
             return;
         }
 
-        // DRIVER
         if (AuthUtil.isDriver(auth)) {
-
             String currentEmail = AuthUtil.email(auth);
 
             if (currentEmail == null) {
@@ -400,7 +410,6 @@ public class IncidentService {
                 throw new RuntimeException("Mission sans driver");
             }
 
-            // 🔥 الحل هنا: نقارن بالإيميل
             if (
                     mission.getDriver().getEmail() != null &&
                             mission.getDriver().getEmail().equalsIgnoreCase(currentEmail)
@@ -413,6 +422,7 @@ public class IncidentService {
 
         throw new RuntimeException("Accès refusé");
     }
+
     private IncidentSource resolveManualSource(Authentication auth) {
         if (AuthUtil.isOwner(auth)) {
             return IncidentSource.OWNER;
@@ -465,13 +475,11 @@ public class IncidentService {
             return false;
         }
 
-
         if (AuthUtil.isDriver(auth)
                 && incident.getReportedByUserId() != null
                 && incident.getReportedByUserId().equals(currentUserId)) {
             return true;
         }
-
 
         if (incident.getVehicle() == null) {
             return false;
@@ -529,6 +537,7 @@ public class IncidentService {
         Vehicle vehicle = incident.getVehicle();
         Mission mission = incident.getMission();
         VehicleEvent event = incident.getVehicleEvent();
+
         List<String> photoUrls = incidentPhotoRepository
                 .findByIncidentIdOrderByCreatedAtAsc(incident.getId())
                 .stream()
@@ -575,6 +584,7 @@ public class IncidentService {
                 photoUrls
         );
     }
+
     private void addHistory(
             Incident incident,
             String action,
@@ -620,6 +630,7 @@ public class IncidentService {
                 .map(this::toHistoryDTO)
                 .toList();
     }
+
     private IncidentHistoryDTO toHistoryDTO(IncidentHistory history) {
         Incident incident = history.getIncident();
 
@@ -635,5 +646,4 @@ public class IncidentService {
                 history.getCreatedAt()
         );
     }
-
 }

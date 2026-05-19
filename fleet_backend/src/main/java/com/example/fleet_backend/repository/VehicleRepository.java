@@ -52,5 +52,5 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     void deleteByOwnerId(Long ownerId);
 
-
+    long countByOwnerIdAndStatus(Long ownerId, Vehicle.VehicleStatus status);
 }

@@ -9,6 +9,7 @@ import com.example.fleet_backend.repository.DriverRepository;
 import com.example.fleet_backend.repository.UserRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.security.AuthUtil;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,15 +25,18 @@ public class VehicleService {
     private final VehicleRepository vehicleRepository;
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public VehicleService(
             VehicleRepository vehicleRepository,
             DriverRepository driverRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.vehicleRepository = vehicleRepository;
         this.driverRepository = driverRepository;
         this.userRepository = userRepository;
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     public List<VehicleDTO> getVehiclesForConnectedUser(Authentication auth) {
@@ -145,7 +149,11 @@ public class VehicleService {
             v.setDriver(d);
         }
 
-        return new VehicleDTO(vehicleRepository.save(v));
+        Vehicle saved = vehicleRepository.save(v);
+
+        publishDashboard(saved);
+
+        return new VehicleDTO(saved);
     }
 
     public VehicleDTO updateVehicleSecured(Long id, VehicleDTO dto, Authentication auth) {
@@ -190,7 +198,11 @@ public class VehicleService {
             v.setDriver(null);
         }
 
-        return new VehicleDTO(vehicleRepository.save(v));
+        Vehicle saved = vehicleRepository.save(v);
+
+        publishDashboard(saved);
+
+        return new VehicleDTO(saved);
     }
 
     public void deleteVehicleSecured(Long id, Authentication auth) {
@@ -199,15 +211,19 @@ public class VehicleService {
                         "Vehicle not found with id: " + id
                 ));
 
-        if (!AuthUtil.isAdmin(auth)) {
-            Long ownerId = AuthUtil.userId(auth);
+        Long ownerId = v.getOwner() != null ? v.getOwner().getId() : null;
 
-            if (v.getOwner() == null || !v.getOwner().getId().equals(ownerId)) {
+        if (!AuthUtil.isAdmin(auth)) {
+            Long currentOwnerId = AuthUtil.userId(auth);
+
+            if (v.getOwner() == null || !v.getOwner().getId().equals(currentOwnerId)) {
                 throw new AccessDeniedException("Not your vehicle");
             }
         }
 
         vehicleRepository.delete(v);
+
+        publishDashboard(ownerId);
     }
 
     public VehicleDTO removeDriverFromVehicleSecured(Long vehicleId, Authentication auth) {
@@ -225,7 +241,12 @@ public class VehicleService {
         }
 
         v.setDriver(null);
-        return new VehicleDTO(vehicleRepository.save(v));
+
+        Vehicle saved = vehicleRepository.save(v);
+
+        publishDashboard(saved);
+
+        return new VehicleDTO(saved);
     }
 
     @Transactional
@@ -234,7 +255,24 @@ public class VehicleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
 
         vehicle.setDriver(null);
-        return vehicleRepository.save(vehicle);
+
+        Vehicle saved = vehicleRepository.save(vehicle);
+
+        publishDashboard(saved);
+
+        return saved;
+    }
+
+    private void publishDashboard(Vehicle vehicle) {
+        if (vehicle != null && vehicle.getOwner() != null) {
+            dashboardWebSocketPublisher.publishOwnerKpi(vehicle.getOwner().getId());
+        }
+    }
+
+    private void publishDashboard(Long ownerId) {
+        if (ownerId != null) {
+            dashboardWebSocketPublisher.publishOwnerKpi(ownerId);
+        }
     }
 
     private void mapDtoToEntity(VehicleDTO dto, Vehicle v, boolean createMode) {

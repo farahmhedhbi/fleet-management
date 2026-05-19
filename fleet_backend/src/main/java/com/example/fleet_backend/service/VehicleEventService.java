@@ -4,6 +4,7 @@ import com.example.fleet_backend.dto.VehicleEventDTO;
 import com.example.fleet_backend.model.*;
 import com.example.fleet_backend.repository.VehicleEventRepository;
 import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
+import com.example.fleet_backend.websocket.DashboardWebSocketPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,17 +25,20 @@ public class VehicleEventService {
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
     private final PredictiveAnalysisService predictiveAnalysisService;
     private final NotificationService notificationService;
+    private final DashboardWebSocketPublisher dashboardWebSocketPublisher;
 
     public VehicleEventService(
             VehicleEventRepository vehicleEventRepository,
             GpsWebSocketPublisher gpsWebSocketPublisher,
             PredictiveAnalysisService predictiveAnalysisService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            DashboardWebSocketPublisher dashboardWebSocketPublisher
     ) {
         this.vehicleEventRepository = vehicleEventRepository;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
         this.predictiveAnalysisService = predictiveAnalysisService;
         this.notificationService = notificationService;
+        this.dashboardWebSocketPublisher = dashboardWebSocketPublisher;
     }
 
     public void analyzeAndCreateEvents(
@@ -245,10 +249,24 @@ public class VehicleEventService {
 
         VehicleEvent saved = vehicleEventRepository.save(event);
 
+        publishDashboardKpi(saved);
+
         gpsWebSocketPublisher.publishEvent(toDto(saved));
 
         notifyOwnerSafely(saved);
         runPredictiveAnalysisSafely(vehicle.getId());
+    }
+
+    private void publishDashboardKpi(VehicleEvent event) {
+        if (
+                event != null &&
+                        event.getVehicle() != null &&
+                        event.getVehicle().getOwner() != null
+        ) {
+            dashboardWebSocketPublisher.publishOwnerKpi(
+                    event.getVehicle().getOwner().getId()
+            );
+        }
     }
 
     private void notifyOwnerSafely(VehicleEvent event) {

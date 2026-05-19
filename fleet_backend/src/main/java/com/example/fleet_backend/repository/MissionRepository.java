@@ -178,4 +178,5 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+    long countByOwner_IdAndStatus(Long ownerId, Mission.MissionStatus status);
 }
