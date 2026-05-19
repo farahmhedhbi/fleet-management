@@ -194,3 +194,15 @@ export function subscribeIncidentsLive<T = any>(handler: TopicHandler<T>) {
 export function unsubscribeIncidentsLive() {
   unsubscribeFromTopic("/topic/incidents/live");
 }
+/* ================= OWNER DASHBOARD KPI ================= */
+
+export function subscribeOwnerDashboardKpi<T = any>(
+  ownerId: number,
+  handler: TopicHandler<T>
+) {
+  subscribeToTopic(`/topic/owners/${ownerId}/dashboard/kpi`, handler);
+}
+
+export function unsubscribeOwnerDashboardKpi(ownerId: number) {
+  unsubscribeFromTopic(`/topic/owners/${ownerId}/dashboard/kpi`);
+}

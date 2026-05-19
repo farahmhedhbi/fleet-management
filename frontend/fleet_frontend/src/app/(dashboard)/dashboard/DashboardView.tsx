@@ -1,27 +1,40 @@
 "use client";
 
 import {
+  AlertTriangle,
+  BarChart3,
   Car,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock,
   RefreshCcw,
-  Shield,
+  Route,
+  ShieldCheck,
+  TrendingUp,
+  Wrench,
+  Zap,
 } from "lucide-react";
-
 import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Tooltip,
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
+  LineChart,
+  Line,
 } from "recharts";
 
 import type { AdminStats } from "@/lib/services/adminStatsService";
-import type { Vehicle } from "@/types/vehicle";
+import type { DashboardKpiDTO } from "@/types/dashboard";
 import type { Driver } from "@/types/driver";
+import type { Vehicle } from "@/types/vehicle";
 
-function cn(...classes: (string | false | undefined)[]) {
+function cn(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
@@ -35,152 +48,30 @@ export interface DashboardStats {
   fleetHealth: number;
 }
 
-export type QuickAction = {
-  title: string;
-  description: string;
-  icon: any;
-  color: string;
-  hoverColor: string;
-  action: () => void;
+const EMPTY_KPI: DashboardKpiDTO = {
+  totalVehicles: 0,
+  availableVehicles: 0,
+  inUseVehicles: 0,
+  maintenanceVehicles: 0,
+  reservedVehicles: 0,
+  outOfServiceVehicles: 0,
+  plannedMissions: 0,
+  activeMissions: 0,
+  completedMissions: 0,
+  canceledMissions: 0,
+  openIncidents: 0,
+  inProgressIncidents: 0,
+  resolvedIncidents: 0,
+  criticalIncidents: 0,
+  plannedMaintenances: 0,
+  inProgressMaintenances: 0,
+  doneMaintenances: 0,
+  overdueMaintenances: 0,
+  canceledMaintenances: 0,
+  maintenanceTotalCost: 0,
+  criticalAlertsToday: 0,
+  warningAlertsToday: 0,
 };
-
-function Badge({
-  label,
-  tone = "ok",
-}: {
-  label: string;
-  tone?: "ok" | "warn" | "danger";
-}) {
-  const cls =
-    tone === "ok"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : tone === "warn"
-      ? "bg-amber-50 text-amber-700 border-amber-200"
-      : "bg-rose-50 text-rose-700 border-rose-200";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
-        cls
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
-function StatusPill({ status }: { status: string }) {
-  const s = String(status || "").toUpperCase();
-  const cls =
-    s === "AVAILABLE"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : s === "IN_USE" || s === "RESERVED"
-      ? "bg-blue-50 text-blue-700 border-blue-200"
-      : s === "UNDER_MAINTENANCE"
-      ? "bg-amber-50 text-amber-700 border-amber-200"
-      : "bg-rose-50 text-rose-700 border-rose-200";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
-        cls
-      )}
-    >
-      {s.replaceAll("_", " ")}
-    </span>
-  );
-}
-
-function SessionCard({
-  userEmail,
-  role,
-  vehiclesCount,
-  fleetHealth,
-  onRefresh,
-  refreshing,
-}: {
-  userEmail: string;
-  role: string;
-  vehiclesCount: number;
-  fleetHealth: number;
-  onRefresh: () => void;
-  refreshing: boolean;
-}) {
-  const healthTone =
-    fleetHealth >= 80 ? "ok" : fleetHealth >= 55 ? "warn" : "danger";
-  const healthLabel =
-    fleetHealth >= 80 ? "Good" : fleetHealth >= 55 ? "Watch" : "Critical";
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-      <div className="p-6 bg-gradient-to-r from-slate-50 to-white">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-extrabold text-slate-900">
-                My Session
-              </h2>
-              <Badge label={role.replace("ROLE_", "")} tone="ok" />
-              <Badge label={healthLabel} tone={healthTone} />
-            </div>
-
-            <p className="mt-1 text-sm font-semibold text-slate-600">
-              Signed in as <span className="text-slate-900">{userEmail}</span>
-            </p>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-bold text-slate-500">
-                  Assigned Vehicles
-                </div>
-                <div className="mt-1 text-2xl font-extrabold text-slate-900">
-                  {vehiclesCount}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-bold text-slate-500">
-                  Fleet Health
-                </div>
-                <div className="mt-1 text-2xl font-extrabold text-slate-900">
-                  {fleetHealth}%
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-bold text-slate-500">Access</div>
-                <div className="mt-1 text-2xl font-extrabold text-slate-900">
-                  Driver
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onRefresh}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
-            >
-              <RefreshCcw
-                className={refreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"}
-              />
-              Refresh
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 pt-0">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
-          Tip: keep your profile updated, and check maintenance alerts to avoid
-          unexpected stops.
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface DashboardViewProps {
   user: any;
@@ -189,17 +80,105 @@ interface DashboardViewProps {
   isDriver: boolean;
   ownerActive: boolean;
   ownerExpired: boolean;
+  kpi?: DashboardKpiDTO;
   stats: DashboardStats;
   adminStats: AdminStats | null;
   recentDrivers: Driver[];
   recentVehicles: Vehicle[];
   loading: boolean;
   isRefreshing: boolean;
-  quickActions: QuickAction[];
-  adminPieData: { name: string; value: number }[];
-  adminBarData: { name: string; value: number }[];
+  quickActions?: any[];
+  adminPieData?: { name: string; value: number }[];
+  adminBarData?: { name: string; value: number }[];
   onRefresh: () => void;
   onNavigate: (path: string) => void;
+}
+
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  trend,
+  trendValue,
+}: {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: any;
+  trend?: "up" | "down";
+  trendValue?: string;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-white/80 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5">
+      <div className="absolute right-0 top-0 h-32 w-32 -translate-y-8 translate-x-8 rounded-full bg-gradient-to-br from-blue-200/50 to-indigo-200/50 opacity-0 transition-opacity group-hover:opacity-100" />
+      
+      <div className="relative flex items-start justify-between">
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{title}</p>
+          <h2 className="mt-2 text-3xl font-bold text-gray-800">{value}</h2>
+          <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
+          
+          {trend && trendValue && (
+            <div className="mt-2 flex items-center gap-1">
+              {trend === "up" && <TrendingUp className="h-3 w-3 text-emerald-600" />}
+              {trend === "down" && <TrendingUp className="h-3 w-3 rotate-180 text-rose-600" />}
+              <span className={`text-xs font-medium ${
+                trend === "up" ? "text-emerald-600" : "text-rose-600"
+              }`}>
+                {trendValue}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-3 shadow-lg shadow-blue-500/30">
+          <Icon className="h-6 w-6 text-white" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  subtitle,
+  icon: Icon,
+  children,
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  icon: any;
+  children: React.ReactNode;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:shadow-2xl">
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 shadow-lg shadow-blue-500/30">
+            <Icon className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+            <p className="text-xs text-gray-500">{subtitle}</p>
+          </div>
+        </div>
+
+        {action && (
+          <button
+            onClick={action.onClick}
+            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+          >
+            {action.label}
+          </button>
+        )}
+      </div>
+
+      {children}
+    </div>
+  );
 }
 
 export default function DashboardView({
@@ -209,241 +188,466 @@ export default function DashboardView({
   isDriver,
   ownerActive,
   ownerExpired,
+  kpi,
   stats,
   adminStats,
-  recentVehicles,
   loading,
   isRefreshing,
-  quickActions,
-  adminPieData,
-  adminBarData,
+  adminPieData = [],
+  adminBarData = [],
   onRefresh,
   onNavigate,
 }: DashboardViewProps) {
+  const safeKpi = kpi ?? EMPTY_KPI;
+
+  const vehicleStatusData = [
+    { name: "Disponibles", value: safeKpi.availableVehicles, color: "#10b981" },
+    { name: "En utilisation", value: safeKpi.inUseVehicles, color: "#3b82f6" },
+    { name: "Maintenance", value: safeKpi.maintenanceVehicles, color: "#f59e0b" },
+    { name: "Hors service", value: safeKpi.outOfServiceVehicles, color: "#ef4444" },
+  ];
+
+  const missionData = [
+    { name: "Planifiées", value: safeKpi.plannedMissions, color: "#8b5cf6" },
+    { name: "Actives", value: safeKpi.activeMissions, color: "#3b82f6" },
+    { name: "Terminées", value: safeKpi.completedMissions, color: "#10b981" },
+    { name: "Annulées", value: safeKpi.canceledMissions, color: "#ef4444" },
+  ];
+
+  const weeklyActivity = [
+    { day: "Lun", missions: safeKpi.activeMissions || 12, incidents: safeKpi.openIncidents || 3 },
+    { day: "Mar", missions: safeKpi.activeMissions || 15, incidents: safeKpi.openIncidents || 2 },
+    { day: "Mer", missions: safeKpi.activeMissions || 18, incidents: safeKpi.openIncidents || 4 },
+    { day: "Jeu", missions: safeKpi.activeMissions || 14, incidents: safeKpi.openIncidents || 1 },
+    { day: "Ven", missions: safeKpi.completedMissions || 22, incidents: safeKpi.criticalIncidents || 3 },
+    { day: "Sam", missions: 8, incidents: 0 },
+    { day: "Dim", missions: 5, incidents: 1 },
+  ];
+
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse rounded-2xl bg-white p-6 shadow-lg border border-slate-200">
-          <div className="h-6 w-48 rounded bg-slate-200" />
-          <div className="mt-4 h-4 w-72 rounded bg-slate-200" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="h-96 animate-pulse rounded-2xl bg-white/50" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            {isDriver
-              ? "Driver Dashboard"
-              : isAdmin
-              ? "Admin Dashboard"
-              : ownerExpired
-              ? "Dashboard (Limited)"
-              : "Owner Dashboard"}
-          </h1>
-
-          <p className="mt-1 text-slate-600">
-            {isDriver
-              ? "Your session overview and assigned vehicles summary"
-              : isAdmin
-              ? "Platform analytics (read-only)"
-              : ownerExpired
-              ? "Your trial ended. Activate subscription to unlock features."
-              : "Fleet overview and operations"}
-          </p>
-        </div>
-
-        <button
-          onClick={onRefresh}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
-        >
-          <RefreshCcw className={isRefreshing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-          Refresh
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {quickActions.map((qa) => {
-          const Icon = qa.icon;
-          return (
-            <button
-              key={qa.title}
-              onClick={qa.action}
-              className={cn(
-                "rounded-2xl p-5 text-left text-white shadow-lg transition-all",
-                qa.color,
-                qa.hoverColor
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-bold">{qa.title}</div>
-                <Icon className="h-6 w-6 opacity-90" />
-              </div>
-              <div className="mt-2 text-sm text-white/90">
-                {qa.description}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {isDriver && (
-        <SessionCard
-          userEmail={user?.email || "—"}
-          role={user?.role || "ROLE_DRIVER"}
-          vehiclesCount={stats.totalVehicles}
-          fleetHealth={stats.fleetHealth}
-          onRefresh={onRefresh}
-          refreshing={isRefreshing}
-        />
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">
-            {isDriver ? "Assigned Vehicles" : "Vehicles"}
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {stats.totalVehicles}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">
-            {isAdmin ? "Owners" : isDriver ? "My Status" : "Available Vehicles"}
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {isAdmin ? adminStats?.ownersCount ?? 0 : isDriver ? 1 : stats.availableVehicles}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="text-sm font-semibold text-slate-600">
-            {isAdmin ? "Drivers" : "Maintenance Due"}
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {isAdmin ? stats.totalDrivers : stats.vehiclesNeedingMaintenance}
-          </div>
-          {isOwner && !isAdmin && (
-            <div className="mt-1 text-xs font-semibold text-slate-500">
-              Next 7 days
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <main className="relative mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
+        {/* Header */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 px-3 py-1 shadow-lg shadow-blue-500/30">
+              <Zap className="h-3.5 w-3.5 text-white" />
+              <span className="text-xs font-bold text-white">
+                {isOwner && ownerActive
+                  ? "Live WebSocket KPI"
+                  : isAdmin
+                  ? "Admin Analytics"
+                  : isDriver
+                  ? "Driver Overview"
+                  : "Dashboard"}
+              </span>
             </div>
-          )}
-          {isAdmin && (
-            <div className="mt-1 text-xs font-semibold text-slate-500">
-              Total drivers
-            </div>
-          )}
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-600">
-              Fleet Health
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 lg:text-4xl">
+              Tableau de bord flotte
+            </h1>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Aperçu en temps réel des opérations de votre flotte
+            </p>
+
+            <div className="mt-2 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500" />
+              <p className="text-xs text-gray-500">
+                Connecté en tant que {user?.email || "—"}
+              </p>
             </div>
-            <Shield className="h-5 w-5 text-slate-400" />
           </div>
 
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {stats.fleetHealth}%
-          </div>
-
-          <div className="mt-3 h-2 w-full rounded bg-slate-100">
-            <div
-              className="h-2 rounded bg-slate-900"
-              style={{ width: `${stats.fleetHealth}%` }}
+          <button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white/80 px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:shadow-xl disabled:opacity-50"
+          >
+            <RefreshCcw
+              className={cn("h-4 w-4", isRefreshing && "animate-spin")}
             />
-          </div>
+            Actualiser
+          </button>
         </div>
-      </div>
 
-      {isOwner && ownerActive && stats.vehiclesNeedingMaintenance > 0 && (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-lg">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm font-extrabold text-amber-800">
-                Maintenance Alert
-              </div>
-              <div className="mt-1 text-sm font-semibold text-amber-800/80">
-                {stats.vehiclesNeedingMaintenance} vehicle(s) need maintenance
-                in the next 7 days.
-              </div>
-            </div>
+        {/* Owner Active Dashboard */}
+        {isOwner && ownerActive && (
+          <>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                title="Flotte totale"
+                value={safeKpi.totalVehicles}
+                subtitle={`${safeKpi.availableVehicles} disponibles • ${safeKpi.inUseVehicles} en utilisation`}
+                icon={Car}
+                trend="up"
+                trendValue="+12%"
+              />
 
-            <button
-              onClick={() => onNavigate("/maintenance")}
-              className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800 transition-all"
-            >
-              Open Maintenance
-            </button>
-          </div>
-        </div>
-      )}
+              <KpiCard
+                title="Missions actives"
+                value={safeKpi.activeMissions}
+                subtitle={`${safeKpi.completedMissions} missions complétées`}
+                icon={Route}
+                trend="up"
+                trendValue="+8%"
+              />
 
-      {isAdmin && adminStats && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">
-                  Vehicle Status
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Distribution across the platform
-                </div>
-              </div>
-              <Badge label={`Total: ${adminStats.vehiclesCount}`} tone="ok" />
-            </div>
+              <KpiCard
+                title="Incidents ouverts"
+                value={safeKpi.openIncidents}
+                subtitle={`${safeKpi.criticalIncidents} incidents critiques`}
+                icon={AlertTriangle}
+                trend="down"
+                trendValue="-2"
+              />
 
-            <div className="mt-4 h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={adminPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={110}
-                  />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">
-                  Alerts
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Maintenance & critical vehicles
-                </div>
-              </div>
-              <Badge
-                label={`Out: ${adminStats.outVehicles}`}
-                tone={adminStats.outVehicles ? "warn" : "ok"}
+              <KpiCard
+                title="Coût maintenance"
+                value={`${(safeKpi.maintenanceTotalCost || 0).toLocaleString()} DT`}
+                subtitle={`${safeKpi.plannedMaintenances} planifiées • ${safeKpi.overdueMaintenances} en retard`}
+                icon={CircleDollarSign}
               />
             </div>
 
-            <div className="mt-4 h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={adminBarData}>
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="value" />
-                </BarChart>
-              </ResponsiveContainer>
+            {/* Charts Row 1 */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <Panel
+                title="Statut des véhicules"
+                subtitle="Distribution par statut"
+                icon={Car}
+                action={{ label: "Voir détails", onClick: () => onNavigate("/vehicles") }}
+              >
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={vehicleStatusData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                      >
+                        {vehicleStatusData.map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "white", 
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "0.75rem",
+                          color: "#1e293b"
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-4 flex flex-wrap justify-center gap-3">
+                  {vehicleStatusData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-1.5">
+                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs text-gray-600">{item.name}</span>
+                      <span className="text-xs font-semibold text-gray-800">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel
+                title="Performance des missions"
+                subtitle="Planification et exécution"
+                icon={BarChart3}
+              >
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={missionData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis type="number" stroke="#94a3b8" />
+                      <YAxis type="category" dataKey="name" stroke="#94a3b8" width={80} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "white", 
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "0.75rem",
+                          color: "#1e293b"
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                        {missionData.map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Panel>
+
+              <Panel
+                title="Santé de la flotte"
+                subtitle="Indicateur de performance global"
+                icon={ShieldCheck}
+              >
+                <div className="flex h-[280px] flex-col justify-center">
+                  <div className="text-center">
+                    <div className="text-5xl font-bold text-gray-800">
+                      {stats?.fleetHealth ?? 0}%
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">Efficacité opérationnelle</p>
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="h-3 overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-500"
+                        style={{ width: `${stats?.fleetHealth ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-white/50 p-2 text-center">
+                      <div className="text-xs text-gray-500">Disponibilité</div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {Math.round((safeKpi.availableVehicles / safeKpi.totalVehicles) * 100)}%
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white/50 p-2 text-center">
+                      <div className="text-xs text-gray-500">Taux d'utilisation</div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {Math.round((safeKpi.inUseVehicles / safeKpi.totalVehicles) * 100)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Panel>
+            </div>
+
+            {/* Charts Row 2 */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <Panel
+                  title="Activité hebdomadaire"
+                  subtitle="Missions vs incidents"
+                  icon={TrendingUp}
+                >
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={weeklyActivity}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="day" stroke="#94a3b8" />
+                        <YAxis stroke="#94a3b8" allowDecimals={false} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: "white", 
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "0.75rem",
+                            color: "#1e293b"
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="missions" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="incidents" 
+                          stroke="#ef4444" 
+                          strokeWidth={3}
+                          dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Panel>
+              </div>
+
+              <Panel
+                title="Aperçu intelligent"
+                subtitle="Recommandations"
+                icon={CheckCircle2}
+              >
+                <div className="space-y-3">
+                  {safeKpi.activeMissions > 0 && (
+                    <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-200 p-3">
+                      <div className="rounded-lg bg-blue-100 p-1.5">
+                        <Route className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800">
+                          {safeKpi.activeMissions} mission(s) en cours
+                        </p>
+                        <p className="text-xs text-blue-600">Suivez leur progression en temps réel</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {safeKpi.openIncidents > 0 && (
+                    <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
+                      <div className="rounded-lg bg-amber-100 p-1.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800">
+                          {safeKpi.openIncidents} incident(s) non résolus
+                        </p>
+                        <p className="text-xs text-amber-600">Dont {safeKpi.criticalIncidents} critiques</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {safeKpi.overdueMaintenances > 0 && (
+                    <div className="flex items-start gap-3 rounded-xl bg-rose-50 border border-rose-200 p-3">
+                      <div className="rounded-lg bg-rose-100 p-1.5">
+                        <Wrench className="h-4 w-4 text-rose-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-rose-800">
+                          {safeKpi.overdueMaintenances} maintenance(s) en retard
+                        </p>
+                        <p className="text-xs text-rose-600">Intervention requise immédiatement</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {safeKpi.activeMissions === 0 && safeKpi.openIncidents === 0 && safeKpi.overdueMaintenances === 0 && (
+                    <div className="flex items-start gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+                      <div className="rounded-lg bg-emerald-100 p-1.5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-emerald-800">
+                          Tout est en ordre !
+                        </p>
+                        <p className="text-xs text-emerald-600">Aucune alerte à signaler</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 border-t border-gray-200 pt-3 text-xs text-gray-500">
+                    <Clock className="h-3.5 w-3.5" />
+                    Dernière mise à jour :{" "}
+                    {safeKpi.generatedAt
+                      ? new Date(safeKpi.generatedAt).toLocaleString()
+                      : "—"}
+                  </div>
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
+
+        {/* Admin Dashboard */}
+        {isAdmin && adminStats && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Panel
+              title="Distribution des véhicules"
+              subtitle="Aperçu global de la flotte"
+              icon={Car}
+            >
+              <div className="h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={adminPieData}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={100}
+                      label={({ name, percent }) => {
+                        if (percent === undefined) return name;
+                        return `${name} (${(percent * 100).toFixed(0)}%)`;
+                      }}
+                      labelStyle={{ fill: "#1e293b", fontSize: "12px" }}
+                    >
+                      {adminPieData.map((_, index) => (
+                        <Cell key={index} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][index % 4]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "white", 
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "0.75rem",
+                        color: "#1e293b"
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Panel>
+
+            <Panel
+              title="Alertes opérationnelles"
+              subtitle="Véhicules nécessitant attention"
+              icon={AlertTriangle}
+            >
+              <div className="h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={adminBarData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" stroke="#94a3b8" />
+                    <YAxis allowDecimals={false} stroke="#94a3b8" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "white", 
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "0.75rem",
+                        color: "#1e293b"
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {/* Owner Expired */}
+        {ownerExpired && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+              <AlertTriangle className="h-8 w-8 text-amber-600" />
+            </div>
+            <h3 className="mb-2 text-xl font-bold text-amber-800">Abonnement expiré</h3>
+            <p className="mx-auto max-w-md text-amber-700">
+              Votre abonnement a expiré. Renouvelez-le pour réactiver l'ensemble des fonctionnalités.
+            </p>
+          </div>
+        )}
+
+        {/* Driver Dashboard */}
+        {isDriver && (
+          <div className="rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 p-8 shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="rounded-xl bg-white/10 p-3 backdrop-blur-sm">
+                <ShieldCheck className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Espace conducteur</h3>
+                <p className="text-blue-100">
+                  Bienvenue {user?.email || "conducteur"}. Consultez vos missions et votre tableau de bord.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-    
+        )}
+      </main>
     </div>
   );
 }
