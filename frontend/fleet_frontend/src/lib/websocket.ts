@@ -194,3 +194,35 @@ export function subscribeIncidentsLive<T = any>(handler: TopicHandler<T>) {
 export function unsubscribeIncidentsLive() {
   unsubscribeFromTopic("/topic/incidents/live");
 }
+
+
+export function unsubscribeReturnDepotLive() {
+  unsubscribeFromTopic("/topic/return-depot/live");
+}
+
+export function subscribeVehicleReturnDepot<T = any>(
+  vehicleId: number,
+  handler: TopicHandler<T>
+) {
+  subscribeToTopic(`/topic/vehicles/${vehicleId}/return-depot`, handler);
+}
+
+export function unsubscribeVehicleReturnDepot(vehicleId: number) {
+  unsubscribeFromTopic(`/topic/vehicles/${vehicleId}/return-depot`);
+}
+
+export function subscribeMissionReturnDepot<T = any>(
+  missionId: number,
+  handler: TopicHandler<T>
+) {
+  subscribeToTopic(`/topic/missions/${missionId}/return-depot`, handler);
+}
+
+export function unsubscribeMissionReturnDepot(missionId: number) {
+  unsubscribeFromTopic(`/topic/missions/${missionId}/return-depot`);
+}
+
+
+export function subscribeReturnDepotLive<T = any>(handler: TopicHandler<T>) {
+  subscribeToTopic("/topic/return-depot/live", handler);
+}

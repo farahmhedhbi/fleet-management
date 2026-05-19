@@ -8,6 +8,7 @@ import com.example.fleet_backend.repository.GpsDataRepository;
 import com.example.fleet_backend.repository.VehicleRepository;
 import com.example.fleet_backend.service.MissionService;
 import com.example.fleet_backend.service.ObdEventService;
+import com.example.fleet_backend.service.ReturnDepotService;
 import com.example.fleet_backend.service.VehicleEventService;
 import com.example.fleet_backend.service.VehicleHealthStateService;
 import com.example.fleet_backend.service.websocket.GpsWebSocketPublisher;
@@ -30,6 +31,7 @@ public class GpsIngestionService {
     private final ObdEventService obdEventService;
     private final VehicleHealthStateService vehicleHealthStateService;
     private final MissionService missionService;
+    private final ReturnDepotService returnDepotService;
     private final GpsWebSocketPublisher gpsWebSocketPublisher;
 
     public GpsIngestionService(
@@ -43,6 +45,7 @@ public class GpsIngestionService {
             ObdEventService obdEventService,
             VehicleHealthStateService vehicleHealthStateService,
             MissionService missionService,
+            ReturnDepotService returnDepotService,
             GpsWebSocketPublisher gpsWebSocketPublisher
     ) {
         this.gpsValidationService = gpsValidationService;
@@ -55,6 +58,7 @@ public class GpsIngestionService {
         this.obdEventService = obdEventService;
         this.vehicleHealthStateService = vehicleHealthStateService;
         this.missionService = missionService;
+        this.returnDepotService = returnDepotService;
         this.gpsWebSocketPublisher = gpsWebSocketPublisher;
     }
 
@@ -77,6 +81,12 @@ public class GpsIngestionService {
         gpsDataRepository.save(gpsData);
 
         updateVehicleCurrentLocation(vehicle, gpsData);
+
+        returnDepotService.checkArrival(
+                vehicle.getId(),
+                gpsData.getLatitude(),
+                gpsData.getLongitude()
+        );
 
         GpsStatusResult statusResult = gpsStatusService.evaluate(
                 gpsData,

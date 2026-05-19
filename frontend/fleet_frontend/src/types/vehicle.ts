@@ -5,9 +5,14 @@ export type TransmissionType = "MANUAL" | "AUTOMATIC" | "SEMI_AUTOMATIC";
 export type VehicleStatus =
   | "AVAILABLE"
   | "IN_USE"
+  | "WITH_DRIVER"
+  | "OUTSIDE_DEPOT"
+  | "RETURNING_TO_DEPOT"
+  | "PARKED"
   | "UNDER_MAINTENANCE"
   | "OUT_OF_SERVICE"
-  | "RESERVED";
+  | "RESERVED"
+  | "BROKEN_DOWN";
 
 export interface Vehicle {
   id: number;
@@ -20,9 +25,11 @@ export interface Vehicle {
   fuelType?: FuelType | null;
   transmission?: TransmissionType | null;
   status: VehicleStatus;
+  parked?: boolean | null;
   mileage?: number | null;
   lastMaintenanceDate?: string | null;
   nextMaintenanceDate?: string | null;
+  lastFuelLevel?: number | null;
 
   currentLatitude?: number | null;
   currentLongitude?: number | null;
@@ -52,9 +59,11 @@ export interface VehicleDTO {
   fuelType?: FuelType | null;
   transmission?: TransmissionType | null;
   status?: VehicleStatus;
+  parked?: boolean | null;
   mileage?: number | null;
   lastMaintenanceDate?: string | null;
   nextMaintenanceDate?: string | null;
+  lastFuelLevel?: number | null;
 
   currentLatitude?: number | null;
   currentLongitude?: number | null;
@@ -76,97 +85,40 @@ export interface VehicleFilters {
   brand?: string;
 }
 
-export const FUEL_TYPE_OPTIONS = [
-  { value: "GASOLINE", label: "Gasoline" },
-  { value: "DIESEL", label: "Diesel" },
-  { value: "ELECTRIC", label: "Electric" },
-  { value: "HYBRID", label: "Hybrid" },
-  { value: "LPG", label: "LPG" },
-] as const;
-
-export const TRANSMISSION_OPTIONS = [
-  { value: "MANUAL", label: "Manual" },
-  { value: "AUTOMATIC", label: "Automatic" },
-  { value: "SEMI_AUTOMATIC", label: "Semi-Automatic" },
-] as const;
-
 export const VEHICLE_STATUS_OPTIONS = [
   { value: "AVAILABLE", label: "Available" },
-  { value: "IN_USE", label: "In Use" },
-  { value: "UNDER_MAINTENANCE", label: "Under Maintenance" },
-  { value: "OUT_OF_SERVICE", label: "Out of Service" },
+  { value: "IN_USE", label: "In use" },
+  { value: "RETURNING_TO_DEPOT", label: "Returning to depot" },
+  { value: "UNDER_MAINTENANCE", label: "Under maintenance" },
+  { value: "BROKEN_DOWN", label: "Broken down" },
+  { value: "OUT_OF_SERVICE", label: "Out of service" },
   { value: "RESERVED", label: "Reserved" },
 ] as const;
+
+export function getVehicleBusinessLabel(vehicle: Pick<Vehicle, "status" | "parked">) {
+  if (vehicle.status === "AVAILABLE" && vehicle.parked) return "Available at depot";
+  if (vehicle.status === "AVAILABLE" && !vehicle.parked) return "Available on field";
+  if (vehicle.status === "RETURNING_TO_DEPOT") return "Returning to depot";
+  if (vehicle.status === "IN_USE") return "In mission";
+  if (vehicle.status === "BROKEN_DOWN") return "Broken down";
+  if (vehicle.status === "UNDER_MAINTENANCE") return "Under maintenance";
+  if (vehicle.status === "OUT_OF_SERVICE") return "Out of service";
+  return vehicle.status;
+}
 
 export const getVehicleStatusColor = (status: VehicleStatus): string => {
   const colors: Record<VehicleStatus, string> = {
     AVAILABLE: "bg-green-100 text-green-800 border-green-200",
     IN_USE: "bg-blue-100 text-blue-800 border-blue-200",
+    WITH_DRIVER: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    OUTSIDE_DEPOT: "bg-orange-100 text-orange-800 border-orange-200",
+    RETURNING_TO_DEPOT: "bg-purple-100 text-purple-800 border-purple-200",
+    PARKED: "bg-emerald-100 text-emerald-800 border-emerald-200",
     UNDER_MAINTENANCE: "bg-yellow-100 text-yellow-800 border-yellow-200",
     OUT_OF_SERVICE: "bg-red-100 text-red-800 border-red-200",
-    RESERVED: "bg-purple-100 text-purple-800 border-purple-200",
+    RESERVED: "bg-slate-100 text-slate-800 border-slate-200",
+    BROKEN_DOWN: "bg-red-100 text-red-800 border-red-200",
   };
 
   return colors[status] || "bg-gray-100 text-gray-800 border-gray-200";
-};
-
-export const getFuelTypeColor = (fuelType?: FuelType | null): string => {
-  if (!fuelType) return "bg-gray-100 text-gray-800";
-
-  const colors: Record<FuelType, string> = {
-    GASOLINE: "bg-orange-100 text-orange-800",
-    DIESEL: "bg-gray-100 text-gray-800",
-    ELECTRIC: "bg-emerald-100 text-emerald-800",
-    HYBRID: "bg-cyan-100 text-cyan-800",
-    LPG: "bg-yellow-100 text-yellow-800",
-  };
-
-  return colors[fuelType];
-};
-
-export const getTransmissionIcon = (
-  transmission?: TransmissionType | null
-): string => {
-  switch (transmission) {
-    case "MANUAL":
-      return "🚗";
-    case "AUTOMATIC":
-      return "⚙️";
-    case "SEMI_AUTOMATIC":
-      return "🔄";
-    default:
-      return "🚘";
-  }
-};
-
-export const validateVehicle = (vehicle: VehicleDTO): string[] => {
-  const errors: string[] = [];
-
-  if (!vehicle.registrationNumber?.trim()) {
-    errors.push("Registration number is required");
-  }
-
-  if (!vehicle.brand?.trim()) {
-    errors.push("Brand is required");
-  }
-
-  if (!vehicle.model?.trim()) {
-    errors.push("Model is required");
-  }
-
-  if (!vehicle.year) {
-    errors.push("Year is required");
-  } else if (vehicle.year < 1900 || vehicle.year > new Date().getFullYear() + 1) {
-    errors.push("Invalid year");
-  }
-
-  if (vehicle.mileage != null && vehicle.mileage < 0) {
-    errors.push("Mileage cannot be negative");
-  }
-
-  if (vehicle.vin && vehicle.vin.length !== 17) {
-    errors.push("VIN must be 17 characters");
-  }
-
-  return errors;
 };

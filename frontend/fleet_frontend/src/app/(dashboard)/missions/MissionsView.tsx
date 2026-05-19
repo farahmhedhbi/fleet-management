@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   Ban,
   Route,
+  Warehouse,
+  MapPin,
+  ArrowRight,
 } from "lucide-react";
 
 type MissionStatusFilter =
@@ -76,6 +79,7 @@ interface Props {
   filtered: Mission[];
   loading: boolean;
   refreshing: boolean;
+  actingId: number | null;
 
   q: string;
   setQ: Dispatch<SetStateAction<string>>;
@@ -94,12 +98,14 @@ interface Props {
   onRefresh: () => void;
   onDeleteMission: (id: number) => void;
   onCancelMission: (id: number) => void;
+  onSuggestReturnDepot: (mission: Mission) => void;
 }
 
 export default function MissionsView({
   filtered,
   loading,
   refreshing,
+  actingId,
   q,
   setQ,
   statusFilter,
@@ -108,6 +114,7 @@ export default function MissionsView({
   onRefresh,
   onDeleteMission,
   onCancelMission,
+  onSuggestReturnDepot,
 }: Props) {
   const filterItems = [
     {
@@ -157,7 +164,9 @@ export default function MissionsView({
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Créez, filtrez et gérez les missions.
+                Créez, filtrez et gérez les missions. Après une mission
+                terminée, le véhicule peut continuer sur terrain ou retourner
+                au dépôt.
               </p>
             </div>
 
@@ -165,9 +174,12 @@ export default function MissionsView({
               <button
                 type="button"
                 onClick={onRefresh}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <RefreshCcw className="h-4 w-4" />
+                <RefreshCcw
+                  className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                />
                 {refreshing ? "Refreshing..." : "Refresh"}
               </button>
 
@@ -267,6 +279,8 @@ export default function MissionsView({
           <div className="grid gap-4">
             {filtered.map((m) => {
               const canEdit = m.status === "PLANNED";
+              const busy = actingId === m.id;
+              const completed = m.status === "COMPLETED";
 
               return (
                 <div
@@ -295,13 +309,50 @@ export default function MissionsView({
                     </div>
                   </div>
 
+                  {completed && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-xl bg-white p-2 text-emerald-700">
+                          <MapPin className="h-5 w-5" />
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-black text-emerald-800">
+                            Véhicule disponible sur terrain
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-emerald-700">
+                            La mission est terminée. Le véhicule peut démarrer
+                            une nouvelle mission depuis{" "}
+                            <b>{m.destination || "sa position actuelle"}</b> ou
+                            retourner au dépôt.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <Info label="Route" value={`${m.departure} → ${m.destination}`} />
-                    <Info label="Vehicle" value={m.vehicleRegistrationNumber || "—"} />
+                    <Info
+                      label="Route"
+                      value={`${m.departure} → ${m.destination}`}
+                    />
+                    <Info
+                      label="Vehicle"
+                      value={m.vehicleRegistrationNumber || "—"}
+                    />
                     <Info label="Driver" value={m.driverName || "—"} />
-                    <Info label="Planned start" value={formatDateTime(m.startDate)} />
-                    <Info label="Estimated end" value={formatDateTime(m.endDate)} />
-                    <Info label="Started at" value={formatDateTime(m.startedAt)} />
+                    <Info
+                      label="Planned start"
+                      value={formatDateTime(m.startDate)}
+                    />
+                    <Info
+                      label="Estimated end"
+                      value={formatDateTime(m.endDate)}
+                    />
+                    <Info
+                      label="Started at"
+                      value={formatDateTime(m.startedAt)}
+                    />
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -315,11 +366,38 @@ export default function MissionsView({
                       </Link>
                     )}
 
+                    {completed && (
+                      <>
+                        <Link
+                          href={`/missions/create?departure=${encodeURIComponent(
+                            m.destination || ""
+                          )}&vehicleId=${m.vehicleId ?? ""}&driverId=${
+                            m.driverId ?? ""
+                          }`}
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 font-semibold text-emerald-700 hover:bg-emerald-100"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                          Create next mission
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => onSuggestReturnDepot(m)}
+                          disabled={busy}
+                          className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 font-semibold text-purple-700 hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Warehouse className="h-4 w-4" />
+                          {busy ? "Creating return..." : "Suggest return depot"}
+                        </button>
+                      </>
+                    )}
+
                     {m.status !== "COMPLETED" && m.status !== "CANCELED" && (
                       <button
                         type="button"
                         onClick={() => onCancelMission(m.id)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-700 hover:bg-amber-100"
+                        disabled={busy}
+                        className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <XCircle className="h-4 w-4" />
                         Cancel
@@ -329,7 +407,8 @@ export default function MissionsView({
                     <button
                       type="button"
                       onClick={() => onDeleteMission(m.id)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100"
+                      disabled={busy}
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Trash2 className="h-4 w-4" />
                       Delete

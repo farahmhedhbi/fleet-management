@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
+import { returnDepotService } from "@/lib/services/returnDepotService";
 import type { Mission, RouteCheckResult } from "@/types/mission";
 import type { VehicleLiveStatusDTO } from "@/types/gps";
 import { toast } from "react-toastify";
@@ -165,26 +166,20 @@ export default function MyMissionsPage() {
     if (!query) return sortedMissions;
 
     return sortedMissions.filter((m) => {
-      const mission = m as Mission & {
-        returnDepotReason?: string | null;
-        depotCity?: string | null;
-        finalCity?: string | null;
-      };
-
       const text = [
-        mission.title,
-        mission.description,
-        mission.vehicleRegistrationNumber,
-        mission.status,
-        mission.departure,
-        mission.destination,
-        mission.driverName,
-        mission.driverStatus,
-        mission.routeCheckStatus,
-        mission.routeRiskLevel,
-        mission.returnDepotReason,
-        mission.depotCity,
-        mission.finalCity,
+        m.title,
+        m.description,
+        m.vehicleRegistrationNumber,
+        m.status,
+        m.departure,
+        m.destination,
+        m.driverName,
+        m.driverStatus,
+        m.routeCheckStatus,
+        m.routeRiskLevel,
+        m.returnDepotReason,
+        m.depotCity,
+        m.finalCity,
       ]
         .filter(Boolean)
         .join(" ")
@@ -447,38 +442,32 @@ export default function MyMissionsPage() {
   );
 
   const handleReturnToDepot = useCallback(
-  async (mission: Mission) => {
-    try {
-      setActingId(mission.id);
+    async (mission: Mission) => {
+      try {
+        setActingId(mission.id);
 
-      const result = await missionService.returnToDepot(mission.id);
+        const result = await returnDepotService.suggest(mission.id);
 
-      if (result?.returnToDepotSuggested) {
-        toast.success("Retour dépôt possible. Retour créé avec succès.");
-      } else if (result?.vehicleStaysWithDriver) {
-        toast.warning(
-          result?.returnDepotReason || "Le véhicule reste avec vous."
+        toast.success(
+          result?.etaMinutes
+            ? `Retour dépôt suggéré. ETA ${result.etaMinutes} min.`
+            : "Retour dépôt suggéré."
         );
-      } else {
-        toast.info(
-          result?.returnDepotReason || "Aucun retour dépôt nécessaire."
+
+        await load(false);
+      } catch (e: any) {
+        toast.error(
+          e?.response?.data?.message ||
+            e?.response?.data?.error ||
+            e?.message ||
+            "Impossible de demander le retour dépôt"
         );
+      } finally {
+        setActingId(null);
       }
-
-      await load(false);
-    } catch (e: any) {
-      toast.error(
-        e?.response?.data?.message ||
-          e?.response?.data?.error ||
-          e?.message ||
-          "Impossible de demander le retour dépôt"
-      );
-    } finally {
-      setActingId(null);
-    }
-  },
-  [load]
-);
+    },
+    [load]
+  );
 
   return (
     <ProtectedRoute allowedRoles={["ROLE_DRIVER"]}>

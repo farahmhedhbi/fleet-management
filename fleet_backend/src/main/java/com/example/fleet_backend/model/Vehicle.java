@@ -3,7 +3,6 @@ package com.example.fleet_backend.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-
 @Entity
 @Table(name = "vehicles")
 public class Vehicle {
@@ -42,6 +41,9 @@ public class Vehicle {
     @Enumerated(EnumType.STRING)
     private VehicleStatus status;
 
+    @Column(name = "parked")
+    private Boolean parked = true;
+
     @Column(name = "mileage")
     private Double mileage;
 
@@ -77,15 +79,14 @@ public class Vehicle {
     @Column(name = "home_depot_longitude")
     private Double homeDepotLongitude;
 
+    @Column(name = "last_fuel_level")
+    private Double lastFuelLevel;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @Column(name = "last_fuel_level")
-    private Double lastFuelLevel;
-
 
     public Vehicle() {}
 
@@ -104,6 +105,11 @@ public class Vehicle {
         if (status == null) {
             status = VehicleStatus.AVAILABLE;
         }
+
+        if (parked == null) {
+            parked = true;
+        }
+
         if (mileage == null) {
             mileage = 0.0;
         }
@@ -113,10 +119,6 @@ public class Vehicle {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
-
-    // =========================
-    // GETTERS & SETTERS
-    // =========================
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -148,6 +150,9 @@ public class Vehicle {
     public VehicleStatus getStatus() { return status; }
     public void setStatus(VehicleStatus status) { this.status = status; }
 
+    public Boolean getParked() { return parked; }
+    public void setParked(Boolean parked) { this.parked = parked; }
+
     public Double getMileage() { return mileage; }
     public void setMileage(Double mileage) { this.mileage = mileage; }
 
@@ -163,93 +168,51 @@ public class Vehicle {
     public User getOwner() { return owner; }
     public void setOwner(User owner) { this.owner = owner; }
 
+    public Double getCurrentLatitude() { return currentLatitude; }
+    public void setCurrentLatitude(Double currentLatitude) { this.currentLatitude = currentLatitude; }
+
+    public Double getCurrentLongitude() { return currentLongitude; }
+    public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
+
+    public String getCurrentCity() { return currentCity; }
+    public void setCurrentCity(String currentCity) { this.currentCity = currentCity; }
+
+    public String getHomeDepotCity() { return homeDepotCity; }
+    public void setHomeDepotCity(String homeDepotCity) { this.homeDepotCity = homeDepotCity; }
+
+    public Double getHomeDepotLatitude() { return homeDepotLatitude; }
+    public void setHomeDepotLatitude(Double homeDepotLatitude) { this.homeDepotLatitude = homeDepotLatitude; }
+
+    public Double getHomeDepotLongitude() { return homeDepotLongitude; }
+    public void setHomeDepotLongitude(Double homeDepotLongitude) { this.homeDepotLongitude = homeDepotLongitude; }
+
+    public Double getLastFuelLevel() { return lastFuelLevel; }
+    public void setLastFuelLevel(Double lastFuelLevel) { this.lastFuelLevel = lastFuelLevel; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-    public Double getCurrentLatitude() {
-        return currentLatitude;
-    }
 
-    public void setCurrentLatitude(Double currentLatitude) {
-        this.currentLatitude = currentLatitude;
-    }
-
-    public Double getCurrentLongitude() {
-        return currentLongitude;
-    }
-
-    public void setCurrentLongitude(Double currentLongitude) {
-        this.currentLongitude = currentLongitude;
-    }
-
-    public String getCurrentCity() {
-        return currentCity;
-    }
-
-    public void setCurrentCity(String currentCity) {
-        this.currentCity = currentCity;
-    }
-
-    public String getHomeDepotCity() {
-        return homeDepotCity;
-    }
-
-    public void setHomeDepotCity(String homeDepotCity) {
-        this.homeDepotCity = homeDepotCity;
-    }
-
-    public Double getHomeDepotLatitude() {
-        return homeDepotLatitude;
-    }
-
-    public void setHomeDepotLatitude(Double homeDepotLatitude) {
-        this.homeDepotLatitude = homeDepotLatitude;
-    }
-
-    public Double getHomeDepotLongitude() {
-        return homeDepotLongitude;
-    }
-
-    public void setHomeDepotLongitude(Double homeDepotLongitude) {
-        this.homeDepotLongitude = homeDepotLongitude;
-    }
-    public Double getLastFuelLevel() {
-        return lastFuelLevel;
-    }
-
-    public void setLastFuelLevel(Double lastFuelLevel) {
-        this.lastFuelLevel = lastFuelLevel;
-    }
-
-    // =========================
-    // ENUMS
-    // =========================
-
-    /**
-     * Types de carburant supportés.
-     */
     public enum FuelType {
         GASOLINE, DIESEL, ELECTRIC, HYBRID, LPG
     }
 
-    /**
-     * Types de transmission.
-     */
     public enum TransmissionType {
         MANUAL, AUTOMATIC, SEMI_AUTOMATIC
     }
 
-    /**
-     * Statuts métier du véhicule.
-     */
     public enum VehicleStatus {
         AVAILABLE,
         IN_USE,
         WITH_DRIVER,
+        OUTSIDE_DEPOT,
+        RETURNING_TO_DEPOT,
+        PARKED,
         UNDER_MAINTENANCE,
         OUT_OF_SERVICE,
-        RESERVED
+        RESERVED,
+        BROKEN_DOWN
     }
 }

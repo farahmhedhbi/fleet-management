@@ -167,9 +167,7 @@ public class MissionPlanningService {
             Vehicle vehicle,
             Driver driver
     ) {
-        if (AuthUtil.isAdmin(auth)) {
-            return;
-        }
+        if (AuthUtil.isAdmin(auth)) return;
 
         if (!AuthUtil.hasRole(auth, "OWNER")) {
             throw new AccessDeniedException("OWNER only");
@@ -249,13 +247,7 @@ public class MissionPlanningService {
 
         Long vehicleId = vehicle.getId();
 
-        if (vehicle.getStatus() == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
-            throw new IllegalArgumentException("Ce véhicule est hors service.");
-        }
-
-        if (vehicle.getStatus() == Vehicle.VehicleStatus.UNDER_MAINTENANCE) {
-            throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
-        }
+        validateVehicleAssignable(vehicle);
 
         List<Mission> vehicleOverlaps = missionRepository.findVehicleOverlaps(
                 vehicleId,
@@ -323,10 +315,42 @@ public class MissionPlanningService {
         }
     }
 
-    private String safeTitle(Mission mission) {
-        if (mission == null) {
-            return "Mission inconnue";
+    private void validateVehicleAssignable(Vehicle vehicle) {
+        Vehicle.VehicleStatus status = vehicle.getStatus();
+
+        if (status == Vehicle.VehicleStatus.OUT_OF_SERVICE) {
+            throw new IllegalArgumentException("Ce véhicule est hors service.");
         }
+
+        if (status == Vehicle.VehicleStatus.UNDER_MAINTENANCE) {
+            throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
+        }
+
+        if (status == Vehicle.VehicleStatus.BROKEN_DOWN) {
+            throw new IllegalArgumentException("Ce véhicule est en panne.");
+        }
+
+        if (status == Vehicle.VehicleStatus.RETURNING_TO_DEPOT) {
+            throw new IllegalArgumentException("Ce véhicule est en retour dépôt.");
+        }
+
+        if (status == Vehicle.VehicleStatus.IN_USE) {
+            throw new IllegalArgumentException("Ce véhicule est actuellement en mission.");
+        }
+
+        if (status == Vehicle.VehicleStatus.RESERVED) {
+            throw new IllegalArgumentException("Ce véhicule est réservé.");
+        }
+
+        /*
+         * IMPORTANT:
+         * AVAILABLE + parked=false est autorisé.
+         * Cela veut dire: véhicule disponible sur terrain.
+         */
+    }
+
+    private String safeTitle(Mission mission) {
+        if (mission == null) return "Mission inconnue";
 
         if (mission.getTitle() != null && !mission.getTitle().isBlank()) {
             return mission.getTitle();

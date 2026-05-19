@@ -78,9 +78,4 @@ export const missionService = {
   async remove(id: number): Promise<void> {
     await api.delete(`/api/missions/${id}`);
   },
-
-  async returnToDepot(missionId: number) {
-  const res = await api.post(`/api/driver/missions/${missionId}/return-depot`);
-  return res.data;
-}
 };

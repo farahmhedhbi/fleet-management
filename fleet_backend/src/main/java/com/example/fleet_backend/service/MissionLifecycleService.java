@@ -38,6 +38,7 @@ public class MissionLifecycleService {
     private final VehicleLiveStateRepository vehicleLiveStateRepository;
     private final MaintenanceRepository maintenanceRepository;
     private final ObjectMapper objectMapper;
+    private final PostMissionDecisionService postMissionDecisionService;
 
     public MissionLifecycleService(
             MissionRepository missionRepository,
@@ -45,7 +46,8 @@ public class MissionLifecycleService {
             VehicleRepository vehicleRepository,
             VehicleLiveStateRepository vehicleLiveStateRepository,
             MaintenanceRepository maintenanceRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PostMissionDecisionService postMissionDecisionService
     ) {
         this.missionRepository = missionRepository;
         this.driverRepository = driverRepository;
@@ -53,6 +55,7 @@ public class MissionLifecycleService {
         this.vehicleLiveStateRepository = vehicleLiveStateRepository;
         this.maintenanceRepository = maintenanceRepository;
         this.objectMapper = objectMapper;
+        this.postMissionDecisionService = postMissionDecisionService;
     }
 
     public Mission startMission(Mission mission, Authentication auth) {
@@ -98,6 +101,14 @@ public class MissionLifecycleService {
             throw new IllegalArgumentException("Ce véhicule est actuellement en maintenance.");
         }
 
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.BROKEN_DOWN) {
+            throw new IllegalArgumentException("Ce véhicule est en panne.");
+        }
+
+        if (vehicle.getStatus() == Vehicle.VehicleStatus.RETURNING_TO_DEPOT) {
+            throw new IllegalArgumentException("Ce véhicule est en retour dépôt.");
+        }
+
         validateMaintenanceConflictForMission(vehicle, managedMission);
 
         if (missionRepository.existsByVehicleIdAndStatus(
@@ -133,6 +144,7 @@ public class MissionLifecycleService {
         managedMission.setLateAlertSent(false);
 
         vehicle.setStatus(Vehicle.VehicleStatus.IN_USE);
+        vehicle.setParked(false);
 
         driver.setStatus(Driver.DriverStatus.ON_MISSION);
         driver.setAvailableAt(null);
@@ -209,7 +221,7 @@ public class MissionLifecycleService {
         }
 
         updateVehicleLocationAfterMission(managedMission);
-        refreshVehicleStatusAfterMission(managedMission.getVehicle());
+        makeVehicleAvailableOnField(managedMission.getVehicle());
 
         if (managedMission.getDriver() != null) {
             applyDriverRestAfterMission(managedMission.getDriver(), managedMission);
@@ -217,7 +229,11 @@ public class MissionLifecycleService {
 
         managedMission.setLateAlertSent(false);
 
-        return missionRepository.save(managedMission);
+        Mission saved = missionRepository.save(managedMission);
+
+        postMissionDecisionService.handleAfterMissionCompleted(saved);
+
+        return saved;
     }
 
     public Mission cancelMission(Mission mission) {
@@ -245,7 +261,11 @@ public class MissionLifecycleService {
             driverRepository.save(managedMission.getDriver());
         }
 
-        return missionRepository.save(managedMission);
+        Mission saved = missionRepository.save(managedMission);
+
+        postMissionDecisionService.handleNextMissionCancelled(saved);
+
+        return saved;
     }
 
     public Mission completeMissionFromGps(Mission mission) {
@@ -269,7 +289,7 @@ public class MissionLifecycleService {
         updateVehicleLocationAfterMission(managedMission);
 
         if (managedMission.getVehicle() != null) {
-            refreshVehicleStatusAfterMission(managedMission.getVehicle());
+            makeVehicleAvailableOnField(managedMission.getVehicle());
         }
 
         if (managedMission.getDriver() != null) {
@@ -278,7 +298,11 @@ public class MissionLifecycleService {
 
         managedMission.setLateAlertSent(false);
 
-        return missionRepository.save(managedMission);
+        Mission saved = missionRepository.save(managedMission);
+
+        postMissionDecisionService.handleAfterMissionCompleted(saved);
+
+        return saved;
     }
 
     private void updateVehicleLocationAfterMission(Mission mission) {
@@ -306,6 +330,16 @@ public class MissionLifecycleService {
         vehicleRepository.save(vehicle);
     }
 
+    private void makeVehicleAvailableOnField(Vehicle vehicle) {
+        if (vehicle == null || vehicle.getId() == null) {
+            return;
+        }
+
+        vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
+        vehicle.setParked(false);
+        vehicleRepository.save(vehicle);
+    }
+
     private void applyDriverRestAfterMission(Driver driver, Mission mission) {
         if (driver == null || mission == null) {
             return;
@@ -313,8 +347,15 @@ public class MissionLifecycleService {
 
         long restMinutes = calculateRestMinutes(mission);
 
-        driver.setStatus(Driver.DriverStatus.RESTING);
-        driver.setAvailableAt(LocalDateTime.now().plusMinutes(restMinutes));
+        if (restMinutes <= 0) {
+            driver.setStatus(Driver.DriverStatus.AVAILABLE);
+            driver.setAvailableAt(null);
+        } else {
+            driver.setStatus(Driver.DriverStatus.RESTING);
+            driver.setAvailableAt(LocalDateTime.now().plusMinutes(restMinutes));
+            driver.setRestStartTime(LocalDateTime.now());
+            driver.setRestEndTime(driver.getAvailableAt());
+        }
 
         driverRepository.save(driver);
     }
@@ -329,22 +370,14 @@ public class MissionLifecycleService {
                 : LocalDateTime.now();
 
         if (start == null) {
-            return 20;
+            return 0;
         }
 
         long durationMinutes = Duration.between(start, end).toMinutes();
 
-        if (durationMinutes < 60) {
-            return 10;
-        }
-
-        if (durationMinutes < 180) {
-            return 20;
-        }
-
-        if (durationMinutes < 360) {
-            return 40;
-        }
+        if (durationMinutes < 60) return 0;
+        if (durationMinutes < 180) return 20;
+        if (durationMinutes < 360) return 40;
 
         return 60;
     }
@@ -405,14 +438,13 @@ public class MissionLifecycleService {
         );
 
         if (hasActiveMaintenance) {
-            setVehicleStatus(vehicle, Vehicle.VehicleStatus.UNDER_MAINTENANCE);
+            vehicle.setStatus(Vehicle.VehicleStatus.UNDER_MAINTENANCE);
+            vehicle.setParked(true);
         } else {
-            setVehicleStatus(vehicle, Vehicle.VehicleStatus.AVAILABLE);
+            vehicle.setStatus(Vehicle.VehicleStatus.AVAILABLE);
+            vehicle.setParked(true);
         }
-    }
 
-    private void setVehicleStatus(Vehicle vehicle, Vehicle.VehicleStatus status) {
-        vehicle.setStatus(status);
         vehicleRepository.save(vehicle);
     }
 

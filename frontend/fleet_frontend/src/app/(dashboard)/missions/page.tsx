@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { missionService } from "@/lib/services/missionService";
+import { returnDepotService } from "@/lib/services/returnDepotService";
 import type { Mission } from "@/types/mission";
 import MissionsView from "./MissionsView";
 
@@ -18,6 +19,7 @@ export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actingId, setActingId] = useState<number | null>(null);
 
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -30,7 +32,6 @@ export default function MissionsPage() {
       const data = await missionService.getAll();
       setMissions(data || []);
     } catch (e: any) {
-      console.error(e);
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
@@ -82,17 +83,19 @@ export default function MissionsPage() {
     if (!confirm("Supprimer cette mission ?")) return;
 
     try {
+      setActingId(id);
       await missionService.remove(id);
       toast.success("Mission supprimée.");
       await loadAll();
     } catch (e: any) {
-      console.error(e);
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
           e?.message ||
           "Erreur suppression mission"
       );
+    } finally {
+      setActingId(null);
     }
   }
 
@@ -100,17 +103,49 @@ export default function MissionsPage() {
     if (!confirm("Annuler cette mission ?")) return;
 
     try {
+      setActingId(id);
       await missionService.cancel(id);
       toast.success("Mission annulée.");
       await loadAll();
     } catch (e: any) {
-      console.error(e);
       toast.error(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
           e?.message ||
           "Erreur annulation mission"
       );
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function suggestReturnDepot(mission: Mission) {
+    if (mission.status !== "COMPLETED") {
+      toast.info("Le retour dépôt est disponible seulement après mission terminée.");
+      return;
+    }
+
+    try {
+      setActingId(mission.id);
+
+      const result = await returnDepotService.suggest(mission.id);
+
+      toast.success(
+        result?.etaMinutes
+          ? `Retour dépôt suggéré. ETA ${result.etaMinutes} min.`
+          : "Retour dépôt suggéré."
+      );
+
+      await loadAll();
+    } catch (e: any) {
+      toast.error(
+        e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          "Impossible de suggérer le retour dépôt"
+      );
+    } finally {
+      setActingId(null);
     }
   }
 
@@ -120,6 +155,7 @@ export default function MissionsPage() {
         filtered={filtered}
         loading={loading}
         refreshing={refreshing}
+        actingId={actingId}
         q={q}
         setQ={setQ}
         statusFilter={statusFilter}
@@ -128,6 +164,7 @@ export default function MissionsPage() {
         onRefresh={loadAll}
         onDeleteMission={deleteMission}
         onCancelMission={cancelMission}
+        onSuggestReturnDepot={suggestReturnDepot}
       />
     </ProtectedRoute>
   );

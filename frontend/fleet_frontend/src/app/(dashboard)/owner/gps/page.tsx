@@ -14,6 +14,9 @@ import {
   ShieldAlert,
   Wrench,
   Zap,
+  Warehouse,
+  Navigation,
+  Clock3,
 } from "lucide-react";
 
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -22,8 +25,10 @@ import { gpsService } from "@/lib/services/gpsService";
 import {
   subscribeEventsLive,
   subscribeGpsLive,
+  subscribeReturnDepotLive,
   unsubscribeEventsLive,
   unsubscribeGpsLive,
+  unsubscribeReturnDepotLive,
 } from "@/lib/websocket";
 
 import type {
@@ -31,13 +36,14 @@ import type {
   VehicleEventDTO,
   VehicleLiveStatusDTO,
 } from "@/types/gps";
+import type { ReturnDepotDTO } from "@/types/returnDepot";
 
 const FleetLiveMap = dynamic(() => import("@/components/gps/FleetLiveMap"), {
   ssr: false,
 });
 
 type AlertKind = "ALL" | "OBD" | "GPS";
-type StatusFilter = "ALL" | "OFFLINE" | "MISSION";
+type StatusFilter = "ALL" | "OFFLINE" | "MISSION" | "RETURNING";
 
 const CONFIRMABLE_EVENTS = new Set([
   "OFF_ROUTE",
@@ -120,6 +126,12 @@ function formatDate(value?: string | null) {
   return d.toLocaleString("fr-FR");
 }
 
+function formatDistance(meters?: number | null) {
+  if (meters == null) return "—";
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
 function getEventLabel(type?: string | null) {
   switch (type) {
     case "OBD_LOW_FUEL":
@@ -180,6 +192,8 @@ function getStatusBadgeClasses(status?: string | null) {
       return "border-emerald-200 bg-emerald-100 text-emerald-700";
     case "MISSION_COMPLETED":
       return "border-blue-200 bg-blue-100 text-blue-700";
+    case "RETURNING_TO_DEPOT":
+      return "border-purple-200 bg-purple-100 text-purple-700";
     case "OFF_ROUTE":
     case "BREAKDOWN":
       return "border-red-200 bg-red-100 text-red-700";
@@ -194,10 +208,18 @@ function getStatusBadgeClasses(status?: string | null) {
   }
 }
 
-function getVehicleCardClasses(vehicle: VehicleLiveStatusDTO, selected: boolean) {
+function getVehicleCardClasses(
+  vehicle: VehicleLiveStatusDTO,
+  selected: boolean,
+  returnDepot?: ReturnDepotDTO | null
+) {
   const base = "w-full border-b px-5 py-4 text-left transition hover:shadow-sm";
 
   if (selected) return `${base} border-sky-200 bg-sky-50`;
+
+  if (returnDepot?.status === "IN_PROGRESS") {
+    return `${base} border-purple-100 bg-purple-50 hover:bg-purple-100`;
+  }
 
   switch (vehicle.liveStatus) {
     case "MOVING":
@@ -223,6 +245,10 @@ export default function OwnerGpsPage() {
   const [globalEvents, setGlobalEvents] = useState<VehicleEventDTO[]>([]);
   const [vehicleEvents, setVehicleEvents] = useState<VehicleEventDTO[]>([]);
   const [history, setHistory] = useState<GpsData[]>([]);
+  const [returnDepotByVehicleId, setReturnDepotByVehicleId] = useState<
+    Record<number, ReturnDepotDTO>
+  >({});
+
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(
     null
   );
@@ -423,9 +449,59 @@ export default function OwnerGpsPage() {
       }
     });
 
+    subscribeReturnDepotLive<ReturnDepotDTO>((dto) => {
+      if (!dto?.vehicleId) return;
+
+      setReturnDepotByVehicleId((prev) => ({
+        ...prev,
+        [dto.vehicleId as number]: dto,
+      }));
+
+      setVehicles((prev) =>
+        prev.map((v) => {
+          if (v.vehicleId !== dto.vehicleId) return v;
+
+          if (dto.status === "IN_PROGRESS") {
+            return {
+              ...v,
+              liveStatus: "RETURNING_TO_DEPOT",
+              missionActive: false,
+              missionId: dto.missionId ?? v.missionId,
+              missionStatus: "RETURN_TO_DEPOT",
+            };
+          }
+
+          if (dto.status === "ARRIVED") {
+            return {
+              ...v,
+              liveStatus: "PARKED",
+              missionActive: false,
+              missionId: null,
+              missionStatus: "COMPLETED",
+            };
+          }
+
+          return v;
+        })
+      );
+
+      if (dto.status === "SUGGESTED") {
+        toast.info(`Retour dépôt suggéré pour véhicule #${dto.vehicleId}`);
+      }
+
+      if (dto.status === "IN_PROGRESS") {
+        toast.success(`Véhicule #${dto.vehicleId} retourne au dépôt`);
+      }
+
+      if (dto.status === "ARRIVED") {
+        toast.success(`Véhicule #${dto.vehicleId} arrivé au dépôt`);
+      }
+    });
+
     return () => {
       unsubscribeGpsLive();
       unsubscribeEventsLive();
+      unsubscribeReturnDepotLive();
     };
   }, [markVehicleMissionCompleted]);
 
@@ -441,6 +517,11 @@ export default function OwnerGpsPage() {
   const selectedVehicle = useMemo(() => {
     return vehicles.find((v) => v.vehicleId === selectedVehicleId) ?? null;
   }, [vehicles, selectedVehicleId]);
+
+  const selectedReturnDepot = useMemo(() => {
+    if (!selectedVehicleId) return null;
+    return returnDepotByVehicleId[selectedVehicleId] ?? null;
+  }, [returnDepotByVehicleId, selectedVehicleId]);
 
   const eventsToShow = useMemo(() => {
     if (alertKind === "ALL") return vehicleEvents;
@@ -465,8 +546,16 @@ export default function OwnerGpsPage() {
       return vehicles.filter((v) => v.missionActive);
     }
 
+    if (statusFilter === "RETURNING") {
+      return vehicles.filter(
+        (v) =>
+          v.liveStatus === "RETURNING_TO_DEPOT" ||
+          returnDepotByVehicleId[v.vehicleId]?.status === "IN_PROGRESS"
+      );
+    }
+
     return vehicles;
-  }, [vehicles, statusFilter]);
+  }, [vehicles, statusFilter, returnDepotByVehicleId]);
 
   const renderAlertsPanel = () => (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -624,25 +713,27 @@ export default function OwnerGpsPage() {
               Suivi GPS temps réel
             </h1>
             <p className="mt-1 text-slate-600">
-              GPS, OBD, événements critiques et missions synchronisés via
+              GPS, OBD, événements critiques, missions et retour dépôt via
               WebSocket.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["ALL", "OFFLINE", "MISSION"] as StatusFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
-                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                  statusFilter === f
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+            {(["ALL", "OFFLINE", "MISSION", "RETURNING"] as StatusFilter[]).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                    statusFilter === f
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {f}
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -673,43 +764,122 @@ export default function OwnerGpsPage() {
                       No vehicles found.
                     </div>
                   ) : (
-                    filteredVehicles.map((vehicle) => (
-                      <button
-                        key={vehicle.vehicleId}
-                        onClick={() => setSelectedVehicleId(vehicle.vehicleId)}
-                        className={getVehicleCardClasses(
-                          vehicle,
-                          selectedVehicleId === vehicle.vehicleId
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-bold text-slate-900">
-                              {vehicle.vehicleName}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              Driver: {vehicle.currentDriverName || "Aucun"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              Mission ID: {vehicle.missionId ?? "-"}
-                            </p>
-                          </div>
+                    filteredVehicles.map((vehicle) => {
+                      const returnDepot =
+                        returnDepotByVehicleId[vehicle.vehicleId] ?? null;
 
-                          <span
-                            className={`rounded-full border px-2 py-1 text-xs font-bold ${getStatusBadgeClasses(
-                              vehicle.liveStatus
-                            )}`}
-                          >
-                            {vehicle.liveStatus || "UNKNOWN"}
-                          </span>
-                        </div>
-                      </button>
-                    ))
+                      return (
+                        <button
+                          key={vehicle.vehicleId}
+                          onClick={() =>
+                            setSelectedVehicleId(vehicle.vehicleId)
+                          }
+                          className={getVehicleCardClasses(
+                            vehicle,
+                            selectedVehicleId === vehicle.vehicleId,
+                            returnDepot
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-900">
+                                {vehicle.vehicleName}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Driver: {vehicle.currentDriverName || "Aucun"}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Mission ID: {vehicle.missionId ?? "-"}
+                              </p>
+
+                              {returnDepot?.status === "IN_PROGRESS" && (
+                                <p className="mt-1 text-xs font-black text-purple-700">
+                                  Retour dépôt · ETA{" "}
+                                  {returnDepot.etaMinutes ?? "—"} min ·{" "}
+                                  {formatDistance(returnDepot.distanceMeters)}
+                                </p>
+                              )}
+                            </div>
+
+                            <span
+                              className={`rounded-full border px-2 py-1 text-xs font-bold ${getStatusBadgeClasses(
+                                returnDepot?.status === "IN_PROGRESS"
+                                  ? "RETURNING_TO_DEPOT"
+                                  : vehicle.liveStatus
+                              )}`}
+                            >
+                              {returnDepot?.status === "IN_PROGRESS"
+                                ? "RETURNING"
+                                : vehicle.liveStatus || "UNKNOWN"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </div>
 
               <div className="space-y-6">
+                {selectedReturnDepot && (
+                  <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-600 text-white">
+                        <Warehouse size={22} />
+                      </div>
+
+                      <div className="flex-1">
+                        <h2 className="text-lg font-extrabold text-slate-900">
+                          Return depot
+                        </h2>
+
+                        <p className="mt-1 text-sm font-semibold text-purple-800">
+                          Status: {selectedReturnDepot.status}
+                        </p>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          <Info
+                            label="Distance dépôt"
+                            value={formatDistance(
+                              selectedReturnDepot.distanceMeters
+                            )}
+                          />
+                          <Info
+                            label="ETA"
+                            value={
+                              selectedReturnDepot.etaMinutes != null
+                                ? `${selectedReturnDepot.etaMinutes} min`
+                                : "—"
+                            }
+                          />
+                          <Info
+                            label="Suggested at"
+                            value={formatDate(selectedReturnDepot.suggestedAt)}
+                          />
+                          <Info
+                            label="Started at"
+                            value={formatDate(selectedReturnDepot.startedAt)}
+                          />
+                        </div>
+
+                        {selectedReturnDepot.status === "IN_PROGRESS" && (
+                          <p className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-purple-700">
+                            <Navigation size={15} />
+                            Véhicule en route vers le dépôt
+                          </p>
+                        )}
+
+                        {selectedReturnDepot.status === "ARRIVED" && (
+                          <p className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-emerald-700">
+                            <Clock3 size={15} />
+                            Véhicule arrivé au dépôt
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-extrabold text-slate-900">
                     Selected vehicle
@@ -722,7 +892,14 @@ export default function OwnerGpsPage() {
                   ) : (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <Info label="Vehicle" value={selectedVehicle.vehicleName} />
-                      <Info label="Status" value={selectedVehicle.liveStatus} />
+                      <Info
+                        label="Status"
+                        value={
+                          selectedReturnDepot?.status === "IN_PROGRESS"
+                            ? "RETURNING_TO_DEPOT"
+                            : selectedVehicle.liveStatus
+                        }
+                      />
                       <Info
                         label="Speed"
                         value={`${selectedVehicle.speed ?? 0} km/h`}

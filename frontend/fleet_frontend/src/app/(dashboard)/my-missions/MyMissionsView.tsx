@@ -178,7 +178,7 @@ export default function MyMissionsView({
 
                 <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">
                   Suivez vos missions, vérifiez la route, gérez le repos et
-                  déclarez un incident si nécessaire.
+                  demandez le retour dépôt si nécessaire.
                 </p>
               </div>
 
@@ -340,41 +340,12 @@ export default function MyMissionsView({
                   </div>
 
                   <div className="grid gap-3 p-5 md:grid-cols-2">
-                    <InfoItem
-                      icon={<Car className="h-4 w-4" />}
-                      label="Véhicule"
-                      value={m.vehicleRegistrationNumber || "Inconnu"}
-                    />
-
-                    <InfoItem
-                      icon={<User className="h-4 w-4" />}
-                      label="Conducteur"
-                      value={m.driverName || "Inconnu"}
-                    />
-
-                    <InfoItem
-                      icon={<Calendar className="h-4 w-4" />}
-                      label="Début prévu"
-                      value={formatDateTime(m.startDate)}
-                    />
-
-                    <InfoItem
-                      icon={<Flag className="h-4 w-4" />}
-                      label="Fin prévue"
-                      value={formatDateTime(m.endDate)}
-                    />
-
-                    <InfoItem
-                      icon={<Clock className="h-4 w-4" />}
-                      label="Démarrée"
-                      value={formatDateTime(m.startedAt)}
-                    />
-
-                    <InfoItem
-                      icon={<CheckCircle2 className="h-4 w-4" />}
-                      label="Terminée"
-                      value={formatDateTime(m.finishedAt)}
-                    />
+                    <InfoItem icon={<Car className="h-4 w-4" />} label="Véhicule" value={m.vehicleRegistrationNumber || "Inconnu"} />
+                    <InfoItem icon={<User className="h-4 w-4" />} label="Conducteur" value={m.driverName || "Inconnu"} />
+                    <InfoItem icon={<Calendar className="h-4 w-4" />} label="Début prévu" value={formatDateTime(m.startDate)} />
+                    <InfoItem icon={<Flag className="h-4 w-4" />} label="Fin prévue" value={formatDateTime(m.endDate)} />
+                    <InfoItem icon={<Clock className="h-4 w-4" />} label="Démarrée" value={formatDateTime(m.startedAt)} />
+                    <InfoItem icon={<CheckCircle2 className="h-4 w-4" />} label="Terminée" value={formatDateTime(m.finishedAt)} />
                   </div>
 
                   <div className="space-y-4 border-t border-slate-100 bg-slate-50 p-5">
@@ -441,26 +412,6 @@ export default function MyMissionsView({
                         </p>
                       ) : null}
 
-                      <div className="mt-4 grid gap-2 text-xs font-bold text-slate-600 sm:grid-cols-2">
-                        <p>
-                          Risque :{" "}
-                          <span
-                            className={cn(
-                              "font-black",
-                              riskTextClass(m.routeRiskLevel)
-                            )}
-                          >
-                            {m.routeRiskLevel || "—"}
-                          </span>
-                        </p>
-
-                        <p>Retard : +{m.estimatedDelayMinutes ?? 0} min</p>
-                        <p>Durée initiale : {m.originalDurationMinutes ?? "—"} min</p>
-                        <p>Durée choisie : {m.selectedDurationMinutes ?? "—"} min</p>
-                        <p>Distance initiale : {m.originalDistanceKm ?? "—"} km</p>
-                        <p>Distance choisie : {m.selectedDistanceKm ?? "—"} km</p>
-                      </div>
-
                       {m.status === "PLANNED" ? (
                         <button
                           type="button"
@@ -522,7 +473,7 @@ export default function MyMissionsView({
                         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-black text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Warehouse className="h-4 w-4" />
-                        {busy ? "Analyse retour..." : "Return to depot"}
+                        {busy ? "Création retour dépôt..." : "Demander retour dépôt"}
                       </button>
                     ) : null}
 
